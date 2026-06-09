@@ -13,7 +13,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.consultorio-equilibrium.rule=Host(`consultorioequilibrium.datawavebr.com`)"
       - "traefik.http.routers.consultorio-equilibrium.entrypoints=websecure"
-      - "traefik.http.routers.consultorio-equilibrium.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.consultorio-equilibrium.tls.certresolver=leresolver"
       - "traefik.http.services.consultorio-equilibrium.loadbalancer.server.port=3000"
 
 networks:
