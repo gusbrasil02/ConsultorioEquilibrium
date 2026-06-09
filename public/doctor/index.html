@@ -1,0 +1,2567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel da Profissional</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+<!-- Chart.js via CDN para os gráficos de histórico do paciente -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #0e0e16;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+}
+
+/* ── Modal de notificação ── */
+#notification-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.4s;
+}
+#notification-overlay.visible { opacity: 1; pointer-events: all; }
+
+.modal-card {
+  background: #16161e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  padding: 2.5rem;
+  max-width: 500px; width: 100%;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+}
+.modal-icon {
+  width: 64px; height: 64px;
+  background: linear-gradient(135deg,#6a3fa8,#3a6fa8);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.modal-icon svg { width: 32px; height: 32px; }
+.modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem; font-weight: 400;
+  margin-bottom: 0.4rem;
+}
+.modal-subtitle { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 1.8rem; }
+.modal-summary { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+.summary-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+.summary-icon { font-size: 1.1rem; flex-shrink: 0; }
+.summary-label { color: rgba(255,255,255,0.45); font-size: 0.8rem; min-width: 60px; }
+.summary-value { color: rgba(255,255,255,0.9); font-size: 0.95rem; }
+.modal-btn-row { display: flex; gap: 0.75rem; }
+.btn-acknowledge {
+  flex: 1; padding: 1rem;
+  border: none; border-radius: 60px;
+  color: #fff; font-family: 'DM Sans', sans-serif;
+  font-size: 1rem; font-weight: 500;
+  cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+}
+.btn-acknowledge:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-wait  { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+.btn-enter { flex: 1.4; background: linear-gradient(135deg, #6a3fa8, #3a6fa8); }
+
+/* ── Controle de sessão no dashboard ── */
+#session-control {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.015);
+  flex-wrap: wrap;
+}
+#session-control.hidden { display: none; }
+#session-timer {
+  font-size: 2rem; font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255,255,255,0.75);
+  letter-spacing: 0.05em;
+  min-width: 90px;
+}
+.btn-session-action {
+  padding: 0.65rem 1.4rem;
+  border-radius: 60px; border: none;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.btn-session-action:hover { opacity: 0.85; transform: translateY(-1px); }
+.btn-can-enter { background: linear-gradient(135deg, #6a3fa8, #3a6fa8); color: #fff; }
+.btn-start     { background: rgba(60,180,100,0.2); border: 1px solid rgba(60,180,100,0.5); color: #70e0a0; }
+.btn-finish    { background: rgba(200,60,60,0.2); border: 1px solid rgba(200,60,60,0.5); color: #f08888; }
+.session-status-label {
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.35);
+}
+
+/* ── Header com tabs ── */
+.main-header {
+  display: grid; grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 2rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  height: 54px;
+  position: sticky; top: 0; z-index: 100;
+}
+.main-header .header-tabs { justify-self: center; }
+.header-clinic {
+  font-family: 'Playfair Display', serif;
+  font-size: 0.95rem; font-weight: 300;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.header-tabs {
+  display: flex; gap: 0.25rem;
+}
+.tab-btn {
+  padding: 0.45rem 1.1rem;
+  background: transparent;
+  border: none; border-radius: 60px;
+  color: rgba(255,255,255,0.4);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.tab-btn:hover { color: rgba(255,255,255,0.7); }
+.tab-btn.active {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+.header-clock {
+  font-size: 1.4rem; font-weight: 300;
+  color: rgba(255,255,255,0.6);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  justify-self: end;
+}
+
+
+/* ── Views principais ── */
+.view { display: none; }
+.view.visible { display: block; }
+
+/* ── Botão acupuntura na barra de sessão ── */
+.btn-acu {
+  background: linear-gradient(135deg, rgba(120,80,200,0.25), rgba(40,140,120,0.25));
+  border: 1px solid rgba(120,200,180,0.4);
+  color: rgba(120,220,200,0.9);
+}
+.btn-acu:hover { background: linear-gradient(135deg, rgba(120,80,200,0.45), rgba(40,140,120,0.45)) !important; }
+
+/* ── Modal de Acupuntura ── */
+#acu-overlay {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(10px);
+  display: none; flex-direction: column;
+}
+.acu-modal {
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%;
+  background: #07070f;
+}
+.acu-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.8rem 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  flex-shrink: 0;
+}
+.acu-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.15rem; font-weight: 300;
+  color: rgba(255,255,255,0.85);
+  letter-spacing: 0.04em;
+}
+.acu-modal-close {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.6);
+  font-size: 1.2rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.acu-modal-close:hover { background: rgba(255,255,255,0.14); }
+.acu-modal-body {
+  display: grid; grid-template-columns: 1fr 280px;
+  flex: 1; overflow: hidden;
+}
+#acu-canvas-doctor {
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+.acu-sidebar {
+  border-left: 1px solid rgba(255,255,255,0.07);
+  display: flex; flex-direction: column;
+  padding: 1rem;
+  overflow-y: auto;
+  gap: 0.5rem;
+}
+.acu-section-title {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.14em;
+  color: rgba(255,255,255,0.3);
+  margin-top: 0.8rem; margin-bottom: 0.4rem;
+}
+.meridian-toggle {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.78rem; color: rgba(255,255,255,0.65);
+  cursor: pointer; padding: 0.2rem 0;
+  user-select: none;
+}
+.meridian-toggle input[type="checkbox"] { accent-color: #a060ff; }
+.meridian-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+#acu-selected-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.selected-pt-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px; padding: 0.35rem 0.6rem;
+  font-size: 0.78rem;
+}
+.selected-pt-id   { font-weight: 600; color: rgba(255,255,255,0.9); min-width: 40px; }
+.selected-pt-name { color: rgba(255,255,255,0.5); font-size: 0.72rem; flex: 1; }
+.selected-pt-remove {
+  background: none; border: none; color: rgba(255,80,80,0.6);
+  cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
+}
+.selected-pt-remove:hover { color: rgba(255,80,80,1); }
+.acu-hint {
+  font-size: 0.72rem; color: rgba(255,255,255,0.25);
+  text-align: center; padding: 0.5rem 0;
+}
+.btn-acu-send {
+  margin-top: auto;
+  padding: 0.8rem 1rem;
+  border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #4a9a7a, #2a7a6a);
+  color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+}
+.btn-acu-send:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-acu-clear {
+  padding: 0.55rem 1rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.5);
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-acu-clear:hover { background: rgba(255,255,255,0.10); }
+
+/* ─────────────── DASHBOARD ─────────────── */
+.hero {
+  padding: 2.5rem 2rem 1.5rem;
+  display: flex; align-items: flex-start; gap: 2rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.avatar {
+  width: 80px; height: 80px; flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.8rem; font-weight: 500;
+  color: rgba(255,255,255,0.9);
+}
+.hero-info { flex: 1; }
+.patient-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2.8rem; font-weight: 300; line-height: 1.1;
+  margin-bottom: 0.5rem; color: rgba(255,255,255,0.95);
+}
+.badge-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+.badge {
+  padding: 0.3rem 0.9rem; border-radius: 60px;
+  font-size: 0.78rem; font-weight: 500; letter-spacing: 0.04em;
+}
+.badge-session { background: rgba(100,80,180,0.2); border: 1px solid rgba(100,80,180,0.4); color: #b8a8e8; }
+.badge-first   { background: rgba(60,160,100,0.2); border: 1px solid rgba(60,160,100,0.4); color: #88d4aa; }
+.hero-time { color: rgba(255,255,255,0.35); font-size: 0.85rem; }
+
+.alerts-row {
+  display: flex; gap: 0.6rem; flex-wrap: wrap;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.alert-pill {
+  padding: 0.35rem 1rem; border-radius: 60px;
+  font-size: 0.8rem; font-weight: 500;
+}
+.alert-red    { background: rgba(200,50,50,0.2);   border: 1px solid rgba(200,50,50,0.4);   color: #f08080; }
+.alert-orange { background: rgba(200,120,30,0.2);  border: 1px solid rgba(200,120,30,0.4);  color: #f0b070; }
+.alert-green  { background: rgba(50,180,100,0.2);  border: 1px solid rgba(50,180,100,0.4);  color: #70e0a0; }
+.alert-purple { background: rgba(140,80,200,0.2);  border: 1px solid rgba(140,80,200,0.4);  color: #c0a0e8; }
+.alert-blue   { background: rgba(50,120,200,0.2);  border: 1px solid rgba(50,120,200,0.4);  color: #90c0f0; }
+
+.metrics-grid {
+  display: grid; grid-template-columns: repeat(3,1fr) 1.4fr;
+  gap: 1rem; padding: 1.5rem 2rem;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+@media (max-width: 900px) { .metrics-grid { grid-template-columns: 1fr 1fr; } }
+.metric-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px; padding: 1.2rem 1.4rem;
+}
+.metric-label {
+  font-size: 0.72rem; text-transform: uppercase;
+  letter-spacing: 0.1em; color: rgba(255,255,255,0.35); margin-bottom: 0.6rem;
+}
+.metric-value { font-size: 1.3rem; font-weight: 400; color: rgba(255,255,255,0.9); margin-bottom: 0.8rem; }
+.sleep-dots { display: flex; gap: 5px; }
+.sleep-dot  { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.15); }
+.sleep-dot.active { background: rgba(180,140,255,0.8); }
+.pain-bar {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, #4caf86, #f0c040, #e05050);
+  position: relative; overflow: visible;
+}
+.pain-marker {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 14px; height: 14px;
+  background: #fff; border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.pain-display { font-size: 1.8rem; font-weight: 300; color: rgba(255,255,255,0.9); }
+.metric-reason { font-style: italic; color: rgba(255,255,255,0.7); font-size: 0.95rem; line-height: 1.5; }
+.reason-quotes { font-size: 2rem; line-height: 0.5; color: rgba(255,255,255,0.15); font-family: Georgia,serif; }
+
+.history-section { padding: 1.5rem 2rem 2rem; }
+.section-title {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.3); margin-bottom: 1rem;
+}
+.history-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.history-item {
+  display: flex; align-items: center; gap: 1.5rem;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; padding: 0.9rem 1.2rem;
+  font-size: 0.85rem; color: rgba(255,255,255,0.55);
+}
+.history-date { color: rgba(255,255,255,0.4); min-width: 100px; }
+.history-metric { display: flex; gap: 0.3rem; align-items: center; }
+.history-metric span { color: rgba(255,255,255,0.65); }
+.no-history { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.9rem; }
+
+/* Botão Modo Consulta no dashboard */
+.btn-consult {
+  padding: 0.6rem 1.2rem;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 60px;
+  color: rgba(255,255,255,0.7);
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-consult:hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+/* ── Modo Consulta ── */
+#consult-mode { display: none; min-height: 100vh; }
+#consult-mode.visible { display: grid; grid-template-columns: 1fr 1fr; }
+@media (max-width: 800px) { #consult-mode.visible { grid-template-columns: 1fr; } }
+.consult-left  { padding: 2rem; border-right: 1px solid rgba(255,255,255,0.06); overflow-y: auto; }
+.consult-right { padding: 2rem; background: rgba(255,255,255,0.01); overflow-y: auto; }
+.consult-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;
+}
+.consult-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 300; color: rgba(255,255,255,0.8); }
+.btn-back-dash {
+  padding: 0.5rem 1rem;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 60px; color: rgba(255,255,255,0.5);
+  font-size: 0.8rem; cursor: pointer; font-family: 'DM Sans', sans-serif;
+}
+.view-toggle { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+.toggle-btn {
+  flex: 1; padding: 0.6rem 1rem;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 60px; color: rgba(255,255,255,0.5);
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.toggle-btn.active { background: rgba(255,180,50,0.15); border-color: rgba(255,180,50,0.4); color: #ffd070; }
+.body-svg-wrapper { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+.body-svg-wrapper svg { width: 180px; height: auto; }
+.body-region {
+  fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 0.8;
+  cursor: pointer; transition: fill 0.2s, stroke 0.2s;
+}
+.body-region:hover { fill: rgba(255,255,255,0.15); stroke: rgba(255,255,255,0.35); }
+.body-region.selected {
+  fill: rgba(255,180,50,0.25); stroke: rgba(255,180,50,0.7); stroke-width: 1.2;
+  filter: drop-shadow(0 0 6px rgba(255,180,50,0.5));
+}
+.problem-input {
+  width: 100%; padding: 0.9rem 1rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px; color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+  resize: vertical; min-height: 90px; outline: none;
+  margin-bottom: 1rem; transition: border-color 0.2s;
+}
+.problem-input::placeholder { color: rgba(255,255,255,0.25); }
+.problem-input:focus { border-color: rgba(255,255,255,0.3); }
+.btn-generate-ai {
+  width: 100%; padding: 0.85rem;
+  background: linear-gradient(135deg, #6a3fa8, #3a6fa8);
+  border: none; border-radius: 60px;
+  color: #fff; font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem; font-weight: 500;
+  cursor: pointer; margin-bottom: 1.2rem; transition: opacity 0.2s;
+}
+.btn-generate-ai:disabled { opacity: 0.4; cursor: default; }
+.ai-preview {
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 1.2rem;
+  font-size: 0.9rem; line-height: 1.7; color: rgba(255,255,255,0.75);
+  min-height: 80px; margin-bottom: 1rem; white-space: pre-wrap;
+}
+.ai-preview.loading { color: rgba(255,255,255,0.3); font-style: italic; }
+.btn-send-tv {
+  width: 100%; padding: 0.85rem;
+  background: rgba(76,175,134,0.2); border: 1px solid rgba(76,175,134,0.4);
+  border-radius: 60px; color: #88d4aa;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; display: none; transition: background 0.2s;
+}
+.btn-send-tv.visible { display: block; }
+.btn-send-tv:hover { background: rgba(76,175,134,0.3); }
+.preview-label {
+  font-size: 0.72rem; text-transform: uppercase;
+  letter-spacing: 0.12em; color: rgba(255,255,255,0.25); margin-bottom: 1rem;
+}
+.preview-card {
+  background: #0c0c14; border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px; padding: 1.5rem; min-height: 200px;
+}
+.preview-region-label { font-size: 0.8rem; color: rgba(255,180,50,0.7); margin-bottom: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.preview-text { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; line-height: 1.8; color: rgba(255,255,255,0.7); white-space: pre-wrap; }
+
+/* ─────────────── AGENDA ─────────────── */
+#agenda-view { padding: 2rem; overflow-y: auto; max-height: calc(100vh - 60px); }
+
+.agenda-header {
+  display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+}
+.agenda-nav-btn {
+  padding: 0.5rem 1.1rem;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 60px; color: rgba(255,255,255,0.6);
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+  cursor: pointer; transition: background 0.2s, color 0.2s;
+}
+.agenda-nav-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.agenda-week-label {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem; font-weight: 300;
+  color: rgba(255,255,255,0.8);
+  flex: 1; text-align: center;
+}
+
+/* Grade semanal com horários */
+.agenda-scroll { overflow-x: auto; }
+.week-grid {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(90px, 1fr));
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px; overflow: hidden;
+  min-width: 700px;
+}
+
+/* Coluna de horários */
+.time-axis {}
+.time-axis-header {
+  height: 50px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-right: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.015);
+}
+.time-tick {
+  height: 42px;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 0.45rem;
+  font-size: 0.6rem; color: rgba(255,255,255,0.22);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-right: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.01);
+}
+
+.day-col {
+  background: transparent; border: none; border-radius: 0;
+  min-height: unset; overflow: visible;
+  border-right: 1px solid rgba(255,255,255,0.05);
+}
+.day-col:last-child { border-right: none; }
+
+.day-header {
+  height: 50px; padding: 0.5rem 0.3rem; text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.02);
+}
+.day-name {
+  font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.3); margin-bottom: 0.15rem;
+}
+.day-num { font-size: 1.1rem; font-weight: 300; color: rgba(255,255,255,0.65); }
+.day-col.today .day-header { background: rgba(100,80,200,0.1); }
+.day-col.today .day-num { color: #b8a8e8; }
+
+/* Slot de horário */
+.time-slot {
+  height: 42px; position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+}
+.time-slot.free { cursor: pointer; }
+.time-slot.free:hover { background: rgba(255,255,255,0.025); }
+.time-slot.free:hover::after {
+  content: '+';
+  position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%);
+  font-size: 0.85rem; color: rgba(255,255,255,0.18);
+}
+
+/* Card de agendamento dentro do slot */
+.slot-card {
+  position: absolute;
+  border-radius: 5px; padding: 0.18rem 0.4rem;
+  cursor: pointer; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center;
+  transition: filter 0.15s;
+  z-index: 2;
+}
+.time-slot { overflow: visible; }
+.slot-card:hover { filter: brightness(1.3); }
+.sc-name { font-size: 0.7rem; color: rgba(255,255,255,0.9); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-type { font-size: 0.58rem; color: rgba(255,255,255,0.5); }
+.sc-history-btn {
+  position: absolute; top: 2px; right: 2px; z-index: 3;
+  width: 16px; height: 16px;
+  background: rgba(255,255,255,0.1); border: none; border-radius: 3px;
+  color: rgba(255,255,255,0.55); font-size: 0.6rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  line-height: 1; transition: background 0.15s, color 0.15s;
+}
+.sc-history-btn:hover { background: rgba(106,63,168,0.65); color: #fff; }
+
+.slot-agendado   { background: rgba(50,120,200,0.22); border: 1px solid rgba(50,120,200,0.4); }
+.slot-confirmado { background: rgba(50,180,100,0.22); border: 1px solid rgba(50,180,100,0.4); }
+.slot-atendimento{ background: rgba(220,180,30,0.22); border: 1px solid rgba(220,180,30,0.4); }
+.slot-concluido  { background: rgba(100,100,120,0.18); border: 1px solid rgba(100,100,120,0.35); }
+.slot-cancelado  { background: rgba(200,50,50,0.18); border: 1px solid rgba(200,50,50,0.35); }
+.slot-falta      { background: rgba(200,120,30,0.18); border: 1px solid rgba(200,120,30,0.35); }
+
+/* FAB — botão flutuante */
+.fab {
+  position: fixed; bottom: 2rem; right: 2rem; z-index: 500;
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, #6a3fa8, #3a6fa8);
+  border: none; border-radius: 50%;
+  color: #fff; font-size: 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(106,63,168,0.5);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(106,63,168,0.6); }
+
+/* ── Modal genérico ── */
+.generic-overlay {
+  position: fixed; inset: 0; z-index: 1500;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.generic-overlay.visible { opacity: 1; pointer-events: all; }
+
+.modal-sheet {
+  background: #16161e;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 2rem;
+  width: 100%; max-width: 520px;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 24px 72px rgba(0,0,0,0.6);
+}
+.modal-sheet h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem; font-weight: 300;
+  color: rgba(255,255,255,0.9);
+  margin-bottom: 1.5rem;
+}
+.form-group { margin-bottom: 1rem; }
+.form-label {
+  display: block; font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4); margin-bottom: 0.4rem;
+}
+.form-control {
+  width: 100%; padding: 0.75rem 1rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px; color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+  outline: none; transition: border-color 0.2s;
+}
+.form-control::placeholder { color: rgba(255,255,255,0.25); }
+.form-control:focus { border-color: rgba(255,255,255,0.3); }
+.form-control option { background: #1e1e2e; }
+.modal-actions {
+  display: flex; gap: 0.8rem; justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+.btn-cancel {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 60px; color: rgba(255,255,255,0.6);
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; cursor: pointer;
+}
+.btn-save {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #6a3fa8, #3a6fa8);
+  border: none; border-radius: 60px; color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: opacity 0.2s;
+}
+.btn-save:hover { opacity: 0.9; }
+
+/* ── Modal de finalização de sessão ── */
+.finish-field-wrap { position: relative; }
+.finish-textarea {
+  width: 100%; padding: 0.75rem 2.8rem 0.75rem 1rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px; color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+  resize: vertical; min-height: 90px; outline: none;
+  transition: border-color 0.2s;
+}
+.finish-textarea::placeholder { color: rgba(255,255,255,0.25); }
+.finish-textarea:focus { border-color: rgba(255,255,255,0.3); }
+.btn-mic {
+  position: absolute; top: 0.6rem; right: 0.6rem;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.5); font-size: 0.85rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-mic:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.btn-mic.recording {
+  background: rgba(200,50,50,0.35); border-color: rgba(200,50,50,0.6);
+  color: #f08080; animation: mic-pulse 1s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(200,50,50,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(200,50,50,0); }
+}
+.notes-pill {
+  font-size: 0.75rem; color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 0.3rem 0.6rem; margin-top: 0.4rem;
+  font-style: italic; line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+
+/* Campo de busca de paciente no modal de agendamento */
+.patient-search-wrapper { position: relative; }
+.patient-suggestions {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+  background: #1e1e2e; border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px; margin-top: 4px;
+  max-height: 180px; overflow-y: auto;
+  display: none;
+}
+.patient-suggestions.open { display: block; }
+.suggestion-item {
+  padding: 0.65rem 1rem; cursor: pointer;
+  font-size: 0.9rem; color: rgba(255,255,255,0.8);
+  transition: background 0.15s;
+}
+.suggestion-item:hover { background: rgba(255,255,255,0.06); }
+.suggestion-item.no-patient { color: rgba(255,255,255,0.4); font-style: italic; }
+
+/* ─────────────── PACIENTES ─────────────── */
+#patients-view { padding: 2rem; }
+
+.patients-toolbar {
+  display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;
+}
+.search-input {
+  flex: 1; min-width: 200px;
+  padding: 0.65rem 1rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 60px; color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; outline: none;
+  transition: border-color 0.2s;
+}
+.search-input::placeholder { color: rgba(255,255,255,0.3); }
+.search-input:focus { border-color: rgba(255,255,255,0.3); }
+
+.patients-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;
+}
+.patient-card {
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px; padding: 1.2rem;
+  cursor: pointer; transition: background 0.2s, border-color 0.2s;
+}
+.patient-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.pc-avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; font-weight: 500; color: rgba(255,255,255,0.9);
+  margin-bottom: 0.8rem;
+}
+.pc-name { font-size: 1rem; font-weight: 500; color: rgba(255,255,255,0.9); margin-bottom: 0.3rem; }
+.pc-phone { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-bottom: 0.3rem; }
+.pc-condition { font-size: 0.8rem; color: rgba(255,255,255,0.55); font-style: italic; }
+.pc-last { font-size: 0.72rem; color: rgba(255,255,255,0.3); margin-top: 0.5rem; }
+
+/* ── Detalhe do Paciente ── */
+#patient-detail-view { padding: 2rem; display: none; }
+#patient-detail-view.visible { display: block; }
+
+.detail-back {
+  padding: 0.5rem 1.1rem;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 60px; color: rgba(255,255,255,0.5);
+  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; cursor: pointer;
+  margin-bottom: 1.5rem; display: inline-block;
+}
+.detail-header {
+  display: flex; align-items: flex-start; gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+.detail-avatar {
+  width: 72px; height: 72px; flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 500; color: rgba(255,255,255,0.9);
+}
+.detail-info h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2rem; font-weight: 300; margin-bottom: 0.4rem;
+}
+.detail-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.detail-tag {
+  font-size: 0.78rem; color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 60px; padding: 0.2rem 0.7rem;
+}
+.session-count-badge {
+  font-size: 0.8rem; color: #b8a8e8;
+  background: rgba(100,80,180,0.2); border: 1px solid rgba(100,80,180,0.4);
+  border-radius: 60px; padding: 0.3rem 0.9rem;
+  display: inline-block; margin-bottom: 1rem;
+}
+
+/* Gráficos */
+.charts-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1.2rem; margin-bottom: 2rem;
+}
+@media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
+.chart-card {
+  background: #16161e; border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px; padding: 1.2rem;
+}
+.chart-card h4 {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.35); margin-bottom: 0.8rem;
+}
+.chart-card canvas { max-height: 180px; }
+
+/* Timeline de sessões */
+.timeline-title {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.3); margin-bottom: 1rem;
+}
+.timeline-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.timeline-item {
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+.timeline-item-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.8rem 1rem; cursor: pointer;
+}
+.timeline-date { font-size: 0.85rem; color: rgba(255,255,255,0.5); }
+.timeline-summary { font-size: 0.78rem; color: rgba(255,255,255,0.35); }
+.timeline-expand { font-size: 0.8rem; color: rgba(255,255,255,0.3); }
+.timeline-body {
+  padding: 0 1rem 0.8rem;
+  display: none;
+  font-size: 0.8rem; color: rgba(255,255,255,0.55);
+  line-height: 1.7;
+}
+.timeline-body.open { display: block; }
+.no-history-msg { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<!-- Modal de notificação de chegada -->
+<div id="notification-overlay">
+  <div class="modal-card">
+    <div class="modal-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </div>
+    <div class="modal-title" id="modal-title">Paciente chegou</div>
+    <div class="modal-subtitle">Formulário respondido — resumo abaixo</div>
+    <div class="modal-summary">
+      <div class="summary-row">
+        <div class="summary-icon">🌙</div>
+        <div class="summary-label">Sono</div>
+        <div class="summary-value" id="sum-sleep">—</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-icon">🔥</div>
+        <div class="summary-label">Dor</div>
+        <div class="summary-value" id="sum-pain">—</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-icon">⚡</div>
+        <div class="summary-label">Estresse</div>
+        <div class="summary-value" id="sum-stress">—</div>
+      </div>
+      <div class="summary-row">
+        <div class="summary-icon">💬</div>
+        <div class="summary-label">Motivo</div>
+        <div class="summary-value" id="sum-reason">—</div>
+      </div>
+    </div>
+    <div class="modal-btn-row">
+      <button class="btn-acknowledge btn-wait" onclick="sessionWait()">⏳ Aguardar</button>
+      <button class="btn-acknowledge btn-enter" onclick="sessionCanEnter()">Pode entrar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Agendamento (create / edit) -->
+<div class="generic-overlay" id="appt-modal">
+  <div class="modal-sheet">
+    <h3 id="appt-modal-title">Novo Agendamento</h3>
+    <input type="hidden" id="appt-id">
+    <div class="form-group">
+      <label class="form-label">Paciente</label>
+      <div class="patient-search-wrapper">
+        <input
+          type="text"
+          class="form-control"
+          id="appt-patient-search"
+          placeholder="Buscar paciente cadastrado..."
+          autocomplete="off"
+        >
+        <div class="patient-suggestions" id="appt-patient-suggestions"></div>
+      </div>
+      <input type="hidden" id="appt-patient-id">
+      <input type="text"   id="appt-patient-name-free" class="form-control" placeholder="Nome (se não cadastrado)" style="margin-top:0.5rem;display:none">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data</label>
+      <input type="date" class="form-control" id="appt-date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hora</label>
+      <input type="time" class="form-control" id="appt-time">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tipo</label>
+      <select class="form-control" id="appt-type">
+        <option value="">Selecione...</option>
+        <option value="Fisioterapia">Fisioterapia</option>
+        <option value="Acupuntura">Acupuntura</option>
+        <option value="Avaliação">Avaliação</option>
+        <option value="Retorno">Retorno</option>
+        <option value="Pilates">Pilates</option>
+        <option value="Outro">Outro</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Duração</label>
+      <select class="form-control" id="appt-duration">
+        <option value="30">30 min</option>
+        <option value="45">45 min</option>
+        <option value="60" selected>60 min</option>
+        <option value="90">90 min</option>
+        <option value="120">120 min</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observações</label>
+      <textarea class="form-control" id="appt-notes" rows="3" placeholder="Observações opcionais..."></textarea>
+    </div>
+    <div class="form-group" id="appt-status-group" style="display:none">
+      <label class="form-label">Status</label>
+      <select class="form-control" id="appt-status">
+        <option value="agendado">Agendado</option>
+        <option value="confirmado">Confirmado</option>
+        <option value="atendimento">Em atendimento</option>
+        <option value="concluido">Concluído</option>
+        <option value="cancelado">Cancelado</option>
+        <option value="falta">Falta</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeApptModal()">Cancelar</button>
+      <button id="btn-view-patient-from-appt" class="btn-cancel" onclick="viewPatientFromAppt()" style="display:none;margin-right:auto">Ver paciente →</button>
+      <button class="btn-save" onclick="saveAppointment()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Novo Paciente -->
+<div class="generic-overlay" id="patient-modal">
+  <div class="modal-sheet">
+    <h3>Novo Paciente</h3>
+    <div class="form-group">
+      <label class="form-label">Nome *</label>
+      <input type="text" class="form-control" id="pat-name" placeholder="Nome completo">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefone</label>
+      <input type="tel" class="form-control" id="pat-phone" placeholder="(00) 00000-0000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input type="email" class="form-control" id="pat-email" placeholder="email@exemplo.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data de nascimento</label>
+      <input type="date" class="form-control" id="pat-birth">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Condição / queixa principal</label>
+      <input type="text" class="form-control" id="pat-condition" placeholder="Ex: Lombalgia crônica">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observações internas</label>
+      <textarea class="form-control" id="pat-notes" rows="3" placeholder="Anotações privadas..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePatientModal()">Cancelar</button>
+      <button class="btn-save" onclick="savePatient()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Header com tabs ── -->
+<div class="main-header" id="main-header">
+  <div class="header-clinic">Consultório de Fisioterapia &amp; Acupuntura</div>
+  <div class="header-tabs">
+    <button class="tab-btn" id="tab-agenda"    onclick="switchTab('agenda')">Agenda</button>
+    <button class="tab-btn" id="tab-patients"  onclick="switchTab('patients')">Pacientes</button>
+  </div>
+  <div class="header-clock" id="clock">--:--</div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard-view" class="view">
+  <div class="hero">
+    <div class="avatar" id="patient-avatar"></div>
+    <div class="hero-info">
+      <div class="patient-name" id="patient-name-dash">—</div>
+      <div class="badge-row">
+        <div class="badge" id="session-badge"></div>
+      </div>
+      <div class="hero-time" id="hero-time"></div>
+    </div>
+    <div style="margin-left:auto">
+      <button class="btn-consult" onclick="enterConsultMode()">Modo Consulta →</button>
+    </div>
+  </div>
+
+  <!-- Controle de fluxo da sessão -->
+  <div id="session-control" class="hidden">
+    <div id="session-timer" style="display:none">00:00</div>
+    <div class="session-status-label" id="session-status-label"></div>
+    <button class="btn-session-action btn-can-enter" id="btn-sc-can-enter" onclick="sessionCanEnter()" style="display:none">Pode entrar →</button>
+    <button class="btn-session-action btn-start" id="btn-sc-start" onclick="startSessionAction()" style="display:none">▶ Iniciar Sessão</button>
+    <button class="btn-session-action btn-finish" id="btn-sc-finish" onclick="finishSessionAction()" style="display:none">■ Finalizar Sessão</button>
+    <button class="btn-session-action btn-acu" id="btn-sc-acu" onclick="openAcuModal()" style="display:none">⊕ Corpo Acupuntura</button>
+  </div>
+
+  <div class="alerts-row" id="alerts-row"></div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Sono</div>
+      <div class="metric-value" id="m-sleep">—</div>
+      <div class="sleep-dots" id="sleep-dots"></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Nível de dor</div>
+      <div class="pain-display"><span id="m-pain">—</span><span style="font-size:1rem;color:rgba(255,255,255,0.3)">/10</span></div>
+      <div class="pain-bar" id="pain-bar-wrap">
+        <div class="pain-marker" id="pain-marker" style="left:0%"></div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Estresse</div>
+      <div class="metric-value" id="m-stress">—</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Motivo da visita</div>
+      <div class="reason-quotes">"</div>
+      <div class="metric-reason" id="m-reason">—</div>
+    </div>
+  </div>
+
+  <div class="history-section">
+    <div class="section-title">Sessões anteriores</div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+</div>
+
+<!-- Modo Consulta -->
+<div id="consult-mode">
+  <div class="consult-left">
+    <div class="consult-header">
+      <div class="consult-title">Selecione a região de interesse</div>
+      <button class="btn-back-dash" onclick="exitConsultMode()">← Voltar ao dashboard</button>
+    </div>
+    <div class="view-toggle">
+      <button class="toggle-btn active" id="btn-front" onclick="switchView('front')">Frente</button>
+      <button class="toggle-btn" id="btn-back-view" onclick="switchView('back')">Costas</button>
+    </div>
+    <div class="body-svg-wrapper">
+      <svg id="body-svg" viewBox="0 0 200 450" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="selected-region-label" style="text-align:center;font-size:0.8rem;color:rgba(255,180,50,0.7);margin-bottom:1rem;min-height:1.2em;letter-spacing:0.06em;text-transform:uppercase"></div>
+    <textarea class="problem-input" id="problem-input" placeholder="Ex: dor ao flexionar, rigidez matinal, formigamento..."></textarea>
+    <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação para o paciente →</button>
+    <div class="ai-preview" id="ai-preview" style="display:none"></div>
+    <button class="btn-send-tv" id="btn-send-tv" onclick="sendToTV()">Exibir na TV do paciente ✓</button>
+  </div>
+  <div class="consult-right">
+    <div class="preview-label">Preview — TV do paciente</div>
+    <div class="preview-card">
+      <div class="preview-region-label" id="preview-region-label">Aguardando seleção...</div>
+      <div class="preview-text" id="preview-text" style="color:rgba(255,255,255,0.2);font-style:italic">A explicação gerada pela IA aparecerá aqui</div>
+    </div>
+  </div>
+</div>
+
+<!-- Aba Agenda -->
+<div id="agenda-view" class="view">
+  <div class="agenda-header">
+    <button class="agenda-nav-btn" onclick="agendaWeekPrev()">← Anterior</button>
+    <div class="agenda-week-label" id="agenda-week-label"></div>
+    <button class="agenda-nav-btn" onclick="agendaToday()">Hoje</button>
+    <button class="agenda-nav-btn" onclick="agendaWeekNext()">Próxima →</button>
+  </div>
+  <div class="agenda-scroll">
+    <div class="week-grid" id="week-grid"></div>
+  </div>
+</div>
+
+<!-- Aba Pacientes -->
+<div id="patients-view" class="view">
+  <div class="patients-toolbar">
+    <input
+      type="text"
+      class="search-input"
+      id="patients-search"
+      placeholder="Buscar paciente por nome..."
+      oninput="debouncePatientSearch(this.value)"
+    >
+  </div>
+  <div class="patients-grid" id="patients-grid"></div>
+</div>
+
+<!-- Detalhe do Paciente -->
+<div id="patient-detail-view">
+  <button class="detail-back" onclick="backToPatients()">← Pacientes</button>
+  <div class="detail-header">
+    <div class="detail-avatar" id="detail-avatar"></div>
+    <div class="detail-info">
+      <h2 id="detail-name"></h2>
+      <div class="detail-meta" id="detail-meta"></div>
+      <div class="session-count-badge" id="detail-session-count"></div>
+    </div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h4>Dor ao longo do tempo</h4>
+      <canvas id="chart-pain"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Qualidade do sono</h4>
+      <canvas id="chart-sleep"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Nível de estresse</h4>
+      <canvas id="chart-stress"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Regiões mais tratadas</h4>
+      <canvas id="chart-regions"></canvas>
+    </div>
+  </div>
+  <div class="timeline-title">Histórico de sessões</div>
+  <div class="timeline-list" id="timeline-list"></div>
+</div>
+
+<!-- Modal de finalização de sessão -->
+<div class="generic-overlay" id="finish-modal">
+  <div class="modal-sheet">
+    <h3 id="finish-modal-title">Finalizar Sessão</h3>
+    <div class="form-group">
+      <label class="form-label">O que foi feito na sessão</label>
+      <div class="finish-field-wrap">
+        <textarea class="finish-textarea" id="finish-notes" placeholder="Descreva os procedimentos realizados..."></textarea>
+        <button class="btn-mic" id="mic-notes" title="Ditar" onclick="toggleDictation('finish-notes', this)">🎤</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observações</label>
+      <div class="finish-field-wrap">
+        <textarea class="finish-textarea" id="finish-obs" placeholder="Observações adicionais, evolução do paciente..."></textarea>
+        <button class="btn-mic" id="mic-obs" title="Ditar" onclick="toggleDictation('finish-obs', this)">🎤</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeFinishModal()">Cancelar</button>
+      <button class="btn-finish btn-session-action" style="padding:0.75rem 2rem;border-radius:60px" onclick="confirmFinishSession()">■ Finalizar Sessão</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Corpo Acupuntura ── -->
+<div id="acu-overlay">
+  <div class="acu-modal">
+    <div class="acu-modal-header">
+      <span class="acu-modal-title">Corpo Humano — Meridianos de Acupuntura</span>
+      <button class="acu-modal-close" onclick="closeAcuModal()">×</button>
+    </div>
+    <div class="acu-modal-body">
+      <div id="acu-canvas-doctor"></div>
+      <div class="acu-sidebar">
+        <div class="acu-section-title">Meridianos</div>
+        <div id="acu-meridian-list"></div>
+        <div class="acu-section-title">Pontos selecionados</div>
+        <div id="acu-selected-list">
+          <div class="acu-hint">Clique sobre um ponto no corpo para selecionar</div>
+        </div>
+        <button class="btn-acu-send" id="btn-acu-send" onclick="sendAcuToTV()">Exibir na tela do paciente →</button>
+        <button class="btn-acu-clear" onclick="clearAcuSelection()">Limpar seleção</button>
+        <div class="acu-hint" style="margin-top:0.4rem">Arraste para girar · Scroll para zoom</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB (muda conforme a aba ativa) -->
+<button class="fab" id="fab-btn" onclick="fabAction()" title="Novo" style="display:none">+</button>
+
+<script>
+// ────────────────────────────────────────────────────────────────────────────
+// Regiões do corpo (frente e costas) — mantidas idênticas ao original
+// ────────────────────────────────────────────────────────────────────────────
+const REGIONS_FRONT = [
+  { id:'cabeca',           label:'Cabeça',              d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
+  { id:'pescoco',          label:'Pescoço',              d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
+  { id:'torax',            label:'Tórax',                d:'M72,74 Q100,78 128,74 L132,130 Q100,136 68,130Z' },
+  { id:'abdome',           label:'Abdome',               d:'M70,130 Q100,134 130,130 L128,168 Q100,172 72,168Z' },
+  { id:'ombro-direito',    label:'Ombro Direito',        d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
+  { id:'ombro-esquerdo',   label:'Ombro Esquerdo',       d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
+  { id:'braco-direito',    label:'Braço Direito',        d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
+  { id:'braco-esquerdo',   label:'Braço Esquerdo',       d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
+  { id:'cotovelo-direito', label:'Cotovelo Direito',     d:'M44,120 Q40,130 42,140 L52,138 L52,128Z' },
+  { id:'cotovelo-esquerdo',label:'Cotovelo Esquerdo',    d:'M156,120 Q160,130 158,140 L148,138 L148,128Z' },
+  { id:'antebraco-direito',label:'Antebraço Direito',    d:'M42,140 Q38,158 40,172 L50,170 L52,138Z' },
+  { id:'antebraco-esquerdo',label:'Antebraço Esquerdo', d:'M158,140 Q162,158 160,172 L150,170 L148,138Z' },
+  { id:'punho-direito',    label:'Punho Direito',        d:'M40,172 Q38,180 40,186 L50,186 L50,170Z' },
+  { id:'punho-esquerdo',   label:'Punho Esquerdo',       d:'M160,172 Q162,180 160,186 L150,186 L150,170Z' },
+  { id:'mao-direita',      label:'Mão Direita',          d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
+  { id:'mao-esquerda',     label:'Mão Esquerda',         d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
+  { id:'quadril-direito',  label:'Quadril Direito',      d:'M68,168 Q60,172 58,188 Q62,200 72,200 L80,190 L72,168Z' },
+  { id:'quadril-esquerdo', label:'Quadril Esquerdo',     d:'M132,168 Q140,172 142,188 Q138,200 128,200 L120,190 L128,168Z' },
+  { id:'coxa-direita',     label:'Coxa Direita',         d:'M72,168 L80,190 Q82,218 80,240 Q76,250 68,250 Q60,246 60,232 L62,200 Q64,182 72,168Z' },
+  { id:'coxa-esquerda',    label:'Coxa Esquerda',        d:'M128,168 L120,190 Q118,218 120,240 Q124,250 132,250 Q140,246 140,232 L138,200 Q136,182 128,168Z' },
+  { id:'joelho-direito',   label:'Joelho Direito',       d:'M60,240 Q56,252 58,264 Q62,270 70,270 Q78,268 80,258 Q82,248 80,240 Q76,250 68,250 Q60,246 60,240Z' },
+  { id:'joelho-esquerdo',  label:'Joelho Esquerdo',      d:'M140,240 Q144,252 142,264 Q138,270 130,270 Q122,268 120,258 Q118,248 120,240 Q124,250 132,250 Q140,246 140,240Z' },
+  { id:'panturrilha-direita',label:'Panturrilha Direita',d:'M58,264 Q54,280 54,300 Q56,314 64,316 Q72,316 76,308 Q80,298 80,278 L80,258 Q78,268 70,270 Q62,270 58,264Z' },
+  { id:'panturrilha-esquerda',label:'Panturrilha Esquerda',d:'M142,264 Q146,280 146,300 Q144,314 136,316 Q128,316 124,308 Q120,298 120,278 L120,258 Q122,268 130,270 Q138,270 142,264Z' },
+  { id:'tornozelo-direito',  label:'Tornozelo Direito',  d:'M54,300 Q52,312 54,322 L66,322 Q72,318 76,308 Q72,316 64,316 Q56,314 54,300Z' },
+  { id:'tornozelo-esquerdo', label:'Tornozelo Esquerdo', d:'M146,300 Q148,312 146,322 L134,322 Q128,318 124,308 Q128,316 136,316 Q144,314 146,300Z' },
+  { id:'pe-direito',         label:'Pé Direito',         d:'M54,322 Q50,330 50,340 Q52,348 66,350 Q76,348 78,340 L76,328 L66,322Z' },
+  { id:'pe-esquerdo',        label:'Pé Esquerdo',        d:'M146,322 Q150,330 150,340 Q148,348 134,350 Q124,348 122,340 L124,328 L134,322Z' },
+]
+const REGIONS_BACK = [
+  { id:'cabeca',             label:'Cabeça',              d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
+  { id:'pescoco',            label:'Pescoço',              d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
+  { id:'torax',              label:'Costas superiores',    d:'M72,74 Q100,78 128,74 L132,120 Q100,126 68,120Z' },
+  { id:'lombar',             label:'Lombar',               d:'M70,120 Q100,124 130,120 L128,168 Q100,172 72,168Z' },
+  { id:'ombro-direito',      label:'Ombro Direito',        d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
+  { id:'ombro-esquerdo',     label:'Ombro Esquerdo',       d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
+  { id:'braco-direito',      label:'Braço Direito',        d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
+  { id:'braco-esquerdo',     label:'Braço Esquerdo',       d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
+  { id:'cotovelo-direito',   label:'Cotovelo Direito',     d:'M44,120 Q40,130 42,140 L52,138 L52,128Z' },
+  { id:'cotovelo-esquerdo',  label:'Cotovelo Esquerdo',    d:'M156,120 Q160,130 158,140 L148,138 L148,128Z' },
+  { id:'antebraco-direito',  label:'Antebraço Direito',    d:'M42,140 Q38,158 40,172 L50,170 L52,138Z' },
+  { id:'antebraco-esquerdo', label:'Antebraço Esquerdo',   d:'M158,140 Q162,158 160,172 L150,170 L148,138Z' },
+  { id:'punho-direito',      label:'Punho Direito',        d:'M40,172 Q38,180 40,186 L50,186 L50,170Z' },
+  { id:'punho-esquerdo',     label:'Punho Esquerdo',       d:'M160,172 Q162,180 160,186 L150,186 L150,170Z' },
+  { id:'mao-direita',        label:'Mão Direita',          d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
+  { id:'mao-esquerda',       label:'Mão Esquerda',         d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
+  { id:'quadril-direito',    label:'Quadril Direito',      d:'M68,168 Q60,172 58,188 Q62,200 72,200 L80,190 L72,168Z' },
+  { id:'quadril-esquerdo',   label:'Quadril Esquerdo',     d:'M132,168 Q140,172 142,188 Q138,200 128,200 L120,190 L128,168Z' },
+  { id:'coxa-direita',       label:'Coxa Direita',         d:'M72,168 L80,190 Q82,218 80,240 Q76,250 68,250 Q60,246 60,232 L62,200 Q64,182 72,168Z' },
+  { id:'coxa-esquerda',      label:'Coxa Esquerda',        d:'M128,168 L120,190 Q118,218 120,240 Q124,250 132,250 Q140,246 140,232 L138,200 Q136,182 128,168Z' },
+  { id:'joelho-direito',     label:'Joelho Direito',       d:'M60,240 Q56,252 58,264 Q62,270 70,270 Q78,268 80,258 Q82,248 80,240 Q76,250 68,250 Q60,246 60,240Z' },
+  { id:'joelho-esquerdo',    label:'Joelho Esquerdo',      d:'M140,240 Q144,252 142,264 Q138,270 130,270 Q122,268 120,258 Q118,248 120,240 Q124,250 132,250 Q140,246 140,240Z' },
+  { id:'panturrilha-direita',label:'Panturrilha Direita',  d:'M58,264 Q54,280 54,300 Q56,314 64,316 Q72,316 76,308 Q80,298 80,278 L80,258 Q78,268 70,270 Q62,270 58,264Z' },
+  { id:'panturrilha-esquerda',label:'Panturrilha Esquerda',d:'M142,264 Q146,280 146,300 Q144,314 136,316 Q128,316 124,308 Q120,298 120,278 L120,258 Q122,268 130,270 Q138,270 142,264Z' },
+  { id:'tornozelo-direito',  label:'Tornozelo Direito',    d:'M54,300 Q52,312 54,322 L66,322 Q72,318 76,308 Q72,316 64,316 Q56,314 54,300Z' },
+  { id:'tornozelo-esquerdo', label:'Tornozelo Esquerdo',   d:'M146,300 Q148,312 146,322 L134,322 Q128,318 124,308 Q128,316 136,316 Q144,314 146,300Z' },
+  { id:'pe-direito',         label:'Pé Direito',           d:'M54,322 Q50,330 50,340 Q52,348 66,350 Q76,348 78,340 L76,328 L66,322Z' },
+  { id:'pe-esquerdo',        label:'Pé Esquerdo',          d:'M146,322 Q150,330 150,340 Q148,348 134,350 Q124,348 122,340 L124,328 L134,322Z' },
+]
+
+// ── Estado global ─────────────────────────────────────────────────────────────
+let pendingSession        = null
+let currentSession        = null
+let selectedRegion        = null
+let currentView           = 'front'
+let generatedExplanation  = ''
+let pollingInterval       = null
+let activeTab             = localStorage.getItem('doctor_active_tab') || 'agenda'
+let previewPatient        = null  // { id, name } ao navegar da agenda para o dashboard
+
+// Estado da agenda
+let agendaWeekOffset = 0
+let agendaAppointments = []
+
+// Estado de pacientes
+let allPatients = []
+let activePatientId = null
+let patientCharts   = {}
+let patientSearchTimer = null
+
+// ── Inicialização ─────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  updateClock()
+  setInterval(updateClock, 60000)
+
+  // Configura Chart.js padrão para tema escuro
+  if (window.Chart) {
+    Chart.defaults.backgroundColor = '#16161e'
+    Chart.defaults.color            = 'rgba(255,255,255,0.6)'
+    Chart.defaults.font.family      = "'DM Sans', sans-serif"
+    Chart.defaults.font.size        = 11
+  }
+
+  const saved = localStorage.getItem('doctor_session')
+  if (saved) {
+    try {
+      currentSession = JSON.parse(saved)
+      loadDashboard(currentSession)
+    } catch (_) {}
+  }
+
+  startNotificationPolling()
+  switchTab(currentSession ? activeTab : 'agenda', false)
+})
+
+function updateClock() {
+  const now = new Date()
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// ── Troca de tabs ─────────────────────────────────────────────────────────────
+function switchTab(tab, save = true) {
+  // During active session, dashboard tab is locked — allow other tabs freely
+  if (currentSession?.status === 'in_session' && tab === 'dashboard') {
+    // always allow going back to dashboard during session
+  }
+  activeTab = tab
+  if (save) localStorage.setItem('doctor_active_tab', tab)
+
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+  const tabBtn = document.getElementById('tab-' + tab)
+  if (tabBtn) tabBtn.classList.add('active')
+
+  // Esconde todos as views principais
+  document.getElementById('dashboard-view').classList.remove('visible')
+  document.getElementById('consult-mode').classList.remove('visible')
+  document.getElementById('agenda-view').classList.remove('visible')
+  document.getElementById('patients-view').classList.remove('visible')
+  document.getElementById('patient-detail-view').classList.remove('visible')
+
+  const fab = document.getElementById('fab-btn')
+
+  if (tab === 'dashboard') {
+    if (currentSession || previewPatient) {
+      document.getElementById('dashboard-view').classList.add('visible')
+    }
+    fab.style.display = 'none'
+  } else if (tab === 'agenda') {
+    document.getElementById('agenda-view').classList.add('visible')
+    fab.style.display = 'flex'
+    fab.title = 'Novo agendamento'
+    loadAgendaWeek()
+  } else if (tab === 'patients') {
+    document.getElementById('patients-view').classList.add('visible')
+    fab.style.display = 'flex'
+    fab.title = 'Novo paciente'
+    loadPatients()
+  }
+}
+
+// ── Polling de notificação ────────────────────────────────────────────────────
+function startNotificationPolling() {
+  pollingInterval = setInterval(checkPendingNotification, 3000)
+  checkPendingNotification()
+}
+
+async function checkPendingNotification() {
+  try {
+    const res = await fetch('/api/sessions/latest/pending-notification')
+    if (!res.ok) return
+    const session = await res.json()
+    if (session && session.id) showNotificationModal(session)
+  } catch (_) {}
+}
+
+function showNotificationModal(session) {
+  // Se já está mostrando exatamente esta sessão, não faz nada
+  if (pendingSession?.id === session.id) return
+  pendingSession = session
+  const ans = parseAnswers(session.answers)
+  document.getElementById('modal-title').textContent = `${session.patient_name} chegou`
+  document.getElementById('sum-sleep').textContent   = ans.sleep  || '—'
+  document.getElementById('sum-pain').textContent    = ans.pain !== undefined ? `${ans.pain}/10` : '—'
+  document.getElementById('sum-stress').textContent  = ans.stress || '—'
+  document.getElementById('sum-reason').textContent  = ans.reason || '—'
+  document.getElementById('notification-overlay').classList.add('visible')
+}
+
+async function sessionWait() {
+  if (!pendingSession) return
+  try { await fetch(`/api/sessions/${pendingSession.id}/wait`, { method: 'POST' }) } catch (_) {}
+  currentSession = { ...pendingSession, status: 'wait' }
+  previewPatient = null
+  pendingSession = null
+  document.getElementById('notification-overlay').classList.remove('visible')
+  localStorage.setItem('doctor_session', JSON.stringify(currentSession))
+  await loadDashboard(currentSession)
+  renderSessionControls()
+  switchTab('dashboard', false)
+}
+
+async function sessionCanEnter() {
+  const session = pendingSession || currentSession
+  if (!session) return
+  try { await fetch(`/api/sessions/${session.id}/can-enter`, { method: 'POST' }) } catch (_) {}
+  if (pendingSession) {
+    currentSession = { ...pendingSession, status: 'can_enter' }
+    previewPatient = null
+    pendingSession = null
+    document.getElementById('notification-overlay').classList.remove('visible')
+    await loadDashboard(currentSession)
+  } else {
+    currentSession.status = 'can_enter'
+  }
+  localStorage.setItem('doctor_session', JSON.stringify(currentSession))
+  renderSessionControls()
+  switchTab('dashboard', false)
+}
+
+async function startSessionAction() {
+  if (!currentSession) return
+  try { await fetch(`/api/sessions/${currentSession.id}/begin`, { method: 'POST' }) } catch (_) {}
+  currentSession.status = 'in_session'
+  currentSession.started_at = new Date().toISOString()
+  localStorage.setItem('doctor_session', JSON.stringify(currentSession))
+  renderSessionControls()
+}
+
+function finishSessionAction() {
+  if (!currentSession) return
+  document.getElementById('finish-modal-title').textContent = `Finalizar — ${currentSession.patient_name}`
+  document.getElementById('finish-notes').value = ''
+  document.getElementById('finish-obs').value   = ''
+  document.getElementById('finish-modal').classList.add('visible')
+}
+
+function closeFinishModal() {
+  stopDictation()
+  document.getElementById('finish-modal').classList.remove('visible')
+}
+
+async function confirmFinishSession() {
+  if (!currentSession) return
+  const notes = document.getElementById('finish-notes').value.trim()
+  const obs   = document.getElementById('finish-obs').value.trim()
+  closeFinishModal()
+  try {
+    await fetch(`/api/sessions/${currentSession.id}/end`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_notes: notes || null, session_observations: obs || null })
+    })
+  } catch (_) {}
+  stopTimer()
+  currentSession = null
+  previewPatient = null
+  localStorage.removeItem('doctor_session')
+  document.getElementById('session-control').classList.add('hidden')
+  switchTab('agenda')
+}
+
+// ── Ditado por voz ────────────────────────────────────────────────────────────
+let activeRecognition = null
+let activeMicBtn      = null
+
+function stopDictation() {
+  if (!activeRecognition) return
+  const rec = activeRecognition
+  activeRecognition = null
+  if (activeMicBtn) { activeMicBtn.classList.remove('recording'); activeMicBtn.title = 'Ditar' }
+  activeMicBtn = null
+  try { rec.abort() } catch (_) {}
+}
+
+function toggleDictation(fieldId, btnEl) {
+  // Se o mesmo campo está gravando → para
+  if (activeRecognition && activeMicBtn === btnEl) {
+    stopDictation()
+    return
+  }
+  // Se outro campo está gravando → para antes de iniciar o novo
+  stopDictation()
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+  if (!SR) {
+    alert('Ditado não suportado neste navegador. Use Chrome ou Edge.')
+    return
+  }
+
+  const recognition = new SR()
+  recognition.lang = 'pt-BR'
+  recognition.continuous = true
+  recognition.interimResults = true
+
+  const textarea = document.getElementById(fieldId)
+  const baseText = textarea.value ? textarea.value.trimEnd() + ' ' : ''
+
+  recognition.onresult = (e) => {
+    let finals = baseText
+    let interim = ''
+    for (let i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finals += e.results[i][0].transcript + ' '
+      else interim += e.results[i][0].transcript
+    }
+    textarea.value = finals + interim
+  }
+
+  const onStop = () => {
+    if (activeRecognition === recognition) {
+      activeRecognition = null
+      activeMicBtn = null
+    }
+    btnEl.classList.remove('recording')
+    btnEl.title = 'Ditar'
+  }
+  recognition.onend   = onStop
+  recognition.onerror = onStop
+
+  recognition.start()
+  activeRecognition = recognition
+  activeMicBtn      = btnEl
+  btnEl.classList.add('recording')
+  btnEl.title = 'Parar ditado'
+}
+
+// ── Timer de sessão ────────────────────────────────────────────────────────────
+let sessionTimerInterval = null
+let sessionStartedAt     = null
+
+function startTimer(isoTime) {
+  sessionStartedAt = isoTime ? new Date(isoTime) : new Date()
+  stopTimer()
+  sessionTimerInterval = setInterval(tickTimer, 1000)
+  tickTimer()
+}
+
+function stopTimer() {
+  clearInterval(sessionTimerInterval)
+  sessionTimerInterval = null
+}
+
+function tickTimer() {
+  if (!sessionStartedAt) return
+  const elapsed = Math.floor((Date.now() - sessionStartedAt) / 1000)
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
+  const ss = String(elapsed % 60).padStart(2, '0')
+  const el = document.getElementById('session-timer')
+  if (el) el.textContent = `${mm}:${ss}`
+}
+
+function renderSessionControls() {
+  const status = currentSession?.status
+  const panel  = document.getElementById('session-control')
+  const label  = document.getElementById('session-status-label')
+  const timer  = document.getElementById('session-timer')
+  const btnCanEnter = document.getElementById('btn-sc-can-enter')
+  const btnStart    = document.getElementById('btn-sc-start')
+  const btnFinish   = document.getElementById('btn-sc-finish')
+  const btnAcu      = document.getElementById('btn-sc-acu')
+
+  // Reset visibilidade
+  btnCanEnter.style.display = 'none'
+  btnStart.style.display    = 'none'
+  btnFinish.style.display   = 'none'
+  btnAcu.style.display      = 'none'
+  timer.style.display       = 'none'
+
+  if (!status || status === 'finished') {
+    panel.classList.add('hidden')
+    stopTimer()
+    return
+  }
+
+  panel.classList.remove('hidden')
+
+  if (status === 'wait') {
+    label.textContent = 'Paciente aguardando na recepção'
+    btnCanEnter.style.display = 'inline-block'
+  } else if (status === 'can_enter') {
+    label.textContent = 'Paciente pode entrar'
+    btnStart.style.display = 'inline-block'
+  } else if (status === 'in_session') {
+    label.textContent = 'Sessão em andamento'
+    timer.style.display     = 'inline-block'
+    btnFinish.style.display = 'inline-block'
+    btnAcu.style.display    = 'inline-block'
+    startTimer(currentSession.started_at)
+  }
+}
+
+function showAppContent() {
+  document.getElementById('fab-btn').style.display = activeTab !== 'dashboard' ? 'flex' : 'none'
+}
+
+// ── Histórico de paciente via agenda ─────────────────────────────────────────
+async function openPatientHistoryInDashboard(appt) {
+  previewPatient = { id: appt.patient_id, name: appt.patient_name }
+  switchTab('dashboard', true)
+  document.getElementById('session-control').classList.add('hidden')
+  document.querySelector('.btn-consult').style.display = 'none'
+  document.getElementById('alerts-row').innerHTML = ''
+
+  const name     = appt.patient_name
+  const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+  document.getElementById('patient-avatar').textContent    = initials
+  document.getElementById('patient-name-dash').textContent = name
+  document.getElementById('hero-time').textContent         = 'Carregando histórico...'
+
+  try {
+    const res = await fetch(`/api/patients/${appt.patient_id}/analytics`)
+    if (!res.ok) throw new Error()
+    const { patient, sessions } = await res.json()
+
+    const badge = document.getElementById('session-badge')
+    if (sessions.length === 0) {
+      badge.textContent = 'Primeira visita'
+      badge.className   = 'badge badge-first'
+      document.getElementById('hero-time').textContent  = 'Nenhuma sessão anterior registrada'
+      document.getElementById('m-sleep').textContent    = '—'
+      document.getElementById('m-stress').textContent   = '—'
+      document.getElementById('m-reason').textContent   = '—'
+      document.getElementById('m-pain').textContent     = '—'
+      document.getElementById('pain-marker').style.left = '0%'
+      document.getElementById('sleep-dots').innerHTML   = ''
+      renderHistory([])
+    } else {
+      badge.textContent = `${sessions.length} sessão(ões) no histórico`
+      badge.className   = 'badge badge-session'
+      const last = sessions[sessions.length - 1]
+      document.getElementById('hero-time').textContent = `Último atendimento: ${new Date(last.completed_at).toLocaleDateString('pt-BR')}`
+      const ans  = parseAnswers(last.answers)
+      document.getElementById('m-sleep').textContent  = ans.sleep  || '—'
+      document.getElementById('m-stress').textContent = ans.stress || '—'
+      document.getElementById('m-reason').textContent = ans.reason || '—'
+      const pain = parseInt(ans.pain) || 0
+      document.getElementById('m-pain').textContent    = pain
+      document.getElementById('pain-marker').style.left = `${pain * 10}%`
+      const sleepMap = { 'Dormi muito bem': 5, 'Dormi razoavelmente': 3, 'Dormi mal': 2, 'Quase não dormi': 1 }
+      const dots = document.getElementById('sleep-dots')
+      dots.innerHTML = ''
+      const qty = sleepMap[ans.sleep] || 0
+      for (let i = 0; i < 5; i++) {
+        const d = document.createElement('div')
+        d.className = 'sleep-dot' + (i < qty ? ' active' : '')
+        dots.appendChild(d)
+      }
+      renderAlerts(ans)
+      renderHistory(sessions.slice().reverse().slice(0, 3))
+    }
+  } catch (_) {
+    document.getElementById('hero-time').textContent = 'Erro ao carregar histórico'
+  }
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard(session) {
+  document.getElementById('dashboard-view').classList.add('visible')
+  document.getElementById('consult-mode').classList.remove('visible')
+  document.querySelector('.btn-consult').style.display = ''
+
+  const ans  = parseAnswers(session.answers)
+  const name = session.patient_name
+  const initials = name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+
+  document.getElementById('patient-avatar').textContent    = initials
+  document.getElementById('patient-name-dash').textContent = name
+  const dt = session.completed_at
+    ? new Date(session.completed_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+    : '—'
+  document.getElementById('hero-time').textContent = `Chegou às ${dt}`
+
+  try {
+    const r = await fetch(`/api/sessions/${session.id}/history`)
+    if (r.ok) {
+      const { history, total_sessions } = await r.json()
+      const badge = document.getElementById('session-badge')
+      if (total_sessions <= 1) {
+        badge.textContent = 'Primeira visita'
+        badge.className   = 'badge badge-first'
+      } else {
+        badge.textContent = `Paciente recorrente · ${total_sessions}ª sessão`
+        badge.className   = 'badge badge-session'
+      }
+      renderHistory(history)
+    }
+  } catch (_) {}
+
+  document.getElementById('m-sleep').textContent  = ans.sleep  || '—'
+  document.getElementById('m-stress').textContent = ans.stress || '—'
+  document.getElementById('m-reason').textContent = ans.reason || '—'
+  const pain = parseInt(ans.pain) || 0
+  document.getElementById('m-pain').textContent = pain
+  document.getElementById('pain-marker').style.left = `${pain * 10}%`
+
+  // Dots de sono
+  const sleepMap = { 'Dormi muito bem': 5, 'Dormi razoavelmente': 3, 'Dormi mal': 2, 'Quase não dormi': 1 }
+  const dots = document.getElementById('sleep-dots')
+  dots.innerHTML = ''
+  const qty = sleepMap[ans.sleep] || 0
+  for (let i = 0; i < 5; i++) {
+    const d = document.createElement('div')
+    d.className = 'sleep-dot' + (i < qty ? ' active' : '')
+    dots.appendChild(d)
+  }
+
+  renderAlerts(ans)
+  renderSessionControls()
+}
+
+function renderAlerts(ans) {
+  const row = document.getElementById('alerts-row')
+  row.innerHTML = ''
+  const add = (text, cls) => {
+    const p = document.createElement('div')
+    p.className = `alert-pill ${cls}`
+    p.textContent = text
+    row.appendChild(p)
+  }
+  const sleep  = ans.sleep  || ''
+  const pain   = parseInt(ans.pain) || 0
+  const stress = ans.stress || ''
+  const reason = ans.reason || ''
+  if (sleep === 'Dormi mal' || sleep === 'Quase não dormi') add('Sono prejudicado', 'alert-orange')
+  if (pain >= 7) add('Dor intensa relatada', 'alert-red')
+  if (pain <= 3 && pain > 0) add('Dor leve', 'alert-green')
+  if (stress === 'Bastante estressado' || stress === 'No limite') add('Estresse elevado', 'alert-orange')
+  if (stress === 'Tranquilo, me sinto bem') add('Bem-estar estável', 'alert-green')
+  if (reason === 'Continuação do tratamento') add('Continuação do tratamento', 'alert-purple')
+  if (reason === 'Manutenção e bem-estar') add('Manutenção', 'alert-blue')
+}
+
+function renderHistory(history) {
+  const list = document.getElementById('history-list')
+  list.innerHTML = ''
+  if (!history || history.length === 0) {
+    list.innerHTML = '<div class="no-history">Primeira visita registrada no sistema.</div>'
+    return
+  }
+  history.forEach(s => {
+    const ans  = parseAnswers(s.answers)
+    const date = new Date(s.completed_at).toLocaleDateString('pt-BR')
+    const div  = document.createElement('div')
+    div.className = 'history-item'
+    div.style.flexDirection = 'column'
+    div.style.alignItems = 'flex-start'
+    div.style.gap = '0.3rem'
+    div.innerHTML = `
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center">
+        <span class="history-date">${date}</span>
+        <span class="history-metric">🌙 <span>${ans.sleep || '—'}</span></span>
+        <span class="history-metric">🔥 <span>${ans.pain || '—'}/10</span></span>
+        <span class="history-metric">⚡ <span>${ans.stress || '—'}</span></span>
+      </div>
+      ${s.session_notes ? `<div class="notes-pill">📋 ${s.session_notes}</div>` : ''}
+    `
+    list.appendChild(div)
+  })
+}
+
+// ── Modo Consulta ─────────────────────────────────────────────────────────────
+function enterConsultMode() {
+  document.getElementById('dashboard-view').classList.remove('visible')
+  document.getElementById('consult-mode').classList.add('visible')
+  buildBodySVG(REGIONS_FRONT)
+}
+function exitConsultMode() {
+  document.getElementById('dashboard-view').classList.add('visible')
+  document.getElementById('consult-mode').classList.remove('visible')
+}
+function switchView(view) {
+  currentView    = view
+  selectedRegion = null
+  document.getElementById('selected-region-label').textContent = ''
+  document.getElementById('btn-front').classList.toggle('active', view === 'front')
+  document.getElementById('btn-back-view').classList.toggle('active', view === 'back')
+  buildBodySVG(view === 'front' ? REGIONS_FRONT : REGIONS_BACK)
+}
+function buildBodySVG(regions) {
+  const svg = document.getElementById('body-svg')
+  svg.innerHTML = ''
+  regions.forEach(r => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', r.d)
+    path.setAttribute('class', 'body-region' + (selectedRegion?.id === r.id ? ' selected' : ''))
+    path.setAttribute('data-id', r.id)
+    path.setAttribute('data-label', r.label)
+    path.addEventListener('click', () => selectRegion(r))
+    svg.appendChild(path)
+  })
+}
+function selectRegion(region) {
+  selectedRegion = region
+  document.querySelectorAll('.body-region').forEach(p => {
+    p.classList.toggle('selected', p.getAttribute('data-id') === region.id)
+  })
+  document.getElementById('selected-region-label').textContent = region.label
+  document.getElementById('preview-region-label').textContent  = region.label
+}
+async function generateExplanation() {
+  if (!selectedRegion) { alert('Selecione uma região do corpo primeiro.'); return }
+  if (!currentSession) { alert('Nenhum paciente ativo.'); return }
+  const problem = document.getElementById('problem-input').value.trim()
+  if (!problem) { document.getElementById('problem-input').focus(); return }
+  const btn     = document.getElementById('btn-gen-ai')
+  btn.disabled  = true
+  btn.textContent = 'Gerando...'
+  const preview   = document.getElementById('ai-preview')
+  preview.style.display = 'block'
+  preview.className     = 'ai-preview loading'
+  preview.textContent   = 'A IA está elaborando a explicação...'
+  try {
+    const res  = await fetch('/api/anatomy/explain', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: currentSession.id, region: selectedRegion.label, problem })
+    })
+    const data = await res.json()
+    generatedExplanation = data.explanation || ''
+    preview.className    = 'ai-preview'
+    preview.textContent  = generatedExplanation
+    document.getElementById('preview-text').textContent  = generatedExplanation
+    document.getElementById('preview-text').style.color  = 'rgba(255,255,255,0.75)'
+    document.getElementById('preview-text').style.fontStyle = 'normal'
+    document.getElementById('btn-send-tv').classList.add('visible')
+  } catch (_) {
+    preview.className   = 'ai-preview'
+    preview.textContent = 'Erro ao gerar explicação. Tente novamente.'
+  }
+  btn.disabled    = false
+  btn.textContent = 'Gerar explicação para o paciente →'
+}
+async function sendToTV() {
+  const btn = document.getElementById('btn-send-tv')
+  btn.textContent = 'Exibindo na TV... ✓'
+  setTimeout(() => { btn.textContent = 'Exibir na TV do paciente ✓' }, 3000)
+}
+
+// ── AGENDA ────────────────────────────────────────────────────────────────────
+
+// Slots de 30 em 30 min, das 7:00 às 19:00
+const TIME_SLOTS = []
+for (let h = 7; h < 19; h++) {
+  TIME_SLOTS.push(`${String(h).padStart(2,'0')}:00`)
+  TIME_SLOTS.push(`${String(h).padStart(2,'0')}:30`)
+}
+
+// Retorna a segunda-feira da semana com offset
+function getWeekStart(offset) {
+  const now  = new Date()
+  const day  = now.getDay() || 7
+  const mon  = new Date(now)
+  mon.setDate(now.getDate() - (day - 1) + offset * 7)
+  mon.setHours(0,0,0,0)
+  return mon
+}
+
+function formatDate(d) {
+  return d.toISOString().split('T')[0]
+}
+
+function formatDateLabel(d) {
+  return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'short' })
+}
+
+async function loadAgendaWeek() {
+  const weekStart = getWeekStart(agendaWeekOffset)
+  const weekEnd   = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+
+  document.getElementById('agenda-week-label').textContent =
+    `${formatDateLabel(weekStart)} – ${formatDateLabel(weekEnd)}`
+
+  try {
+    const res  = await fetch(`/api/appointments?start=${formatDate(weekStart)}&end=${formatDate(weekEnd)}`)
+    agendaAppointments = res.ok ? await res.json() : []
+  } catch (_) { agendaAppointments = [] }
+
+  renderWeekGrid(weekStart, agendaAppointments)
+}
+
+function renderWeekGrid(weekStart, appointments) {
+  const grid  = document.getElementById('week-grid')
+  grid.innerHTML = ''
+  const today = formatDate(new Date())
+  const DIAS  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
+
+  // Coluna de horários (eixo)
+  const axis = document.createElement('div')
+  axis.className = 'time-axis'
+  const axisHdr = document.createElement('div')
+  axisHdr.className = 'time-axis-header'
+  axis.appendChild(axisHdr)
+  TIME_SLOTS.forEach(t => {
+    const tick = document.createElement('div')
+    tick.className = 'time-tick'
+    tick.textContent = t
+    axis.appendChild(tick)
+  })
+  grid.appendChild(axis)
+
+  // Colunas de dias
+  for (let i = 0; i < 7; i++) {
+    const d    = new Date(weekStart)
+    d.setDate(weekStart.getDate() + i)
+    const ds   = formatDate(d)
+    const col  = document.createElement('div')
+    col.className = 'day-col' + (ds === today ? ' today' : '')
+
+    const hdr  = document.createElement('div')
+    hdr.className = 'day-header'
+    hdr.innerHTML = `<div class="day-name">${DIAS[i]}</div><div class="day-num">${d.getDate()}</div>`
+    col.appendChild(hdr)
+
+    const dayAppts = appointments.filter(a => a.appointment_date === ds)
+
+    const toMin = t => { const [h,m] = t.slice(0,5).split(':').map(Number); return h*60+m }
+
+    TIME_SLOTS.forEach((slotTime, si) => {
+      const slotMin = toMin(slotTime)
+      const nextMin = si < TIME_SLOTS.length - 1 ? toMin(TIME_SLOTS[si+1]) : slotMin + 30
+      const appt = dayAppts.find(a => {
+        const m = toMin(a.appointment_time)
+        return m >= slotMin && m < nextMin
+      })
+      const slot = document.createElement('div')
+
+      if (appt) {
+        slot.className = 'time-slot taken'
+        const card = document.createElement('div')
+        card.className = `slot-card slot-${appt.status}`
+        // Posiciona proporcionalmente e estende pela duração total
+        const SLOT_H   = 42  // px — igual ao CSS .time-slot
+        const apptMin  = toMin(appt.appointment_time)
+        const offsetPx = ((apptMin - slotMin) / 30) * SLOT_H
+        const heightPx = ((appt.duration_minutes || 30) / 30) * SLOT_H
+        card.style.top    = (offsetPx + 1) + 'px'
+        card.style.height = (heightPx - 2) + 'px'
+        card.style.bottom = 'unset'
+        card.style.left   = '2px'
+        card.style.right  = '2px'
+        card.innerHTML = `
+          <div class="sc-name">${appt.patient_name}</div>
+          <div class="sc-type">${appt.type}</div>
+        `
+        card.onclick = () => openEditApptModal(appt)
+        if (appt.patient_id) {
+          const histBtn = document.createElement('button')
+          histBtn.className = 'sc-history-btn'
+          histBtn.title = 'Ver histórico do paciente'
+          histBtn.textContent = '↗'
+          histBtn.onclick = (e) => { e.stopPropagation(); openPatientHistoryInDashboard(appt) }
+          card.appendChild(histBtn)
+        }
+        slot.appendChild(card)
+      } else {
+        slot.className = 'time-slot free'
+        slot.onclick = () => openApptModalWithSlot(ds, slotTime)
+      }
+
+      col.appendChild(slot)
+    })
+
+    grid.appendChild(col)
+  }
+}
+
+function agendaWeekPrev() { agendaWeekOffset--; loadAgendaWeek() }
+function agendaWeekNext() { agendaWeekOffset++; loadAgendaWeek() }
+function agendaToday()    { agendaWeekOffset = 0; loadAgendaWeek() }
+
+// ── Modais de agendamento ─────────────────────────────────────────────────────
+
+let editingApptPatientId = null  // patient_id do agendamento sendo editado
+
+function fabAction() {
+  if (activeTab === 'agenda')   openApptModal()
+  if (activeTab === 'patients') openPatientModal()
+}
+
+function _resetApptModal() {
+  document.getElementById('appt-id').value = ''
+  document.getElementById('appt-patient-search').value = ''
+  document.getElementById('appt-patient-id').value     = ''
+  document.getElementById('appt-patient-name-free').value = ''
+  document.getElementById('appt-patient-name-free').style.display = 'none'
+  document.getElementById('appt-time').value   = ''
+  document.getElementById('appt-type').value   = ''
+  document.getElementById('appt-notes').value  = ''
+  document.getElementById('appt-status-group').style.display = 'none'
+  document.getElementById('btn-view-patient-from-appt').style.display = 'none'
+  editingApptPatientId = null
+}
+
+function openApptModal() {
+  _resetApptModal()
+  document.getElementById('appt-modal-title').textContent = 'Novo Agendamento'
+  document.getElementById('appt-date').value = formatDate(new Date())
+  document.getElementById('appt-modal').classList.add('visible')
+}
+
+function openApptModalWithSlot(dateStr, timeStr) {
+  _resetApptModal()
+  document.getElementById('appt-modal-title').textContent = 'Novo Agendamento'
+  document.getElementById('appt-date').value = dateStr
+  document.getElementById('appt-time').value = timeStr
+  document.getElementById('appt-modal').classList.add('visible')
+}
+
+function openEditApptModal(appt) {
+  _resetApptModal()
+  document.getElementById('appt-modal-title').textContent = 'Editar Agendamento'
+  document.getElementById('appt-id').value = appt.id
+  document.getElementById('appt-date').value = appt.appointment_date
+  document.getElementById('appt-time').value = appt.appointment_time.slice(0,5)
+  document.getElementById('appt-type').value = appt.type
+  document.getElementById('appt-duration').value = appt.duration_minutes || 60
+  document.getElementById('appt-notes').value = appt.notes || ''
+  document.getElementById('appt-status-group').style.display = 'block'
+  document.getElementById('appt-status').value = appt.status || 'agendado'
+
+  // Paciente
+  if (appt.patient_id) {
+    document.getElementById('appt-patient-id').value    = appt.patient_id
+    document.getElementById('appt-patient-search').value = appt.patient_name
+    editingApptPatientId = appt.patient_id
+    document.getElementById('btn-view-patient-from-appt').style.display = 'inline-block'
+  } else {
+    document.getElementById('appt-patient-name-free').value = appt.patient_name
+    document.getElementById('appt-patient-name-free').style.display = 'block'
+  }
+
+  document.getElementById('appt-modal').classList.add('visible')
+}
+
+function closeApptModal() {
+  document.getElementById('appt-modal').classList.remove('visible')
+  document.getElementById('appt-patient-suggestions').classList.remove('open')
+}
+
+function viewPatientFromAppt() {
+  if (!editingApptPatientId) return
+  closeApptModal()
+  switchTab('patients', false)
+  openPatientDetail(editingApptPatientId)
+}
+
+// Busca de paciente no modal de agendamento
+let apptSearchTimer = null
+document.addEventListener('DOMContentLoaded', () => {})
+setTimeout(() => {
+  const input = document.getElementById('appt-patient-search')
+  if (input) {
+    input.addEventListener('input', () => {
+      clearTimeout(apptSearchTimer)
+      apptSearchTimer = setTimeout(() => searchApptPatient(input.value), 250)
+    })
+  }
+}, 0)
+
+async function searchApptPatient(q) {
+  const suggestions = document.getElementById('appt-patient-suggestions')
+  if (!q.trim()) { suggestions.classList.remove('open'); return }
+
+  try {
+    const res  = await fetch(`/api/patients/search?q=${encodeURIComponent(q)}`)
+    const list = res.ok ? await res.json() : []
+    suggestions.innerHTML = ''
+
+    // Opção "paciente não cadastrado"
+    const noItem = document.createElement('div')
+    noItem.className = 'suggestion-item no-patient'
+    noItem.textContent = 'Paciente não cadastrado'
+    noItem.onclick = () => {
+      document.getElementById('appt-patient-id').value             = ''
+      document.getElementById('appt-patient-name-free').style.display = 'block'
+      document.getElementById('appt-patient-name-free').value      = q
+      document.getElementById('appt-patient-search').value         = ''
+      suggestions.classList.remove('open')
+    }
+    suggestions.appendChild(noItem)
+
+    list.forEach(p => {
+      const item = document.createElement('div')
+      item.className = 'suggestion-item'
+      item.textContent = p.name
+      item.onclick = () => {
+        document.getElementById('appt-patient-id').value                = p.id
+        document.getElementById('appt-patient-search').value            = p.name
+        document.getElementById('appt-patient-name-free').style.display = 'none'
+        suggestions.classList.remove('open')
+      }
+      suggestions.appendChild(item)
+    })
+    suggestions.classList.add('open')
+  } catch (_) { suggestions.classList.remove('open') }
+}
+
+async function saveAppointment() {
+  const apptId    = document.getElementById('appt-id').value
+  const patientId = document.getElementById('appt-patient-id').value
+  const patientName = patientId
+    ? document.getElementById('appt-patient-search').value
+    : document.getElementById('appt-patient-name-free').value
+  const date     = document.getElementById('appt-date').value
+  const time     = document.getElementById('appt-time').value
+  const type     = document.getElementById('appt-type').value
+  const duration = document.getElementById('appt-duration').value
+  const notes    = document.getElementById('appt-notes').value
+  const status   = document.getElementById('appt-status').value
+
+  if (!patientName.trim()) { alert('Informe o nome do paciente.'); return }
+  if (!date) { alert('Informe a data.'); return }
+  if (!time) { alert('Informe o horário.'); return }
+  if (!type) { alert('Selecione o tipo de atendimento.'); return }
+
+  try {
+    if (apptId) {
+      // Edição
+      await fetch(`/api/appointments/${apptId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: patientId || null,
+          patient_name: patientName.trim(),
+          appointment_date: date,
+          appointment_time: time,
+          type, duration_minutes: parseInt(duration), notes, status
+        })
+      })
+    } else {
+      // Criação
+      await fetch('/api/appointments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: patientId || null,
+          patient_name: patientName.trim(),
+          appointment_date: date,
+          appointment_time: time,
+          type, duration_minutes: parseInt(duration), notes
+        })
+      })
+    }
+    closeApptModal()
+    loadAgendaWeek()
+  } catch (err) { alert('Erro ao salvar agendamento.') }
+}
+
+// ── PACIENTES ─────────────────────────────────────────────────────────────────
+
+async function loadPatients(query) {
+  try {
+    const url  = query ? `/api/patients/search?q=${encodeURIComponent(query)}` : '/api/patients'
+    const res  = await fetch(url)
+    allPatients = res.ok ? await res.json() : []
+  } catch (_) { allPatients = [] }
+  renderPatientsGrid(allPatients)
+}
+
+function debouncePatientSearch(q) {
+  clearTimeout(patientSearchTimer)
+  patientSearchTimer = setTimeout(() => loadPatients(q || undefined), 300)
+}
+
+function renderPatientsGrid(patients) {
+  const grid = document.getElementById('patients-grid')
+  grid.innerHTML = ''
+  if (patients.length === 0) {
+    grid.innerHTML = '<div class="no-history" style="grid-column:1/-1">Nenhum paciente encontrado.</div>'
+    return
+  }
+  patients.forEach(p => {
+    const card = document.createElement('div')
+    card.className = 'patient-card'
+    const initials = p.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+    card.innerHTML = `
+      <div class="pc-avatar">${initials}</div>
+      <div class="pc-name">${p.name}</div>
+      <div class="pc-phone">${p.phone || '—'}</div>
+      <div class="pc-condition">${p.condition || 'Sem queixa registrada'}</div>
+      <div class="pc-last">Cadastrado em ${new Date(p.created_at).toLocaleDateString('pt-BR')}</div>
+    `
+    card.onclick = () => openPatientDetail(p.id)
+    grid.appendChild(card)
+  })
+}
+
+// Modal Novo Paciente
+function openPatientModal() {
+  ['pat-name','pat-phone','pat-email','pat-birth','pat-condition','pat-notes'].forEach(id => {
+    document.getElementById(id).value = ''
+  })
+  document.getElementById('patient-modal').classList.add('visible')
+}
+function closePatientModal() {
+  document.getElementById('patient-modal').classList.remove('visible')
+}
+async function savePatient() {
+  const name      = document.getElementById('pat-name').value.trim()
+  const phone     = document.getElementById('pat-phone').value.trim()
+  const email     = document.getElementById('pat-email').value.trim()
+  const birthDate = document.getElementById('pat-birth').value
+  const condition = document.getElementById('pat-condition').value.trim()
+  const notes     = document.getElementById('pat-notes').value.trim()
+
+  if (!name) { alert('Nome é obrigatório.'); return }
+
+  try {
+    await fetch('/api/patients', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, email, birth_date: birthDate || null, condition, notes })
+    })
+    closePatientModal()
+    loadPatients()
+  } catch (err) { alert('Erro ao cadastrar paciente.') }
+}
+
+// ── Detalhe + Gráficos do Paciente ───────────────────────────────────────────
+
+async function openPatientDetail(id) {
+  activePatientId = id
+  document.getElementById('patients-view').classList.remove('visible')
+  document.getElementById('patient-detail-view').classList.add('visible')
+  document.getElementById('fab-btn').style.display = 'none'
+
+  // Limpa gráficos anteriores
+  Object.values(patientCharts).forEach(c => c.destroy())
+  patientCharts = {}
+  document.getElementById('timeline-list').innerHTML = '<div class="no-history-msg">Carregando...</div>'
+
+  try {
+    const res  = await fetch(`/api/patients/${id}/analytics`)
+    if (!res.ok) throw new Error('Erro ao buscar analytics')
+    const { patient, sessions, anatomy_events } = await res.json()
+
+    // Header do detalhe
+    const initials = patient.name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()
+    document.getElementById('detail-avatar').textContent = initials
+    document.getElementById('detail-name').textContent   = patient.name
+
+    const meta = document.getElementById('detail-meta')
+    meta.innerHTML = ''
+    if (patient.phone)      meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">📞 ${patient.phone}</span>`)
+    if (patient.email)      meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">✉ ${patient.email}</span>`)
+    if (patient.birth_date) meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">🎂 ${new Date(patient.birth_date).toLocaleDateString('pt-BR')}</span>`)
+    if (patient.condition)  meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">${patient.condition}</span>`)
+
+    document.getElementById('detail-session-count').textContent = `${patient.session_count} sessão(ões) registrada(s)`
+
+    if (sessions.length === 0) {
+      document.getElementById('timeline-list').innerHTML = '<div class="no-history-msg">Nenhuma sessão registrada ainda.</div>'
+      return
+    }
+
+    buildPatientCharts(sessions, anatomy_events)
+    buildTimeline(sessions, anatomy_events)
+
+  } catch (err) {
+    console.error(err)
+    document.getElementById('timeline-list').innerHTML = '<div class="no-history-msg">Erro ao carregar dados.</div>'
+  }
+}
+
+function backToPatients() {
+  document.getElementById('patient-detail-view').classList.remove('visible')
+  document.getElementById('patients-view').classList.add('visible')
+  document.getElementById('fab-btn').style.display = 'flex'
+}
+
+// Mapeamentos para gráficos
+const SLEEP_MAP  = { 'Dormi muito bem': 4, 'Dormi razoavelmente': 3, 'Dormi mal': 2, 'Quase não dormi': 1 }
+const STRESS_MAP = { 'Tranquilo, me sinto bem': 0, 'Um pouco tenso': 1, 'Bastante estressado': 2, 'No limite': 3 }
+const SLEEP_LABELS  = { 1: 'Quase nada', 2: 'Mal', 3: 'Razoável', 4: 'Muito bem' }
+const STRESS_LABELS = { 0: 'Tranquilo', 1: 'Pouco tenso', 2: 'Estressado', 3: 'No limite' }
+
+function buildPatientCharts(sessions, anatomyEvents) {
+  // Dados das sessões ordenados por data
+  const labels     = sessions.map(s => new Date(s.completed_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }))
+  const painData   = sessions.map(s => {
+    const ans = parseAnswers(s.answers)
+    return parseInt(ans.pain) || 0
+  })
+  const sleepData  = sessions.map(s => {
+    const ans = parseAnswers(s.answers)
+    return SLEEP_MAP[ans.sleep] || null
+  })
+  const stressData = sessions.map(s => {
+    const ans = parseAnswers(s.answers)
+    return ans.stress in STRESS_MAP ? STRESS_MAP[ans.stress] : null
+  })
+
+  // Configuração comum de grid/escala
+  const gridColor   = 'rgba(255,255,255,0.06)'
+  const tickColor   = 'rgba(255,255,255,0.35)'
+  const baseLineOpts = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 } } },
+      y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 } } }
+    }
+  }
+
+  // 1. Dor
+  const ctxPain = document.getElementById('chart-pain').getContext('2d')
+  patientCharts.pain = new Chart(ctxPain, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: painData,
+        borderColor: 'rgba(220,80,80,0.8)',
+        backgroundColor: 'rgba(220,80,80,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: 'rgba(220,80,80,0.9)',
+        pointRadius: 4
+      }]
+    },
+    options: { ...baseLineOpts, scales: { ...baseLineOpts.scales, y: { ...baseLineOpts.scales.y, min: 0, max: 10, ticks: { color: tickColor, stepSize: 2 } } } }
+  })
+
+  // 2. Sono
+  const ctxSleep = document.getElementById('chart-sleep').getContext('2d')
+  patientCharts.sleep = new Chart(ctxSleep, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: sleepData,
+        borderColor: 'rgba(100,150,220,0.8)',
+        backgroundColor: 'rgba(100,150,220,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: 'rgba(100,150,220,0.9)',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      ...baseLineOpts,
+      scales: {
+        ...baseLineOpts.scales,
+        y: {
+          ...baseLineOpts.scales.y,
+          min: 0, max: 4,
+          ticks: {
+            color: tickColor, stepSize: 1,
+            callback: v => SLEEP_LABELS[v] || v
+          }
+        }
+      }
+    }
+  })
+
+  // 3. Estresse
+  const ctxStress = document.getElementById('chart-stress').getContext('2d')
+  patientCharts.stress = new Chart(ctxStress, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: stressData,
+        borderColor: 'rgba(200,150,50,0.8)',
+        backgroundColor: 'rgba(200,150,50,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: 'rgba(200,150,50,0.9)',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      ...baseLineOpts,
+      scales: {
+        ...baseLineOpts.scales,
+        y: {
+          ...baseLineOpts.scales.y,
+          min: 0, max: 3,
+          ticks: {
+            color: tickColor, stepSize: 1,
+            callback: v => STRESS_LABELS[v] !== undefined ? STRESS_LABELS[v] : v
+          }
+        }
+      }
+    }
+  })
+
+  // 4. Regiões mais tratadas (horizontal bar)
+  const regionCount = {}
+  anatomyEvents.forEach(e => {
+    regionCount[e.region] = (regionCount[e.region] || 0) + 1
+  })
+  const regionEntries = Object.entries(regionCount).sort((a,b) => b[1]-a[1]).slice(0, 10)
+
+  const ctxRegions = document.getElementById('chart-regions').getContext('2d')
+  patientCharts.regions = new Chart(ctxRegions, {
+    type: 'bar',
+    data: {
+      labels: regionEntries.map(([r]) => r),
+      datasets: [{
+        data: regionEntries.map(([,c]) => c),
+        backgroundColor: regionEntries.map((_, i) => `hsla(${260 + i * 18},60%,60%,0.7)`),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: tickColor, stepSize: 1 } },
+        y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 10 } } }
+      }
+    }
+  })
+}
+
+function buildTimeline(sessions, anatomyEvents) {
+  const list = document.getElementById('timeline-list')
+  list.innerHTML = ''
+
+  // Agrupa eventos anatômicos por sessão
+  const eventsBySession = {}
+  anatomyEvents.forEach(e => {
+    if (!eventsBySession[e.session_id]) eventsBySession[e.session_id] = []
+    eventsBySession[e.session_id].push(e)
+  })
+
+  // Exibe do mais recente para o mais antigo
+  const sorted = [...sessions].reverse()
+  sorted.forEach(s => {
+    const ans    = parseAnswers(s.answers)
+    const date   = new Date(s.completed_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })
+    const events = eventsBySession[s.id] || []
+
+    const item  = document.createElement('div')
+    item.className = 'timeline-item'
+
+    const header = document.createElement('div')
+    header.className = 'timeline-item-header'
+    header.innerHTML = `
+      <span class="timeline-date">${date}</span>
+      <span class="timeline-summary">Dor: ${ans.pain||'—'}/10 · ${ans.sleep||'—'}</span>
+      <span class="timeline-expand">▼</span>
+    `
+    header.onclick = () => body.classList.toggle('open')
+    item.appendChild(header)
+
+    const body = document.createElement('div')
+    body.className = 'timeline-body'
+    body.innerHTML = `
+      <div><b>Sono:</b> ${ans.sleep||'—'}</div>
+      <div><b>Estresse:</b> ${ans.stress||'—'}</div>
+      <div><b>Motivo:</b> ${ans.reason||'—'}</div>
+      ${s.session_notes ? `<div style="margin-top:0.5rem"><b>O que foi feito:</b> ${s.session_notes}</div>` : ''}
+      ${s.session_observations ? `<div><b>Observações:</b> ${s.session_observations}</div>` : ''}
+      ${events.length ? `<div style="margin-top:0.5rem"><b>Regiões tratadas:</b> ${events.map(e => e.region).join(', ')}</div>` : ''}
+    `
+    item.appendChild(body)
+    list.appendChild(item)
+  })
+}
+
+// ── Utilitários ───────────────────────────────────────────────────────────────
+function parseAnswers(answers) {
+  if (!answers || !Array.isArray(answers)) return {}
+  return answers.reduce((acc, a) => {
+    acc[a.question_key] = a.answer_value
+    return acc
+  }, {})
+}
+
+// ── Acupuntura — Modal ────────────────────────────────────────────────────────
+
+let acuViewer = null
+let acuViewerReady = false
+
+function openAcuModal() {
+  document.getElementById('acu-overlay').style.display = 'flex'
+  if (!acuViewerReady) {
+    if (!window.AcupunctureViewer) { setTimeout(openAcuModal, 250); return }
+    const container = document.getElementById('acu-canvas-doctor')
+    acuViewer = new window.AcupunctureViewer(container, {
+      isDoctor:  true,
+      autoRotate: false,
+      onSelectionChange: _acuSelectionChanged
+    })
+    acuViewerReady = true
+    _buildMeridianList()
+  }
+}
+
+function closeAcuModal() {
+  document.getElementById('acu-overlay').style.display = 'none'
+}
+
+function _buildMeridianList() {
+  if (!window.ACU_MERIDIANS) return
+  const list = document.getElementById('acu-meridian-list')
+  list.innerHTML = ''
+  window.ACU_MERIDIANS.forEach(m => {
+    const lbl = document.createElement('label')
+    lbl.className = 'meridian-toggle'
+    lbl.innerHTML = `
+      <input type="checkbox" checked onchange="acuViewer.setMeridianVisible('${m.id}', this.checked)">
+      <span class="meridian-dot" style="background:${m.color}"></span>
+      <span>${m.id} — ${m.name}</span>
+    `
+    list.appendChild(lbl)
+  })
+}
+
+function _acuSelectionChanged(selectedIds) {
+  const list = document.getElementById('acu-selected-list')
+  if (!selectedIds.length) {
+    list.innerHTML = '<div class="acu-hint">Clique sobre um ponto no corpo para selecionar</div>'
+    return
+  }
+  list.innerHTML = ''
+  selectedIds.forEach(id => {
+    let ptData = null
+    for (const m of (window.ACU_MERIDIANS || [])) {
+      const baseId = id.replace('-E', '')
+      const p = m.points.find(p => p.id === baseId)
+      if (p) { ptData = { ...p, color: m.color, mName: m.name }; break }
+    }
+    const row = document.createElement('div')
+    row.className = 'selected-pt-row'
+    const side = id.endsWith('-E') ? ' (E)' : ' (D)'
+    row.innerHTML = `
+      <span class="meridian-dot" style="background:${ptData?.color||'#aaa'}"></span>
+      <span class="selected-pt-id">${id}</span>
+      <span class="selected-pt-name">${ptData?.name || ''}${side}</span>
+      <button class="selected-pt-remove" onclick="removeAcuPoint('${id}')">×</button>
+    `
+    list.appendChild(row)
+  })
+}
+
+function removeAcuPoint(id) {
+  if (!acuViewer) return
+  const sel = acuViewer.getSelectedPoints().filter(p => p !== id)
+  acuViewer.setSelectedPoints(sel)
+  _acuSelectionChanged(sel)
+}
+
+function clearAcuSelection() {
+  if (!acuViewer) return
+  acuViewer.setSelectedPoints([])
+  _acuSelectionChanged([])
+}
+
+async function sendAcuToTV() {
+  if (!acuViewer || !currentSession) return
+  const points = acuViewer.getSelectedPoints()
+  try {
+    await fetch('/api/acupuncture/event', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ session_id: currentSession.id, points })
+    })
+    const btn = document.getElementById('btn-acu-send')
+    const orig = btn.textContent
+    btn.textContent = '✓ Enviado na tela!'
+    btn.style.background = 'linear-gradient(135deg,#2a8060,#1a6050)'
+    setTimeout(() => {
+      btn.textContent = orig
+      btn.style.background = ''
+    }, 2500)
+  } catch (_) {}
+}
+</script>
+
+<!-- Three.js: expõe AcupunctureViewer no escopo global via módulo -->
+<script type="module">
+import { AcupunctureViewer, ACU_MERIDIANS } from '/js/acupuncture-viewer.js'
+window.AcupunctureViewer = AcupunctureViewer
+window.ACU_MERIDIANS     = ACU_MERIDIANS
+</script>
+</body>
+</html>

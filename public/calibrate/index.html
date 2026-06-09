@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calibração — Pontos de Acupuntura</title>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three":          "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+      "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0a0a14;
+      color: #d0d8f0;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Topo ─────────────────────────────────────────────────────────── */
+    #topbar {
+      background: #12121e;
+      border-bottom: 1px solid #1e2040;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #topbar h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #a0b8ff;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    /* ── Chips de filtro ──────────────────────────────────────────────── */
+    #filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      flex: 1;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px 3px 7px;
+      border-radius: 20px;
+      border: 1px solid #2a2e50;
+      background: #14162a;
+      color: #6070a0;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.14s;
+      white-space: nowrap;
+    }
+    .filter-chip:hover {
+      border-color: #4060c0;
+      color: #a0b8ff;
+      background: #1a1e38;
+    }
+    .filter-chip.active {
+      border-color: var(--chip-color);
+      color: #fff;
+      background: color-mix(in srgb, var(--chip-color) 18%, #14162a);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--chip-color) 30%, transparent);
+    }
+    .chip-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .chip-count {
+      font-size: 10px;
+      opacity: 0.65;
+      margin-left: 1px;
+    }
+    .filter-chip.active .chip-count { opacity: 0.85; }
+
+    #pg-global {
+      font-size: 12px;
+      color: #5060a0;
+      white-space: nowrap;
+    }
+    #pg-global strong { color: #c0d4ff; }
+
+    /* ── Layout principal ─────────────────────────────────────────────── */
+    #layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Painel lateral ───────────────────────────────────────────────── */
+    #panel {
+      width: 290px;
+      flex-shrink: 0;
+      background: #0e0e1c;
+      border-right: 1px solid #1a1e38;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Card do ponto atual ──────────────────────────────────────────── */
+    #current-card {
+      padding: 14px 16px;
+      border-bottom: 1px solid #1a1e38;
+      flex-shrink: 0;
+    }
+    #current-meridian-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+      color: #a0b8ff;
+    }
+    #current-meridian-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    #current-point-id {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+    #current-point-name { font-size: 13px; color: #c0d0f8; margin-bottom: 2px; }
+    #current-point-pt   { font-size: 11px; color: #7080a8; margin-bottom: 10px; }
+    #current-status {
+      font-size: 11px; padding: 3px 9px; border-radius: 12px; display: inline-block;
+    }
+    .status-pending { background: #2a2040; color: #8080c0; }
+    .status-done    { background: #0d2a1a; color: #44cc88; }
+
+    /* ── Barra de progresso ───────────────────────────────────────────── */
+    #progress-wrap {
+      padding: 10px 16px;
+      border-bottom: 1px solid #1a1e38;
+      flex-shrink: 0;
+    }
+    #progress-bar-bg {
+      height: 5px; background: #1e2040; border-radius: 3px; overflow: hidden; margin-bottom: 5px;
+    }
+    #progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4060ff, #60d0a0);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    #progress-label { font-size: 11px; color: #5060a0; display: flex; justify-content: space-between; }
+    #progress-label span { color: #7080a8; }
+
+    /* ── Botões de navegação ──────────────────────────────────────────── */
+    #nav-buttons {
+      display: flex; gap: 8px; padding: 10px 16px;
+      border-bottom: 1px solid #1a1e38; flex-shrink: 0;
+    }
+    .nav-btn {
+      flex: 1; padding: 8px 0;
+      border: 1px solid #2a2e50; border-radius: 7px;
+      background: #14162a; color: #8090d0; font-size: 12px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .nav-btn:hover { background: #1e2240; color: #b0c0ff; border-color: #4050a0; }
+    .nav-btn:active { transform: scale(0.97); }
+
+    /* ── Lista de meridianos ──────────────────────────────────────────── */
+    #meridian-list-wrap { flex: 1; overflow-y: auto; padding: 6px 0; }
+    #meridian-list-wrap::-webkit-scrollbar { width: 4px; }
+    #meridian-list-wrap::-webkit-scrollbar-track { background: transparent; }
+    #meridian-list-wrap::-webkit-scrollbar-thumb { background: #2a2e50; border-radius: 2px; }
+
+    .meridian-row { border-bottom: 1px solid #141428; }
+    .meridian-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; cursor: pointer; transition: background 0.12s;
+    }
+    .meridian-header:hover { background: #14162a; }
+    .meridian-color-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .meridian-name { font-size: 12px; color: #8090c0; flex: 1; }
+    .meridian-count { font-size: 11px; color: #4a5080; font-variant-numeric: tabular-nums; }
+    .meridian-count.complete { color: #44cc88; }
+    .meridian-points { display: none; padding: 2px 0 6px 32px; }
+    .meridian-row.open .meridian-points { display: block; }
+
+    .point-item {
+      font-size: 11px; padding: 4px 8px; color: #5060a0;
+      cursor: pointer; border-radius: 5px; transition: all 0.12s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .point-item:hover  { background: #1a1e38; color: #a0b8ff; }
+    .point-item.active { color: #ffdd00; font-weight: 600; }
+    .point-item.done   { color: #44cc88; }
+    .point-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Rodapé ───────────────────────────────────────────────────────── */
+    #panel-footer {
+      padding: 10px 16px; border-top: 1px solid #1a1e38;
+      display: flex; flex-direction: column; gap: 7px; flex-shrink: 0;
+    }
+    .action-btn {
+      width: 100%; padding: 8px; border-radius: 7px;
+      font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s;
+    }
+    #btn-save-server { background: linear-gradient(135deg, #2040a0, #1060c0); color: #c0d4ff; }
+    #btn-save-server:hover { filter: brightness(1.15); }
+    #btn-export { background: #14162a; border: 1px solid #2a2e50; color: #7080b0; }
+    #btn-export:hover { background: #1e2240; color: #a0b8ff; }
+    #btn-clear { background: transparent; border: 1px solid #2a1830; color: #604060; font-size: 11px; }
+    #btn-clear:hover { background: #1a0e1a; color: #c06080; }
+
+    /* ── Viewport ─────────────────────────────────────────────────────── */
+    #viewport { flex: 1; position: relative; overflow: hidden; }
+    #canvas-container { width: 100%; height: 100%; }
+    #canvas-container canvas { display: block; }
+
+    #hint {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(10,10,20,0.82); border: 1px solid #2a2e50;
+      color: #7080b0; font-size: 12px; padding: 7px 16px; border-radius: 20px;
+      pointer-events: none; white-space: nowrap;
+    }
+    #hint strong { color: #ffdd00; }
+
+    #filter-label {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(10,10,20,0.82); border: 1px solid #2a3060;
+      color: #8090c0; font-size: 11px; padding: 5px 14px; border-radius: 20px;
+      pointer-events: none; white-space: nowrap; display: none;
+    }
+    #filter-label.show { display: block; }
+    #filter-label strong { color: #a0b8ff; }
+
+    #status-msg {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,180,100,0.15); border: 1px solid #00cc66;
+      color: #44ff88; font-size: 12px; padding: 6px 18px; border-radius: 20px;
+      pointer-events: none; opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+    }
+    #status-msg.show { opacity: 1; }
+
+    #loading-overlay {
+      position: absolute; inset: 0; background: #0a0a14;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #5060a0; letter-spacing: 0.05em;
+    }
+    #loading-overlay.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- ── Barra superior com filtros ─────────────────────────────────────────── -->
+<div id="topbar">
+  <h1>⊕ Calibração</h1>
+  <div id="filter-bar">
+    <!-- chips gerados pelo JS -->
+  </div>
+  <div id="pg-global">
+    Global: <strong id="pg-done">0</strong>/<span id="pg-total">0</span>
+  </div>
+</div>
+
+<!-- ── Layout ─────────────────────────────────────────────────────────────── -->
+<div id="layout">
+
+  <!-- Painel lateral -->
+  <aside id="panel">
+
+    <div id="current-card">
+      <div id="current-meridian-badge">
+        <span id="current-meridian-dot"></span>
+        <span id="current-meridian-name">—</span>
+      </div>
+      <div id="current-point-id">—</div>
+      <div id="current-point-name">—</div>
+      <div id="current-point-pt">—</div>
+      <span id="current-status" class="status-pending">pendente</span>
+    </div>
+
+    <div id="progress-wrap">
+      <div id="progress-bar-bg"><div id="progress-bar-fill"></div></div>
+      <div id="progress-label">
+        <span id="progress-scope">Geral</span>
+        <span id="progress-pct">0%</span>
+      </div>
+    </div>
+
+    <div id="nav-buttons">
+      <button class="nav-btn" id="btn-back">← Anterior</button>
+      <button class="nav-btn" id="btn-skip">Pular →</button>
+    </div>
+
+    <div id="meridian-list-wrap">
+      <div id="meridian-list"></div>
+    </div>
+
+    <div id="panel-footer">
+      <button class="action-btn" id="btn-save-server">💾 Salvar no servidor</button>
+      <button class="action-btn" id="btn-export">⬇ Baixar JSON</button>
+      <button class="action-btn" id="btn-clear">✕ Limpar progresso</button>
+    </div>
+
+  </aside>
+
+  <!-- Viewport 3D -->
+  <main id="viewport">
+    <div id="canvas-container"></div>
+    <div id="filter-label"></div>
+    <div id="hint">Gire o modelo • Clique no corpo para posicionar <strong id="hint-id">—</strong></div>
+    <div id="status-msg"></div>
+    <div id="loading-overlay">Carregando modelo 3D…</div>
+  </main>
+
+</div>
+
+<!-- ── Script ─────────────────────────────────────────────────────────────── -->
+<script type="module">
+import { CalibrateViewer, ALL_POINTS, ACU_MERIDIANS } from '/js/calibrate-viewer.js'
+
+const STORAGE_KEY = 'acu_calibrated_v1'
+let viewer = null
+
+// ── Inicializa viewer ─────────────────────────────────────────────────────────
+
+viewer = new CalibrateViewer(
+  document.getElementById('canvas-container'),
+  {
+    onReady() {
+      document.getElementById('loading-overlay').classList.add('hidden')
+
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        try { viewer.loadSaved(JSON.parse(saved)) } catch {}
+      }
+
+      buildFilterChips()
+      buildMeridianList()
+      refreshUI()
+    },
+
+    onCalibrate(pt, coords, done) {
+      localStorage.setItem(STORAGE_KEY, viewer.exportJSON())
+      showMsg(`✓ ${pt.id}  (${coords.x}, ${coords.y}, ${coords.z})`)
+      refreshUIChips()
+      refreshUI()
+    }
+  }
+)
+
+// ── Chips de filtro no topbar ─────────────────────────────────────────────────
+
+function buildFilterChips() {
+  const bar = document.getElementById('filter-bar')
+  bar.innerHTML = ''
+
+  // Chip "Todos"
+  const all = document.createElement('button')
+  all.className = 'filter-chip active'
+  all.dataset.id = ''
+  all.style.setProperty('--chip-color', '#6080ff')
+  all.innerHTML = `<span class="chip-dot" style="background:#6080ff"></span>Todos <span class="chip-count" id="chip-count-all"></span>`
+  all.addEventListener('click', () => applyFilter(null))
+  bar.appendChild(all)
+
+  ACU_MERIDIANS.forEach(m => {
+    const btn = document.createElement('button')
+    btn.className = 'filter-chip'
+    btn.dataset.id = m.id
+    btn.style.setProperty('--chip-color', m.color)
+    btn.innerHTML = `<span class="chip-dot" style="background:${m.color}"></span>${m.id} <span class="chip-count" id="chip-count-${m.id}"></span>`
+    btn.addEventListener('click', () => applyFilter(m.id))
+    bar.appendChild(btn)
+  })
+
+  refreshUIChips()
+}
+
+function applyFilter(meridianId) {
+  if (!viewer) return
+  viewer.setMeridianFilter(meridianId)
+
+  // Atualiza visual dos chips
+  document.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.id === (meridianId || ''))
+  })
+
+  // Atualiza label no viewport
+  const labelEl = document.getElementById('filter-label')
+  if (meridianId) {
+    const m = ACU_MERIDIANS.find(m => m.id === meridianId)
+    labelEl.innerHTML = `Filtrando: <strong style="color:${m.color}">${m.id} — ${m.name}</strong>`
+    labelEl.classList.add('show')
+  } else {
+    labelEl.classList.remove('show')
+  }
+
+  refreshUI()
+}
+
+function refreshUIChips() {
+  if (!viewer) return
+  const calibrated = viewer.getCalibrated()
+  const total      = ALL_POINTS.length
+  const done       = Object.keys(calibrated).length
+
+  const allCount = document.getElementById('chip-count-all')
+  if (allCount) allCount.textContent = `${done}/${total}`
+
+  ACU_MERIDIANS.forEach(m => {
+    const el = document.getElementById(`chip-count-${m.id}`)
+    if (!el) return
+    const mDone = m.points.filter(p => calibrated[p.id]).length
+    el.textContent = `${mDone}/${m.points.length}`
+  })
+}
+
+// ── Constrói lista de meridianos ──────────────────────────────────────────────
+
+function buildMeridianList() {
+  const list = document.getElementById('meridian-list')
+  list.innerHTML = ''
+
+  ACU_MERIDIANS.forEach(m => {
+    const row = document.createElement('div')
+    row.className = 'meridian-row'
+    row.id = `mrow-${m.id}`
+
+    const header = document.createElement('div')
+    header.className = 'meridian-header'
+    header.innerHTML = `
+      <span class="meridian-color-dot" style="background:${m.color}"></span>
+      <span class="meridian-name">${m.id} — ${m.name}</span>
+      <span class="meridian-count" id="mcount-${m.id}">0/${m.points.length}</span>
+    `
+    // Clique no nome expande; duplo clique aplica filtro
+    header.addEventListener('click', () => row.classList.toggle('open'))
+    header.addEventListener('dblclick', (e) => { e.stopPropagation(); applyFilter(m.id) })
+
+    const pts = document.createElement('div')
+    pts.className = 'meridian-points'
+
+    m.points.forEach(p => {
+      const globalIndex = ALL_POINTS.findIndex(ap => ap.id === p.id)
+      const item = document.createElement('div')
+      item.className = 'point-item'
+      item.id = `pitem-${p.id}`
+      item.innerHTML = `
+        <span class="point-dot" style="background:${m.color}"></span>
+        <span>${p.id}</span>
+        <span style="color:#3a4060;margin-left:2px">${p.name}</span>
+      `
+      item.addEventListener('click', () => { viewer.goTo(globalIndex); refreshUI() })
+      pts.appendChild(item)
+    })
+
+    row.appendChild(header)
+    row.appendChild(pts)
+    list.appendChild(row)
+  })
+}
+
+// ── Atualiza UI ───────────────────────────────────────────────────────────────
+
+function refreshUI() {
+  if (!viewer) return
+
+  const idx  = viewer.currentIndex
+  const pt   = ALL_POINTS[idx]
+  const calibrated = viewer.getCalibrated()
+
+  // Card do ponto atual
+  document.getElementById('current-meridian-dot').style.background = pt.color
+  document.getElementById('current-meridian-name').textContent     = `${pt.meridianId} — ${pt.meridianName}`
+  document.getElementById('current-point-id').textContent          = pt.id
+  document.getElementById('current-point-name').textContent        = pt.name
+  document.getElementById('current-point-pt').textContent          = pt.pt
+
+  const isDone = !!calibrated[pt.id]
+  const statusEl = document.getElementById('current-status')
+  statusEl.textContent = isDone ? '✓ calibrado' : 'pendente'
+  statusEl.className   = isDone ? 'status-done' : 'status-pending'
+
+  // Progresso global
+  const totalAll = ALL_POINTS.length
+  const doneAll  = Object.keys(calibrated).length
+  document.getElementById('pg-done').textContent  = doneAll
+  document.getElementById('pg-total').textContent = totalAll
+
+  // Progresso da barra (contexto do filtro ativo)
+  const prog = viewer.getFilterProgress()
+  const pct  = prog.total ? Math.round(prog.done / prog.total * 100) : 0
+  document.getElementById('progress-bar-fill').style.width = pct + '%'
+  document.getElementById('progress-pct').textContent      = pct + '%'
+
+  const filter = viewer.getFilter()
+  if (filter) {
+    const m = ACU_MERIDIANS.find(m => m.id === filter)
+    document.getElementById('progress-scope').textContent = `${m.id}: ${prog.done}/${prog.total}`
+  } else {
+    document.getElementById('progress-scope').textContent = `Geral: ${doneAll}/${totalAll}`
+  }
+
+  // Hint
+  document.getElementById('hint-id').textContent = pt.id
+
+  // Lista — atualiza classes e contadores
+  ACU_MERIDIANS.forEach(m => {
+    let mDone = 0
+    m.points.forEach(p => {
+      const item = document.getElementById(`pitem-${p.id}`)
+      if (!item) return
+      const globalIdx = ALL_POINTS.findIndex(ap => ap.id === p.id)
+      item.classList.toggle('active', globalIdx === idx)
+      item.classList.toggle('done',   !!calibrated[p.id])
+      if (calibrated[p.id]) mDone++
+    })
+
+    const countEl = document.getElementById(`mcount-${m.id}`)
+    if (countEl) {
+      countEl.textContent = `${mDone}/${m.points.length}`
+      countEl.className   = `meridian-count${mDone === m.points.length ? ' complete' : ''}`
+    }
+
+    // Abre automaticamente o meridiano do ponto atual
+    const row = document.getElementById(`mrow-${m.id}`)
+    if (row) row.classList.toggle('open', m.id === pt.meridianId)
+  })
+}
+
+// ── Feedback visual ───────────────────────────────────────────────────────────
+
+function showMsg(text) {
+  const el = document.getElementById('status-msg')
+  el.textContent = text
+  el.classList.add('show')
+  clearTimeout(el._t)
+  el._t = setTimeout(() => el.classList.remove('show'), 2200)
+}
+
+// ── Botões ────────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-back').addEventListener('click', () => {
+  viewer.back(); refreshUI()
+})
+
+document.getElementById('btn-skip').addEventListener('click', () => {
+  viewer.skip(); refreshUI()
+})
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  const blob = new Blob([viewer.exportJSON()], { type: 'application/json' })
+  const a    = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob), download: 'acu-points-calibrated.json'
+  })
+  a.click()
+  showMsg('JSON baixado com sucesso')
+})
+
+document.getElementById('btn-save-server').addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/calibrate/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: viewer.exportJSON()
+    })
+    showMsg(res.ok ? '💾 Salvo no servidor' : '⚠ Erro ao salvar no servidor')
+  } catch {
+    showMsg('⚠ Sem conexão com o servidor')
+  }
+})
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!confirm('Apagar todo o progresso? Esta ação não pode ser desfeita.')) return
+  localStorage.removeItem(STORAGE_KEY)
+  viewer.loadSaved({})
+  refreshUIChips()
+  refreshUI()
+  showMsg('Progresso apagado')
+})
+
+// ── Atalhos de teclado ────────────────────────────────────────────────────────
+
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); viewer.skip(); refreshUI() }
+  if (e.key === 'ArrowLeft')                   { e.preventDefault(); viewer.back(); refreshUI() }
+  if (e.key === 'Escape')                      { applyFilter(null) }
+})
+</script>
+</body>
+</html>

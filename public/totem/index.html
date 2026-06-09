@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consultório — Recepção</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 100vw; height: 100vh; overflow: hidden;
+    font-family: 'DM Sans', sans-serif;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Fundos animados por estado ── */
+  @keyframes bg-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  body.theme-idle {
+    background: linear-gradient(135deg, #1a0533, #0d1f45, #0d3b5e, #1a1240);
+    background-size: 400% 400%;
+    animation: bg-shift 14s ease infinite;
+  }
+  body.theme-patient {
+    background: linear-gradient(135deg, #0d1f45, #1a0533, #0d3b5e, #2d1b5e);
+    background-size: 400% 400%;
+    animation: bg-shift 10s ease infinite;
+  }
+  body.theme-waiting {
+    background: linear-gradient(135deg, #0d2b0d, #1a3a1a, #0f2027, #0a1a0a);
+    background-size: 400% 400%;
+    animation: bg-shift 10s ease infinite;
+  }
+  body.theme-wait {
+    background: linear-gradient(135deg, #1a1a0a, #2a2a10, #1f2010, #0f1a0a);
+    background-size: 400% 400%;
+    animation: bg-shift 8s ease infinite;
+  }
+  body.theme-enter {
+    background: linear-gradient(135deg, #0a2a0a, #1a4a1a, #0f3a1a, #0a2a10);
+    background-size: 400% 400%;
+    animation: bg-shift 6s ease infinite;
+  }
+  body.theme-qr {
+    background: linear-gradient(135deg, #0d1f45, #1a0533, #0d3b5e, #1a1240);
+    background-size: 400% 400%;
+    animation: bg-shift 12s ease infinite;
+  }
+  body.theme-done {
+    background: linear-gradient(135deg, #0a1a0a, #1a3a1a, #0f2a1a, #0a2a10);
+    background-size: 400% 400%;
+    animation: bg-shift 8s ease infinite;
+  }
+
+  /* Perguntas inline */
+  body.theme-q1 { background: linear-gradient(160deg, #060d1f 0%, #0d1f45 55%, #1a1240 100%); animation: none; }
+  body.theme-q2 { background: linear-gradient(160deg, #1a0a0a 0%, #3d1515 55%, #2a0a1e 100%); animation: none; }
+  body.theme-q3 { background: linear-gradient(160deg, #0f2027 0%, #203a43 55%, #2c5364 100%); animation: none; }
+  body.theme-q4 { background: linear-gradient(160deg, #1a1040 0%, #2d1b5e 55%, #1a2850 100%); animation: none; }
+
+  /* ── Camada de partículas ── */
+  #bg-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+
+  .star {
+    position: absolute; background: #fff; border-radius: 50%;
+    animation: twinkle 3s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity: 0.1; transform: scale(1); }
+    50%      { opacity: 0.85; transform: scale(1.4); }
+  }
+  .particle {
+    position: absolute; border-radius: 50%;
+    animation: float-up 4s ease-in-out infinite;
+  }
+  @keyframes float-up {
+    0%,100% { transform: translateY(0) scale(1); opacity: 0.3; }
+    50%     { transform: translateY(-40px) scale(1.25); opacity: 0.8; }
+  }
+  .sparkle {
+    position: absolute; border-radius: 50%;
+    animation: sparkle-burst 1.8s ease-in-out infinite;
+  }
+  @keyframes sparkle-burst {
+    0%   { transform: scale(0); opacity: 0; }
+    35%  { opacity: 1; }
+    100% { transform: scale(2.8); opacity: 0; }
+  }
+
+  /* Anéis Q2 */
+  .pulse-ring {
+    position: absolute; border-radius: 50%;
+    border: 1.5px solid rgba(220,50,50,0.35);
+    animation: pulse-out 2s ease-out infinite;
+  }
+  @keyframes pulse-out {
+    0%   { transform: translate(-50%,-50%) scale(0.3); opacity: 0.8; }
+    100% { transform: translate(-50%,-50%) scale(3); opacity: 0; }
+  }
+  .pulse-center {
+    position: absolute; left: 50%; top: 45%;
+    width: 60px; height: 60px;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle, rgba(220,50,50,0.25), transparent 70%);
+    border-radius: 50%;
+  }
+
+  /* Ondas Q3 */
+  .wave {
+    position: absolute; bottom: 0; left: -20%;
+    width: 140%; height: 120px;
+    background: rgba(20,80,120,0.22);
+    border-radius: 50%;
+    animation: wave-move 8s ease-in-out infinite alternate;
+  }
+  @keyframes wave-move {
+    from { transform: translateX(0) scaleY(1); }
+    to   { transform: translateX(5%) scaleY(1.1); }
+  }
+
+  /* QR card respira */
+  @keyframes card-breathe {
+    0%,100% { box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 rgba(255,255,255,0); }
+    50%     { box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 40px rgba(255,255,255,0.06); }
+  }
+
+  /* ── Conteúdo ── */
+  .screen {
+    position: relative; z-index: 1;
+    width: min(580px, 92vw);
+    text-align: center;
+  }
+
+  .clinic-name {
+    font-family: 'Playfair Display', serif;
+    font-weight: 300;
+    font-size: clamp(2rem, 4.5vw, 3.2rem);
+    letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.88);
+    margin-bottom: 0.25em;
+  }
+  .clinic-sub {
+    font-size: clamp(0.8rem, 1.3vw, 1rem);
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: clamp(2rem, 4vh, 3.5rem);
+  }
+  .divider {
+    width: 50px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+    margin: 0 auto 2.5rem;
+  }
+
+  /* Wrapper de estados com posicionamento relativo */
+  .state-wrapper { position: relative; min-height: 300px; }
+
+  /* Base de estado — oculto */
+  .state {
+    position: absolute; top: 0; left: 0; width: 100%;
+    opacity: 0; transform: translateY(16px);
+    transition: opacity 0.5s, transform 0.5s;
+    pointer-events: none;
+  }
+  .state.active {
+    position: relative;
+    opacity: 1; transform: translateY(0);
+    pointer-events: all;
+  }
+
+  /* Botões */
+  .btn-primary {
+    width: 100%; padding: 1rem 2rem;
+    background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+    border: none; border-radius: 60px;
+    color: #fff; font-family: 'DM Sans', sans-serif;
+    font-size: 1.1rem; font-weight: 500;
+    cursor: pointer; margin-bottom: 0.8rem;
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); }
+
+  .btn-secondary {
+    width: 100%; padding: 0.9rem 2rem;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 60px;
+    color: rgba(255,255,255,0.7);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; cursor: pointer;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.15); color: #fff; transform: translateY(-2px); }
+
+  .btn-green {
+    width: 100%; padding: 1rem 2rem;
+    background: linear-gradient(135deg, #2e7d5e, #1a5c3a);
+    border: none; border-radius: 60px;
+    color: #fff; font-family: 'DM Sans', sans-serif;
+    font-size: 1.1rem; font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(76,175,134,0.3);
+    animation: btn-pulse 2s ease-in-out infinite;
+  }
+  @keyframes btn-pulse {
+    0%,100% { box-shadow: 0 0 20px rgba(76,175,134,0.3); }
+    50%     { box-shadow: 0 0 40px rgba(76,175,134,0.6); }
+  }
+
+  /* Texto de boas-vindas */
+  .welcome-msg {
+    font-size: clamp(1rem, 1.8vw, 1.3rem);
+    color: rgba(255,255,255,0.5);
+    line-height: 1.7;
+    margin-bottom: 2rem;
+  }
+
+  /* Estado idle — aguardando agendamento */
+  .idle-dots {
+    display: flex; gap: 10px; justify-content: center; margin-top: 2.5rem;
+  }
+  .idle-dot {
+    width: 9px; height: 9px; background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    animation: dot-pulse 1.6s ease-in-out infinite;
+  }
+  .idle-dot:nth-child(2) { animation-delay: 0.27s; }
+  .idle-dot:nth-child(3) { animation-delay: 0.54s; }
+  @keyframes dot-pulse {
+    0%,80%,100% { opacity: 0.2; transform: scale(0.8); }
+    40%         { opacity: 0.8; transform: scale(1.2); }
+  }
+
+  /* Nome do paciente (do agendamento) */
+  .patient-display {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 300;
+    color: rgba(255,255,255,0.95);
+    margin-bottom: 0.4em;
+  }
+  .appt-time {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.12em;
+    margin-bottom: 2rem;
+  }
+
+  /* Estado QR */
+  .qr-card {
+    background: #fff; border-radius: 24px;
+    padding: 2rem;
+    display: flex; flex-direction: column; align-items: center; gap: 1rem;
+    animation: card-breathe 4s ease-in-out infinite;
+    margin: 0 auto;
+    width: fit-content;
+  }
+  .qr-card img { width: min(260px, 60vw); height: min(260px, 60vw); border-radius: 8px; }
+  .qr-name { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: #1a0533; }
+  .qr-hint { font-size: 0.85rem; color: #555; max-width: 220px; line-height: 1.5; text-align: center; }
+
+  /* Dots de espera */
+  .waiting-dots {
+    display: flex; gap: 10px; justify-content: center; margin-top: 2rem;
+  }
+  .waiting-dot {
+    width: 10px; height: 10px; background: rgba(255,255,255,0.4);
+    border-radius: 50%;
+    animation: dot-pulse 1.4s ease-in-out infinite;
+  }
+  .waiting-dot:nth-child(2) { animation-delay: 0.2s; }
+  .waiting-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  /* Grande ícone de check */
+  .big-icon {
+    width: 100px; height: 100px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.5rem;
+    animation: pop-in 0.5s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  }
+  @keyframes pop-in {
+    from { transform: scale(0); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .big-icon.green { background: linear-gradient(135deg,#4caf86,#2e7d5e); box-shadow: 0 0 50px rgba(76,175,134,0.4); }
+  .big-icon.yellow { background: linear-gradient(135deg,#b8860b,#8a6400); box-shadow: 0 0 40px rgba(184,134,11,0.3); }
+  .big-icon svg { width: 48px; height: 48px; }
+
+  .big-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 300;
+    margin-bottom: 0.6rem;
+    color: rgba(255,255,255,0.95);
+  }
+  .big-subtitle {
+    font-size: clamp(0.9rem, 1.5vw, 1.1rem);
+    color: rgba(255,255,255,0.5);
+    line-height: 1.6;
+  }
+
+  /* Formulário inline no totem — TV-friendly */
+  .inline-form { text-align: left; }
+  .progress-line {
+    height: 3px; background: rgba(255,255,255,0.1);
+    border-radius: 3px; margin-bottom: 2.5rem; overflow: hidden;
+  }
+  .progress-fill { height: 100%; background: rgba(255,255,255,0.55); transition: width 0.5s; }
+
+  .question-big {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 300;
+    line-height: 1.3;
+    margin-bottom: 2rem;
+    color: rgba(255,255,255,0.95);
+    text-align: center;
+  }
+  .options-grid {
+    display: flex; flex-direction: column; gap: 0.9rem; margin-bottom: 2rem;
+  }
+  .opt-btn {
+    padding: 1.1rem 1.8rem;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 60px;
+    color: rgba(255,255,255,0.9);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.05rem;
+    text-align: center; cursor: pointer;
+    position: relative;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+  }
+  .opt-btn:hover  { background: rgba(255,255,255,0.2); transform: scale(1.01); }
+  .opt-btn.selected { background: rgba(255,255,255,0.95); color: #1a0533; font-weight: 500; border-color: transparent; }
+
+  .pain-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.7rem;
+    margin-bottom: 1rem;
+  }
+  .pain-btn {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.28);
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.9);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.1rem; font-weight: 500;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+  }
+  .pain-btn:hover { background: rgba(255,255,255,0.22); transform: scale(1.08); }
+  .pain-btn.selected { background: rgba(255,255,255,0.95); color: #3d1515; font-weight: 700; border-color: transparent; }
+  .pain-labels {
+    display: flex; justify-content: space-between;
+    font-size: 0.78rem; color: rgba(255,255,255,0.38);
+    margin-bottom: 1.5rem; padding: 0 0.2rem;
+  }
+
+  .inline-nav {
+    display: flex; gap: 1rem;
+  }
+  .btn-back-inline {
+    flex: 0 0 auto; padding: 0.9rem 1.5rem;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 60px;
+    color: rgba(255,255,255,0.5);
+    font-family: 'DM Sans', sans-serif; font-size: 0.95rem; cursor: pointer;
+  }
+  .btn-next-inline {
+    flex: 1; padding: 0.9rem 2rem;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 60px; color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem; font-weight: 500; cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+  }
+  .btn-next-inline:disabled { opacity: 0.3; cursor: default; }
+  .btn-next-inline.ready { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.5); }
+</style>
+</head>
+<body class="theme-idle">
+
+<div id="bg-layer"></div>
+
+<div class="screen">
+  <div class="clinic-name">Consultório de Fisioterapia</div>
+  <div class="clinic-sub">Fisioterapia &amp; Acupuntura</div>
+  <div class="divider"></div>
+
+  <div class="state-wrapper">
+
+    <!-- IDLE: aguardando próximo agendamento -->
+    <div id="s-idle" class="state active">
+      <div class="welcome-msg">Bem-vindo(a)!<br>Aguardando próximo atendimento agendado.</div>
+      <div class="idle-dots">
+        <div class="idle-dot"></div>
+        <div class="idle-dot"></div>
+        <div class="idle-dot"></div>
+      </div>
+    </div>
+
+    <!-- SHOW_PATIENT: próximo paciente identificado -->
+    <div id="s-patient" class="state">
+      <div class="welcome-msg">Olá! Seu atendimento está próximo.</div>
+      <div class="patient-display" id="patient-name-display"></div>
+      <div class="appt-time" id="appt-time-display"></div>
+      <button class="btn-primary" id="btn-qr" onclick="generateQR()">Gerar QR para celular</button>
+      <button class="btn-secondary" onclick="startInlineForm()">Prefiro preencher aqui →</button>
+    </div>
+
+    <!-- QR: QR Code gerado, aguardando paciente escanear -->
+    <div id="s-qr" class="state">
+      <div class="qr-card">
+        <img id="qr-img" src="" alt="QR Code">
+        <div class="qr-name" id="qr-patient-name"></div>
+        <div class="qr-hint">Escaneie com seu celular e responda algumas perguntas antes de entrar</div>
+      </div>
+      <div class="waiting-dots" style="margin-top:1.5rem">
+        <div class="waiting-dot"></div>
+        <div class="waiting-dot"></div>
+        <div class="waiting-dot"></div>
+      </div>
+    </div>
+
+    <!-- INLINE FORM: perguntas diretamente no totem -->
+    <div id="s-inline" class="state">
+      <div class="progress-line"><div class="progress-fill" id="prog-fill" style="width:25%"></div></div>
+      <div class="question-big" id="inline-question"></div>
+      <div id="inline-options"></div>
+      <div class="inline-nav">
+        <button class="btn-back-inline" id="btn-back-inline" onclick="inlineBack()" style="display:none">← Voltar</button>
+        <button class="btn-next-inline" id="btn-next-inline" onclick="inlineNext()" disabled>Próxima →</button>
+      </div>
+    </div>
+
+    <!-- WAITING: formulário preenchido, aguardando Dra. -->
+    <div id="s-waiting" class="state">
+      <div class="big-icon yellow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="big-title">Aguardando confirmação</div>
+      <div class="big-subtitle">Sua entrada será confirmada em instantes.</div>
+      <div class="waiting-dots">
+        <div class="waiting-dot"></div>
+        <div class="waiting-dot"></div>
+        <div class="waiting-dot"></div>
+      </div>
+    </div>
+
+    <!-- WAIT: Dra. disse aguardar -->
+    <div id="s-wait" class="state">
+      <div class="big-icon yellow">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="big-title" id="wait-name"></div>
+      <div class="big-subtitle">Aguarde um momento, você será chamado(a) em breve.</div>
+    </div>
+
+    <!-- CAN ENTER: Dra. disse pode entrar -->
+    <div id="s-enter" class="state">
+      <div class="big-icon green">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="big-title" id="enter-name"></div>
+      <div class="big-subtitle">A profissional está te aguardando.<br>Pode entrar! 🟢</div>
+    </div>
+
+    <!-- DONE: formulário concluído -->
+    <div id="s-done" class="state">
+      <div class="big-icon green">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="big-title">Obrigado(a)!</div>
+      <div class="big-subtitle">Suas respostas foram recebidas.<br>A profissional já foi notificada.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Perguntas do formulário inline ──────────────────────────────────────────
+
+const QUESTIONS = [
+  {
+    key: 'sleep', theme: 'theme-q1',
+    text: 'Como foi o seu sono na última noite?',
+    type: 'options',
+    options: ['Dormi muito bem','Dormi razoavelmente','Dormi mal','Quase não dormi']
+  },
+  {
+    key: 'pain', theme: 'theme-q2',
+    text: 'Qual o nível de desconforto ou dor agora?',
+    type: 'scale'
+  },
+  {
+    key: 'stress', theme: 'theme-q3',
+    text: 'Como está seu nível de estresse esta semana?',
+    type: 'options',
+    options: ['Tranquilo, me sinto bem','Um pouco tenso','Bastante estressado','No limite']
+  },
+  {
+    key: 'reason', theme: 'theme-q4',
+    text: 'O que te traz aqui hoje?',
+    type: 'options',
+    options: ['Dor ou desconforto físico','Estresse e ansiedade','Manutenção e bem-estar','Continuação do tratamento']
+  }
+]
+
+// ── Estado global ────────────────────────────────────────────────────────────
+
+let currentSessionId  = null
+let currentPatientName = null
+let currentApptId     = null
+let currentPatientId  = null
+let pollingInterval   = null
+let inlineStep        = 0
+const inlineAnswers   = {}
+let lastState         = ''
+
+// ── Controle de telas ────────────────────────────────────────────────────────
+
+const STATES = ['idle','patient','qr','inline','waiting','wait','enter','done']
+
+function show(stateName) {
+  STATES.forEach(s => {
+    const el = document.getElementById('s-' + s)
+    if (el) el.classList.toggle('active', s === stateName)
+  })
+}
+
+// ── Fundo animado por estado / tema ──────────────────────────────────────────
+
+const THEME_MAP = {
+  idle: 'theme-idle', patient: 'theme-patient',
+  qr: 'theme-qr', inline: null, /* definido pela pergunta */
+  waiting: 'theme-waiting', wait: 'theme-wait',
+  enter: 'theme-enter', done: 'theme-done'
+}
+
+function setTheme(theme) {
+  document.body.className = theme
+  buildBgLayer(theme)
+}
+
+function buildBgLayer(theme) {
+  const layer = document.getElementById('bg-layer')
+  layer.innerHTML = ''
+
+  if (['theme-idle','theme-patient','theme-qr','theme-done'].includes(theme)) {
+    buildStars(layer)
+  }
+  if (['theme-waiting','theme-wait','theme-enter'].includes(theme)) {
+    buildParticles(layer)
+  }
+  if (theme === 'theme-done') {
+    buildSparkles(layer)
+  }
+  if (theme === 'theme-q2') {
+    buildPulse(layer)
+  }
+  if (theme === 'theme-q3') {
+    buildWaves(layer)
+  }
+  if (['theme-q1','theme-q4','theme-idle','theme-patient'].includes(theme)) {
+    buildStars(layer)
+  }
+  if (theme === 'theme-q4') {
+    buildParticles(layer)
+  }
+}
+
+function buildStars(d) {
+  for (let i = 0; i < 55; i++) {
+    const s = document.createElement('div')
+    s.className = 'star'
+    const sz = Math.random() * 2.5 + 0.5
+    s.style.width  = sz + 'px'
+    s.style.height = sz + 'px'
+    s.style.top    = (Math.random() * 100) + '%'
+    s.style.left   = (Math.random() * 100) + '%'
+    s.style.animationDuration  = (Math.random() * 4 + 2).toFixed(1) + 's'
+    s.style.animationDelay     = (Math.random() * 5).toFixed(1) + 's'
+    d.appendChild(s)
+  }
+}
+
+function buildParticles(d) {
+  for (let i = 0; i < 35; i++) {
+    const p = document.createElement('div')
+    p.className = 'particle'
+    const sz = Math.random() * 5 + 2
+    p.style.width  = sz + 'px'
+    p.style.height = sz + 'px'
+    p.style.top    = (Math.random() * 100) + '%'
+    p.style.left   = (Math.random() * 100) + '%'
+    p.style.background = 'rgba(180,140,255,0.55)'
+    p.style.animationDuration = (Math.random() * 4 + 3).toFixed(1) + 's'
+    p.style.animationDelay    = (Math.random() * 5).toFixed(1) + 's'
+    d.appendChild(p)
+  }
+}
+
+function buildSparkles(d) {
+  const colors = ['rgba(255,215,0,0.6)','rgba(100,255,180,0.6)','rgba(255,130,200,0.6)','rgba(130,200,255,0.6)']
+  for (let i = 0; i < 28; i++) {
+    const sp = document.createElement('div')
+    sp.className = 'sparkle'
+    const sz = Math.random() * 8 + 4
+    sp.style.width  = sz + 'px'
+    sp.style.height = sz + 'px'
+    sp.style.top    = (Math.random() * 100) + '%'
+    sp.style.left   = (Math.random() * 100) + '%'
+    sp.style.background = colors[Math.floor(Math.random() * colors.length)]
+    sp.style.animationDuration = (Math.random() * 1.2 + 1.2).toFixed(1) + 's'
+    sp.style.animationDelay    = (Math.random() * 3).toFixed(1) + 's'
+    d.appendChild(sp)
+  }
+}
+
+function buildPulse(d) {
+  const center = document.createElement('div')
+  center.className = 'pulse-center'
+  d.appendChild(center)
+  for (let i = 0; i < 5; i++) {
+    const r = document.createElement('div')
+    r.className = 'pulse-ring'
+    const sz = 120 + i * 40
+    r.style.width  = sz + 'px'
+    r.style.height = sz + 'px'
+    r.style.top    = '45%'
+    r.style.left   = '50%'
+    r.style.animationDuration = (1.8 + i * 0.4) + 's'
+    r.style.animationDelay    = (i * 0.36) + 's'
+    d.appendChild(r)
+  }
+}
+
+function buildWaves(d) {
+  const speeds = [8, 11, 14, 6]
+  speeds.forEach((spd, i) => {
+    const w = document.createElement('div')
+    w.className = 'wave'
+    w.style.bottom   = (i * 20) + 'px'
+    w.style.opacity  = (0.5 - i * 0.08)
+    w.style.animationDuration = spd + 's'
+    w.style.animationDelay    = (i * -2) + 's'
+    d.appendChild(w)
+  })
+}
+
+// ── Polling do estado do totem ───────────────────────────────────────────────
+
+async function pollTotemState() {
+  const activeId = document.querySelector('.state.active')?.id
+  // Formulário inline em andamento — não interrompe
+  if (activeId === 's-inline') return
+
+  try {
+    const r = await fetch('/api/totem/state')
+    if (!r.ok) return
+    const data = await r.json()
+
+    // QR exibido aguardando preenchimento — só transiciona quando formulário chegar
+    if (activeId === 's-qr' && !['waiting', 'wait', 'can_enter'].includes(data.state)) return
+
+    const key = data.state + (data.patient_name || '') + (data.session_id || '')
+    if (key === lastState) return
+    lastState = key
+
+    applyTotemState(data)
+  } catch (_) {}
+}
+
+function applyTotemState(data) {
+  switch (data.state) {
+    case 'idle':
+      setTheme('theme-idle')
+      show('idle')
+      currentPatientName = null
+      currentApptId = null
+      break
+
+    case 'show_patient':
+      currentPatientName = data.patient_name
+      currentApptId      = data.appointment_id || null
+      currentPatientId   = data.patient_id || null
+      document.getElementById('patient-name-display').textContent = data.patient_name
+      document.getElementById('appt-time-display').textContent =
+        data.appointment_time ? `Agendado às ${data.appointment_time}` : 'Próximo atendimento'
+      setTheme('theme-patient')
+      show('patient')
+      break
+
+    case 'waiting':
+      setTheme('theme-waiting')
+      show('waiting')
+      break
+
+    case 'wait':
+      document.getElementById('wait-name').textContent = data.patient_name + ', aguarde!'
+      setTheme('theme-wait')
+      show('wait')
+      break
+
+    case 'can_enter':
+      document.getElementById('enter-name').textContent = data.patient_name + ', pode entrar!'
+      setTheme('theme-enter')
+      show('enter')
+      break
+  }
+}
+
+// ── Gerar QR Code ────────────────────────────────────────────────────────────
+
+async function generateQR() {
+  if (!currentPatientName) return
+  document.getElementById('btn-qr').disabled = true
+
+  try {
+    const r = await fetch('/api/sessions/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_name: currentPatientName,
+        appointment_id: currentApptId,
+        patient_id: currentPatientId
+      })
+    })
+    const data = await r.json()
+    currentSessionId = data.session_id
+
+    document.getElementById('qr-img').src = data.qr_code_base64
+    document.getElementById('qr-patient-name').textContent = currentPatientName
+    setTheme('theme-qr')
+    show('qr')
+    lastState = ''  // permite re-render quando polling detectar 'waiting'
+  } catch (e) {
+    document.getElementById('btn-qr').disabled = false
+  }
+}
+
+// ── Formulário inline no totem ───────────────────────────────────────────────
+
+function startInlineForm() {
+  if (!currentPatientName) return
+  inlineStep = 0
+  Object.keys(inlineAnswers).forEach(k => delete inlineAnswers[k])
+  renderInlineStep()
+  show('inline')
+}
+
+function renderInlineStep() {
+  const q = QUESTIONS[inlineStep]
+  setTheme(q.theme)
+
+  document.getElementById('prog-fill').style.width =
+    ((inlineStep + 1) / QUESTIONS.length * 100) + '%'
+  document.getElementById('inline-question').textContent = q.text
+  document.getElementById('btn-back-inline').style.display = inlineStep > 0 ? 'block' : 'none'
+
+  const nextBtn = document.getElementById('btn-next-inline')
+  nextBtn.disabled = !(q.key in inlineAnswers)
+  nextBtn.classList.toggle('ready', q.key in inlineAnswers)
+  nextBtn.textContent = inlineStep === QUESTIONS.length - 1 ? 'Concluir ✓' : 'Próxima →'
+
+  const optArea = document.getElementById('inline-options')
+  optArea.innerHTML = ''
+
+  if (q.type === 'options') {
+    const grid = document.createElement('div')
+    grid.className = 'options-grid'
+    q.options.forEach(opt => {
+      const btn = document.createElement('button')
+      btn.className = 'opt-btn' + (inlineAnswers[q.key] === opt ? ' selected' : '')
+      btn.textContent = opt
+      btn.onclick = () => {
+        grid.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'))
+        btn.classList.add('selected')
+        inlineAnswers[q.key] = opt
+        enableInlineNext()
+      }
+      grid.appendChild(btn)
+    })
+    optArea.appendChild(grid)
+  } else {
+    // Escala de dor
+    const pg = document.createElement('div')
+    pg.className = 'pain-grid'
+    for (let i = 0; i <= 10; i++) {
+      const btn = document.createElement('button')
+      btn.className = 'pain-btn' + (inlineAnswers[q.key] === String(i) ? ' selected' : '')
+      btn.textContent = i
+      btn.onclick = () => {
+        pg.querySelectorAll('.pain-btn').forEach(b => b.classList.remove('selected'))
+        btn.classList.add('selected')
+        inlineAnswers[q.key] = String(i)
+        enableInlineNext()
+      }
+      pg.appendChild(btn)
+    }
+    const labels = document.createElement('div')
+    labels.className = 'pain-labels'
+    labels.innerHTML = '<span>Sem dor</span><span>Dor intensa</span>'
+    optArea.appendChild(pg)
+    optArea.appendChild(labels)
+    return
+  }
+}
+
+function enableInlineNext() {
+  const btn = document.getElementById('btn-next-inline')
+  btn.disabled = false
+  btn.classList.add('ready')
+}
+
+function inlineNext() {
+  if (inlineStep < QUESTIONS.length - 1) {
+    inlineStep++
+    renderInlineStep()
+  } else {
+    submitInlineForm()
+  }
+}
+
+function inlineBack() {
+  if (inlineStep > 0) {
+    inlineStep--
+    renderInlineStep()
+  }
+}
+
+async function submitInlineForm() {
+  const btn = document.getElementById('btn-next-inline')
+  btn.disabled = true
+  btn.textContent = 'Enviando...'
+
+  try {
+    // Cria sessão se ainda não existe
+    if (!currentSessionId) {
+      const r = await fetch('/api/sessions/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_name: currentPatientName,
+          appointment_id: currentApptId,
+          patient_id: currentPatientId
+        })
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        throw new Error(e.error || `Erro ${r.status} ao criar sessão`)
+      }
+      const d = await r.json()
+      if (!d.session_id) throw new Error('Sessão inválida retornada pelo servidor')
+      currentSessionId = d.session_id
+    }
+
+    // Envia respostas
+    const r2 = await fetch(`/api/sessions/${currentSessionId}/answers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers: inlineAnswers })
+    })
+    if (!r2.ok) {
+      const e = await r2.json().catch(() => ({}))
+      throw new Error(e.error || `Erro ${r2.status} ao salvar respostas`)
+    }
+
+  } catch (err) {
+    console.error('[Totem] Erro ao enviar formulário:', err.message)
+    // Resetando sessionId para permitir nova tentativa
+    currentSessionId = null
+    btn.disabled = false
+    btn.textContent = 'Tentar novamente ↺'
+    btn.classList.add('ready')
+    return  // Não avança para tela de espera
+  }
+
+  setTheme('theme-waiting')
+  show('waiting')
+  lastState = ''  // permite polling detectar mudança
+}
+
+// ── Inicialização ────────────────────────────────────────────────────────────
+
+setTheme('theme-idle')
+buildBgLayer('theme-idle')
+pollTotemState()
+pollingInterval = setInterval(pollTotemState, 3000)
+</script>
+</body>
+</html>

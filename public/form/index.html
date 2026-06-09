@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Formulário de Chegada</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    width: 100vw; min-height: 100dvh; overflow-x: hidden;
+    font-family: 'DM Sans', sans-serif;
+    color: #fff;
+    transition: background 0.8s ease;
+  }
+
+  /* ── Temas por pergunta ── */
+  body.q1 { background: linear-gradient(160deg, #060d1f 0%, #0d1f45 55%, #1a1240 100%); }
+  body.q2 { background: linear-gradient(160deg, #1a0a0a 0%, #3d1515 55%, #2a0a1e 100%); }
+  body.q3 { background: linear-gradient(160deg, #0f2027 0%, #203a43 55%, #2c5364 100%); }
+  body.q4 { background: linear-gradient(160deg, #1a1040 0%, #2d1b5e 55%, #1a2850 100%); }
+  body.done-state { background: linear-gradient(160deg, #0a1a0a 0%, #1a3a1a 55%, #0f2a1a 100%); }
+
+  /* ── Progresso ── */
+  .progress-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px;
+    background: rgba(255,255,255,0.1);
+    z-index: 100;
+  }
+  .progress-fill {
+    height: 100%;
+    background: rgba(255,255,255,0.6);
+    transition: width 0.5s ease;
+  }
+
+  /* ── Decorações animadas por tema ── */
+  .decor { position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+
+  /* Q1: estrelas + lua */
+  .star {
+    position: absolute; background: #fff; border-radius: 50%;
+    animation: twinkle 3s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity:0.15; transform:scale(1); }
+    50% { opacity:0.95; transform:scale(1.5); }
+  }
+  .moon {
+    position: absolute; top: 8%; right: 12%;
+    width: 80px; height: 80px;
+  }
+  .moon-body {
+    width: 80px; height: 80px;
+    background: #ffd77a;
+    border-radius: 50%;
+    box-shadow: 0 0 30px rgba(255,215,122,0.5);
+    position: relative;
+  }
+  .moon-shadow {
+    position: absolute; top: -8px; left: -12px;
+    width: 80px; height: 80px;
+    background: #0d1f45;
+    border-radius: 50%;
+  }
+  .cloud {
+    position: absolute;
+    background: rgba(30,50,100,0.6);
+    border-radius: 60px;
+  }
+
+  /* Q2: anéis pulsantes */
+  .pulse-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid rgba(220,50,50,0.4);
+    animation: pulse-out 2s ease-out infinite;
+  }
+  @keyframes pulse-out {
+    0% { transform: translate(-50%,-50%) scale(0.3); opacity: 0.8; }
+    100% { transform: translate(-50%,-50%) scale(3); opacity: 0; }
+  }
+  .pulse-center {
+    position: absolute; left: 50%; top: 45%;
+    width: 60px; height: 60px;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle, rgba(220,50,50,0.3), transparent 70%);
+    border-radius: 50%;
+  }
+
+  /* Q3: ondas */
+  .wave {
+    position: absolute; bottom: 0; left: -20%;
+    width: 140%; height: 120px;
+    background: rgba(20,80,120,0.25);
+    border-radius: 50%;
+    animation: wave-move 8s ease-in-out infinite alternate;
+  }
+  @keyframes wave-move {
+    from { transform: translateX(0) scaleY(1); }
+    to { transform: translateX(5%) scaleY(1.1); }
+  }
+
+  /* Q4: partículas */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(180,140,255,0.6);
+    animation: float-up 4s ease-in-out infinite;
+  }
+  @keyframes float-up {
+    0%,100% { transform: translateY(0) scale(1); opacity: 0.4; }
+    50% { transform: translateY(-30px) scale(1.3); opacity: 0.9; }
+  }
+  .cosmos-glow {
+    position: absolute; left: 50%; top: 40%;
+    transform: translate(-50%,-50%);
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(120,80,200,0.2) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  /* ── Layout ── */
+  .screen {
+    position: relative; z-index: 2;
+    min-height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: 4rem 1.5rem 2rem;
+    max-width: 480px; margin: 0 auto;
+  }
+
+  .question-text {
+    font-family: 'Playfair Display', serif;
+    font-weight: 300;
+    font-size: clamp(1.5rem, 6vw, 2rem);
+    line-height: 1.35;
+    margin-bottom: 2.5rem;
+    color: rgba(255,255,255,0.95);
+  }
+
+  /* Opções */
+  .options { display: flex; flex-direction: column; gap: 0.85rem; margin-bottom: 2rem; }
+
+  .option-btn {
+    display: block;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 60px;
+    color: rgba(255,255,255,0.9);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.25s, color 0.25s, border-color 0.25s, transform 0.15s;
+  }
+  .option-btn:active { transform: scale(0.97); }
+  .option-btn.selected {
+    background: rgba(255,255,255,0.95);
+    color: #1a0533;
+    border-color: transparent;
+    font-weight: 500;
+  }
+
+  /* Escala de dor */
+  .pain-scale {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+  .pain-btn {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.28);
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.9);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s, color 0.2s, transform 0.15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pain-btn:active { transform: scale(0.92); }
+  .pain-btn.selected {
+    background: rgba(255,255,255,0.95);
+    color: #3d1515;
+    border-color: transparent;
+    font-weight: 700;
+  }
+  .pain-labels {
+    display: flex; justify-content: space-between;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 2rem;
+    padding: 0 0.2rem;
+  }
+
+  /* Navegação */
+  .nav { display: flex; gap: 1rem; margin-top: auto; padding-top: 1rem; }
+  .btn-back {
+    flex: 0 0 auto;
+    padding: 0.9rem 1.5rem;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 60px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    transition: background 0.2s;
+  }
+  .btn-next {
+    flex: 1;
+    padding: 0.9rem 2rem;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 60px;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: background 0.2s, opacity 0.2s;
+  }
+  .btn-next:disabled { opacity: 0.35; cursor: default; }
+  .btn-next.ready { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.5); }
+
+  /* Tela final */
+  #done-screen {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 2rem;
+    background: linear-gradient(160deg, #0a1a0a 0%, #1a3a1a 55%, #0f2a1a 100%);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.6s;
+    text-align: center;
+  }
+  #done-screen.visible { opacity: 1; pointer-events: all; }
+
+  .done-check {
+    width: 90px; height: 90px;
+    background: linear-gradient(135deg, #4caf86, #2e7d5e);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 2rem;
+    box-shadow: 0 0 40px rgba(76,175,134,0.4);
+    animation: pop-in 0.5s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  }
+  @keyframes pop-in {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .done-check svg { width: 44px; height: 44px; }
+
+  .done-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    font-weight: 300;
+    margin-bottom: 0.8rem;
+  }
+  .done-msg {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.6;
+    max-width: 300px;
+  }
+</style>
+</head>
+<body class="q1">
+
+<div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:25%"></div></div>
+<div class="decor" id="decor"></div>
+
+<div class="screen" id="form-screen">
+  <div class="question-text" id="question-text"></div>
+  <div id="options-area"></div>
+  <div class="nav" id="nav-area">
+    <button class="btn-back" id="btn-back" onclick="goBack()" style="display:none">← Voltar</button>
+    <button class="btn-next" id="btn-next" onclick="goNext()" disabled>Próxima →</button>
+  </div>
+</div>
+
+<!-- Tela final -->
+<div id="done-screen">
+  <div class="done-check">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  </div>
+  <div class="done-name" id="done-patient-name"></div>
+  <div class="done-msg">Suas respostas foram recebidas.<br>Pode aguardar — a profissional já foi notificada!</div>
+</div>
+
+<script>
+  const questions = [
+    {
+      key: 'sleep',
+      text: 'Como foi o seu sono na última noite?',
+      theme: 'q1',
+      type: 'options',
+      options: ['Dormi muito bem', 'Dormi razoavelmente', 'Dormi mal', 'Quase não dormi']
+    },
+    {
+      key: 'pain',
+      text: 'Qual o nível de desconforto ou dor que você sente agora?',
+      theme: 'q2',
+      type: 'scale',
+      scaleMin: 0, scaleMax: 10
+    },
+    {
+      key: 'stress',
+      text: 'Como está seu nível de estresse esta semana?',
+      theme: 'q3',
+      type: 'options',
+      options: ['Tranquilo, me sinto bem', 'Um pouco tenso', 'Bastante estressado', 'No limite']
+    },
+    {
+      key: 'reason',
+      text: 'O que te traz aqui hoje?',
+      theme: 'q4',
+      type: 'options',
+      options: ['Dor ou desconforto físico', 'Estresse e ansiedade', 'Manutenção e bem-estar', 'Continuação do tratamento']
+    }
+  ]
+
+  let current = 0
+  const answers = {}
+  let sessionId = null
+  let patientName = null
+
+  // Lê session_id da URL
+  const params = new URLSearchParams(location.search)
+  sessionId = params.get('session')
+
+  if (!sessionId) {
+    document.querySelector('.question-text').textContent = 'Link inválido. Por favor, escaneie o QR Code novamente.'
+    document.getElementById('nav-area').style.display = 'none'
+  } else {
+    // Busca nome do paciente
+    fetch(`/api/sessions/${sessionId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) patientName = data.patient_name
+        else document.getElementById('done-patient-name').textContent = ''
+      })
+      .catch(() => {})
+
+    renderQuestion(0)
+  }
+
+  function renderQuestion(index) {
+    const q = questions[index]
+    document.body.className = q.theme
+    document.getElementById('question-text').textContent = q.text
+    document.getElementById('progress-fill').style.width = `${((index + 1) / questions.length) * 100}%`
+    document.getElementById('btn-back').style.display = index > 0 ? 'block' : 'none'
+
+    const nextBtn = document.getElementById('btn-next')
+    nextBtn.disabled = !(q.key in answers)
+    nextBtn.classList.toggle('ready', q.key in answers)
+    nextBtn.textContent = index === questions.length - 1 ? 'Concluir ✓' : 'Próxima →'
+
+    // Opções primeiro — garantidas antes de qualquer animação
+    renderOptions(q)
+
+    // Decor em tick separado: falha isolada, nunca bloqueia as opções
+    setTimeout(function() { try { renderDecor(q.theme) } catch(e) {} }, 0)
+  }
+
+  function renderOptions(q) {
+    const area = document.getElementById('options-area')
+    area.innerHTML = ''
+
+    if (q.type === 'options') {
+      const div = document.createElement('div')
+      div.className = 'options'
+      q.options.forEach(opt => {
+        const btn = document.createElement('button')
+        btn.className = 'option-btn' + (answers[q.key] === opt ? ' selected' : '')
+        btn.textContent = opt
+        btn.onclick = () => selectOption(q.key, opt, btn, div)
+        div.appendChild(btn)
+      })
+      area.appendChild(div)
+    } else if (q.type === 'scale') {
+      const grid = document.createElement('div')
+      grid.className = 'pain-scale'
+      for (let i = 0; i <= 10; i++) {
+        const btn = document.createElement('button')
+        btn.className = 'pain-btn' + (answers[q.key] === String(i) ? ' selected' : '')
+        btn.textContent = i
+        btn.onclick = () => selectPain(q.key, String(i), btn, grid)
+        grid.appendChild(btn)
+      }
+      area.appendChild(grid)
+      const labels = document.createElement('div')
+      labels.className = 'pain-labels'
+      labels.innerHTML = '<span>Sem dor</span><span>Dor intensa</span>'
+      area.appendChild(labels)
+    }
+  }
+
+  function selectOption(key, value, btn, container) {
+    container.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    answers[key] = value
+    enableNext()
+  }
+
+  function selectPain(key, value, btn, container) {
+    container.querySelectorAll('.pain-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    answers[key] = value
+    enableNext()
+  }
+
+  function enableNext() {
+    const btn = document.getElementById('btn-next')
+    btn.disabled = false
+    btn.classList.add('ready')
+  }
+
+  function goNext() {
+    if (current < questions.length - 1) {
+      current++
+      renderQuestion(current)
+    } else {
+      submitForm()
+    }
+  }
+
+  function goBack() {
+    if (current > 0) {
+      current--
+      renderQuestion(current)
+    }
+  }
+
+  async function submitForm() {
+    const btn = document.getElementById('btn-next')
+    btn.disabled = true
+    btn.textContent = 'Enviando...'
+
+    try {
+      await fetch(`/api/sessions/${sessionId}/answers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers })
+      })
+    } catch (_) {}
+
+    document.getElementById('done-patient-name').textContent = patientName || 'Obrigado!'
+    document.getElementById('done-screen').classList.add('visible')
+  }
+
+  // ─── Decorações temáticas ───────────────────────────────────────────────
+
+  let decorBuilt = ''
+
+  function renderDecor(theme) {
+    if (decorBuilt === theme) return
+    decorBuilt = theme
+    const d = document.getElementById('decor')
+    d.innerHTML = ''
+
+    if (theme === 'q1') buildQ1Decor(d)
+    else if (theme === 'q2') buildQ2Decor(d)
+    else if (theme === 'q3') buildQ3Decor(d)
+    else if (theme === 'q4') buildQ4Decor(d)
+  }
+
+  function buildQ1Decor(d) {
+    // Estrelas
+    for (let i = 0; i < 60; i++) {
+      const s = document.createElement('div')
+      s.className = 'star'
+      const sz = Math.random() * 2.5 + 0.5
+      const dur = (Math.random() * 4 + 2).toFixed(1) + 's'
+      const delay = (Math.random() * 5).toFixed(1) + 's'
+      s.style.width = sz + 'px'
+      s.style.height = sz + 'px'
+      s.style.top = (Math.random() * 100) + '%'
+      s.style.left = (Math.random() * 100) + '%'
+      s.style.animationDuration = dur
+      s.style.animationDelay = delay
+      d.appendChild(s)
+    }
+    // Lua
+    const moon = document.createElement('div')
+    moon.className = 'moon'
+    moon.innerHTML = '<div class="moon-body"><div class="moon-shadow"></div></div>'
+    d.appendChild(moon)
+    // Nuvens
+    const clouds = [['-5%','60%','200px','60px'],['80%','70%','160px','50px']]
+    clouds.forEach(([t, l, w, h]) => {
+      const c = document.createElement('div')
+      c.className = 'cloud'
+      c.style.cssText = `top:${t};left:${l};width:${w};height:${h}`
+      d.appendChild(c)
+    })
+  }
+
+  function buildQ2Decor(d) {
+    // Centro de brilho
+    const center = document.createElement('div')
+    center.className = 'pulse-center'
+    d.appendChild(center)
+    // Anéis
+    for (let i = 0; i < 5; i++) {
+      const r = document.createElement('div')
+      r.className = 'pulse-ring'
+      const sz = 120 + i * 40
+      r.style.width = sz + 'px'
+      r.style.height = sz + 'px'
+      r.style.top = '45%'
+      r.style.left = '50%'
+      r.style.animationDuration = (1.8 + i * 0.4) + 's'
+      r.style.animationDelay = (i * 0.36) + 's'
+      d.appendChild(r)
+    }
+  }
+
+  function buildQ3Decor(d) {
+    const speeds = [8, 11, 14, 6]
+    speeds.forEach((spd, i) => {
+      const w = document.createElement('div')
+      w.className = 'wave'
+      w.style.bottom = (i * 18) + 'px'
+      w.style.opacity = (0.5 - i * 0.08)
+      w.style.animationDuration = spd + 's'
+      w.style.animationDelay = (i * -2) + 's'
+      d.appendChild(w)
+    })
+  }
+
+  function buildQ4Decor(d) {
+    const glow = document.createElement('div')
+    glow.className = 'cosmos-glow'
+    d.appendChild(glow)
+    for (let i = 0; i < 40; i++) {
+      const p = document.createElement('div')
+      p.className = 'particle'
+      const sz = Math.random() * 4 + 2
+      p.style.width = sz + 'px'
+      p.style.height = sz + 'px'
+      p.style.top = (Math.random() * 100) + '%'
+      p.style.left = (Math.random() * 100) + '%'
+      p.style.animationDuration = (Math.random() * 4 + 3).toFixed(1) + 's'
+      p.style.animationDelay = (Math.random() * 4).toFixed(1) + 's'
+      d.appendChild(p)
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consultório — Tela do Paciente</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  width:100vw; height:100vh; overflow:hidden;
+  font-family:'DM Sans', sans-serif;
+  color:#fff;
+  transition: background 1s ease;
+}
+
+/* Tons de fundo por região */
+body.bg-default  { background: #0c0c14; }
+body.bg-lower    { background: #0c0c1a; }  /* joelho, pé, tornozelo */
+body.bg-lumbar   { background: #0f0c0a; }  /* lombar, quadril */
+body.bg-upper    { background: #0a0f0c; }  /* ombro, pescoço, cabeça */
+body.bg-torso    { background: #0c0c14; }  /* tórax, abdome */
+
+/* ── Estado Idle ── */
+#idle-screen {
+  position:fixed; inset:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  z-index:10;
+  transition: opacity 0.8s;
+}
+#idle-screen.hidden { opacity:0; pointer-events:none; }
+
+.idle-glow {
+  position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:600px; height:600px;
+  background:radial-gradient(circle, rgba(80,50,150,0.15) 0%, transparent 70%);
+  border-radius:50%;
+  animation:glow-pulse 4s ease-in-out infinite;
+}
+@keyframes glow-pulse {
+  0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6;}
+  50%{transform:translate(-50%,-50%) scale(1.15);opacity:1;}
+}
+
+.idle-particles { position:absolute; inset:0; pointer-events:none; }
+.idle-particle {
+  position:absolute; border-radius:50%;
+  background:rgba(180,140,255,0.5);
+  animation:float var(--dur) ease-in-out infinite;
+}
+@keyframes float {
+  0%,100%{transform:translateY(0) scale(1);opacity:0.3;}
+  50%{transform:translateY(-40px) scale(1.2);opacity:0.8;}
+}
+
+.idle-clinic {
+  position:relative;
+  font-family:'Playfair Display', serif;
+  font-size:clamp(2.5rem, 5vw, 4rem);
+  font-weight:300;
+  letter-spacing:0.06em;
+  color:rgba(255,255,255,0.8);
+  margin-bottom:1rem;
+  text-align:center;
+}
+.idle-welcome {
+  font-size:clamp(1rem, 2vw, 1.4rem);
+  color:rgba(255,255,255,0.35);
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+}
+
+/* ── Estado Ativo ── */
+#active-screen {
+  position:fixed; inset:0;
+  display:grid; grid-template-columns:1fr 1.4fr;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.8s;
+  z-index:10;
+}
+#active-screen.visible { opacity:1; pointer-events:all; }
+
+/* Coluna esquerda — anatômica */
+.anatomy-col {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:2rem 1.5rem;
+  border-right:1px solid rgba(255,255,255,0.05);
+  position:relative;
+  overflow:hidden;
+}
+
+.anatomy-col::before {
+  content:'';
+  position:absolute; inset:0;
+  background:radial-gradient(ellipse at 50% 40%, rgba(255,180,50,0.04) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+#body-svg-shared {
+  width:min(200px, 30vw);
+  height:auto;
+  filter:drop-shadow(0 0 20px rgba(255,180,50,0.1));
+}
+
+.region-name {
+  margin-top:1.5rem;
+  font-size:clamp(0.75rem, 1.2vw, 0.95rem);
+  text-transform:uppercase;
+  letter-spacing:0.15em;
+  color:rgba(255,180,50,0.7);
+  text-align:center;
+}
+
+/* Região selecionada com glow pulsante */
+.svg-region {
+  fill:rgba(255,255,255,0.06);
+  stroke:rgba(255,255,255,0.12);
+  stroke-width:0.8;
+  transition:fill 0.4s, stroke 0.4s, filter 0.4s;
+}
+.svg-region.highlighted {
+  fill:rgba(255,180,50,0.22);
+  stroke:rgba(255,180,50,0.7);
+  stroke-width:1.2;
+  animation:region-pulse 2s ease-in-out infinite;
+}
+@keyframes region-pulse {
+  0%,100%{filter:drop-shadow(0 0 4px rgba(255,180,50,0.4));}
+  50%{filter:drop-shadow(0 0 12px rgba(255,180,50,0.8));}
+}
+
+/* Linhas anatômicas de detalhe */
+.detail-path {
+  fill:none;
+  stroke:rgba(255,180,50,0.35);
+  stroke-width:0.8;
+  stroke-linecap:round;
+}
+
+/* Coluna direita — explicação */
+.explanation-col {
+  display:flex; flex-direction:column;
+  justify-content:center;
+  padding:3rem 3.5rem 3rem 3rem;
+  overflow:hidden;
+}
+
+.explanation-header {
+  font-size:clamp(0.65rem, 1vw, 0.8rem);
+  text-transform:uppercase;
+  letter-spacing:0.18em;
+  color:rgba(255,255,255,0.25);
+  margin-bottom:1.5rem;
+}
+
+.explanation-title {
+  font-family:'Cormorant Garamond', serif;
+  font-size:clamp(1.6rem, 3vw, 2.4rem);
+  font-weight:300;
+  color:rgba(255,255,255,0.9);
+  margin-bottom:1.5rem;
+  line-height:1.25;
+}
+
+.explanation-text {
+  font-size:clamp(1rem, 1.5vw, 1.25rem);
+  line-height:1.8;
+  color:rgba(255,255,255,0.72);
+  min-height:8em;
+}
+
+.explanation-sep {
+  height:1px;
+  background:linear-gradient(90deg, rgba(255,180,50,0.3), transparent);
+  margin:1.5rem 0;
+}
+
+/* Rodapé */
+.shared-footer {
+  position:fixed; bottom:0; left:0; right:0;
+  display:flex; justify-content:space-between;
+  padding:0.8rem 2rem;
+  border-top:1px solid rgba(255,255,255,0.04);
+  font-size:0.75rem;
+  color:rgba(255,255,255,0.2);
+  z-index:20;
+  letter-spacing:0.05em;
+}
+
+/* ── Tela Acupuntura 3D ── */
+#acu-screen {
+  position:fixed; inset:0;
+  display:none; grid-template-columns: 1fr 340px;
+  z-index:10;
+  background: #060610;
+}
+#acu-screen.visible { display:grid; }
+
+#acu-canvas-shared {
+  width:100%; height:100%;
+  position:relative;
+}
+
+.acu-info-col {
+  display:flex; flex-direction:column;
+  justify-content:center;
+  padding:3rem 2.5rem;
+  border-left:1px solid rgba(255,255,255,0.05);
+  background:rgba(0,0,0,0.3);
+  overflow:hidden;
+}
+
+.acu-info-label {
+  font-size:0.68rem; text-transform:uppercase;
+  letter-spacing:0.18em;
+  color:rgba(255,255,255,0.22);
+  margin-bottom:1.4rem;
+}
+
+.acu-info-title {
+  font-family:'Cormorant Garamond', serif;
+  font-size:clamp(1.4rem, 2.5vw, 2rem);
+  font-weight:300;
+  color:rgba(255,255,255,0.88);
+  margin-bottom:1.6rem;
+  line-height:1.25;
+}
+
+.acu-pts-list {
+  display:flex; flex-direction:column; gap:0.55rem;
+  overflow-y:auto;
+  max-height:60vh;
+}
+
+.acu-pt-item {
+  display:flex; align-items:flex-start; gap:0.6rem;
+  padding:0.55rem 0.8rem;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.06);
+  border-radius:10px;
+  animation: fadeInUp 0.4s ease both;
+}
+@keyframes fadeInUp {
+  from{opacity:0;transform:translateY(8px);}
+  to{opacity:1;transform:translateY(0);}
+}
+.acu-pt-dot {
+  width:8px; height:8px; border-radius:50%;
+  flex-shrink:0; margin-top:0.22rem;
+}
+.acu-pt-code {
+  font-size:0.82rem; font-weight:600;
+  color:rgba(255,255,255,0.9);
+  min-width:44px;
+}
+.acu-pt-texts { display:flex; flex-direction:column; gap:0.12rem; }
+.acu-pt-pinyin { font-size:0.8rem; color:rgba(255,255,255,0.6); }
+.acu-pt-name-pt { font-size:0.72rem; color:rgba(255,255,255,0.35); font-style:italic; }
+
+.acu-sep {
+  height:1px;
+  background:linear-gradient(90deg,rgba(120,200,180,0.25),transparent);
+  margin:1.2rem 0;
+}
+</style>
+</head>
+<body class="bg-default">
+
+<!-- Idle -->
+<div id="idle-screen">
+  <div class="idle-glow"></div>
+  <div class="idle-particles" id="idle-particles"></div>
+  <div class="idle-clinic">Consultório de Fisioterapia</div>
+  <div class="idle-welcome">Bem-vindo à sua sessão</div>
+</div>
+
+<!-- Ativo -->
+<div id="active-screen">
+  <div class="anatomy-col">
+    <svg id="body-svg-shared" viewBox="0 0 200 450" xmlns="http://www.w3.org/2000/svg">
+      <!-- preenchido por JS -->
+    </svg>
+    <div class="region-name" id="shared-region-name"></div>
+  </div>
+  <div class="explanation-col">
+    <div class="explanation-header">O que está acontecendo</div>
+    <div class="explanation-title" id="expl-title"></div>
+    <div class="explanation-text" id="expl-text"></div>
+    <div class="explanation-sep"></div>
+  </div>
+</div>
+
+<!-- ── Tela Acupuntura 3D ── -->
+<div id="acu-screen">
+  <div id="acu-canvas-shared"></div>
+  <div class="acu-info-col">
+    <div class="acu-info-label">Acupuntura — Pontos selecionados</div>
+    <div class="acu-info-title" id="acu-info-title">Aguardando pontos...</div>
+    <div class="acu-sep"></div>
+    <div class="acu-pts-list" id="acu-pts-list"></div>
+  </div>
+</div>
+
+<div class="shared-footer">
+  <span>Consultório de Fisioterapia &amp; Acupuntura</span>
+  <span>Dra. Profissional</span>
+</div>
+
+<script>
+// ── Regiões SVG (idênticas ao painel da Dra.) ────────────────────────────
+
+const REGIONS_FRONT = [
+  { id:'cabeca',            label:'Cabeça',             d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
+  { id:'pescoco',           label:'Pescoço',             d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
+  { id:'torax',             label:'Tórax',               d:'M72,74 Q100,78 128,74 L132,130 Q100,136 68,130Z' },
+  { id:'abdome',            label:'Abdome',              d:'M70,130 Q100,134 130,130 L128,168 Q100,172 72,168Z' },
+  { id:'ombro-direito',     label:'Ombro Direito',       d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
+  { id:'ombro-esquerdo',    label:'Ombro Esquerdo',      d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
+  { id:'braco-direito',     label:'Braço Direito',       d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
+  { id:'braco-esquerdo',    label:'Braço Esquerdo',      d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
+  { id:'cotovelo-direito',  label:'Cotovelo Direito',    d:'M44,120 Q40,130 42,140 L52,138 L52,128Z' },
+  { id:'cotovelo-esquerdo', label:'Cotovelo Esquerdo',   d:'M156,120 Q160,130 158,140 L148,138 L148,128Z' },
+  { id:'antebraco-direito', label:'Antebraço Direito',   d:'M42,140 Q38,158 40,172 L50,170 L52,138Z' },
+  { id:'antebraco-esquerdo',label:'Antebraço Esquerdo',  d:'M158,140 Q162,158 160,172 L150,170 L148,138Z' },
+  { id:'punho-direito',     label:'Punho Direito',       d:'M40,172 Q38,180 40,186 L50,186 L50,170Z' },
+  { id:'punho-esquerdo',    label:'Punho Esquerdo',      d:'M160,172 Q162,180 160,186 L150,186 L150,170Z' },
+  { id:'mao-direita',       label:'Mão Direita',         d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
+  { id:'mao-esquerda',      label:'Mão Esquerda',        d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
+  { id:'quadril-direito',   label:'Quadril Direito',     d:'M68,168 Q60,172 58,188 Q62,200 72,200 L80,190 L72,168Z' },
+  { id:'quadril-esquerdo',  label:'Quadril Esquerdo',    d:'M132,168 Q140,172 142,188 Q138,200 128,200 L120,190 L128,168Z' },
+  { id:'coxa-direita',      label:'Coxa Direita',        d:'M72,168 L80,190 Q82,218 80,240 Q76,250 68,250 Q60,246 60,232 L62,200 Q64,182 72,168Z' },
+  { id:'coxa-esquerda',     label:'Coxa Esquerda',       d:'M128,168 L120,190 Q118,218 120,240 Q124,250 132,250 Q140,246 140,232 L138,200 Q136,182 128,168Z' },
+  { id:'joelho-direito',    label:'Joelho Direito',      d:'M60,240 Q56,252 58,264 Q62,270 70,270 Q78,268 80,258 Q82,248 80,240 Q76,250 68,250 Q60,246 60,240Z' },
+  { id:'joelho-esquerdo',   label:'Joelho Esquerdo',     d:'M140,240 Q144,252 142,264 Q138,270 130,270 Q122,268 120,258 Q118,248 120,240 Q124,250 132,250 Q140,246 140,240Z' },
+  { id:'panturrilha-direita',label:'Panturrilha Direita',d:'M58,264 Q54,280 54,300 Q56,314 64,316 Q72,316 76,308 Q80,298 80,278 L80,258 Q78,268 70,270 Q62,270 58,264Z' },
+  { id:'panturrilha-esquerda',label:'Panturrilha Esquerda',d:'M142,264 Q146,280 146,300 Q144,314 136,316 Q128,316 124,308 Q120,298 120,278 L120,258 Q122,268 130,270 Q138,270 142,264Z' },
+  { id:'tornozelo-direito', label:'Tornozelo Direito',   d:'M54,300 Q52,312 54,322 L66,322 Q72,318 76,308 Q72,316 64,316 Q56,314 54,300Z' },
+  { id:'tornozelo-esquerdo',label:'Tornozelo Esquerdo',  d:'M146,300 Q148,312 146,322 L134,322 Q128,318 124,308 Q128,316 136,316 Q144,314 146,300Z' },
+  { id:'pe-direito',        label:'Pé Direito',          d:'M54,322 Q50,330 50,340 Q52,348 66,350 Q76,348 78,340 L76,328 L66,322Z' },
+  { id:'pe-esquerdo',       label:'Pé Esquerdo',         d:'M146,322 Q150,330 150,340 Q148,348 134,350 Q124,348 122,340 L124,328 L134,322Z' },
+]
+
+const REGIONS_BACK = [
+  { id:'cabeca',            label:'Cabeça',              d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
+  { id:'pescoco',           label:'Pescoço',              d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
+  { id:'torax',             label:'Costas superiores',   d:'M72,74 Q100,78 128,74 L132,120 Q100,126 68,120Z' },
+  { id:'lombar',            label:'Lombar',               d:'M70,120 Q100,124 130,120 L128,168 Q100,172 72,168Z' },
+  { id:'ombro-direito',     label:'Ombro Direito',        d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
+  { id:'ombro-esquerdo',    label:'Ombro Esquerdo',       d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
+  { id:'braco-direito',     label:'Braço Direito',        d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
+  { id:'braco-esquerdo',    label:'Braço Esquerdo',       d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
+  { id:'cotovelo-direito',  label:'Cotovelo Direito',     d:'M44,120 Q40,130 42,140 L52,138 L52,128Z' },
+  { id:'cotovelo-esquerdo', label:'Cotovelo Esquerdo',    d:'M156,120 Q160,130 158,140 L148,138 L148,128Z' },
+  { id:'antebraco-direito', label:'Antebraço Direito',    d:'M42,140 Q38,158 40,172 L50,170 L52,138Z' },
+  { id:'antebraco-esquerdo',label:'Antebraço Esquerdo',   d:'M158,140 Q162,158 160,172 L150,170 L148,138Z' },
+  { id:'punho-direito',     label:'Punho Direito',        d:'M40,172 Q38,180 40,186 L50,186 L50,170Z' },
+  { id:'punho-esquerdo',    label:'Punho Esquerdo',       d:'M160,172 Q162,180 160,186 L150,186 L150,170Z' },
+  { id:'mao-direita',       label:'Mão Direita',          d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
+  { id:'mao-esquerda',      label:'Mão Esquerda',         d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
+  { id:'quadril-direito',   label:'Quadril Direito',      d:'M68,168 Q60,172 58,188 Q62,200 72,200 L80,190 L72,168Z' },
+  { id:'quadril-esquerdo',  label:'Quadril Esquerdo',     d:'M132,168 Q140,172 142,188 Q138,200 128,200 L120,190 L128,168Z' },
+  { id:'coxa-direita',      label:'Coxa Direita',         d:'M72,168 L80,190 Q82,218 80,240 Q76,250 68,250 Q60,246 60,232 L62,200 Q64,182 72,168Z' },
+  { id:'coxa-esquerda',     label:'Coxa Esquerda',        d:'M128,168 L120,190 Q118,218 120,240 Q124,250 132,250 Q140,246 140,232 L138,200 Q136,182 128,168Z' },
+  { id:'joelho-direito',    label:'Joelho Direito',       d:'M60,240 Q56,252 58,264 Q62,270 70,270 Q78,268 80,258 Q82,248 80,240 Q76,250 68,250 Q60,246 60,240Z' },
+  { id:'joelho-esquerdo',   label:'Joelho Esquerdo',      d:'M140,240 Q144,252 142,264 Q138,270 130,270 Q122,268 120,258 Q118,248 120,240 Q124,250 132,250 Q140,246 140,240Z' },
+  { id:'panturrilha-direita',label:'Panturrilha Direita', d:'M58,264 Q54,280 54,300 Q56,314 64,316 Q72,316 76,308 Q80,298 80,278 L80,258 Q78,268 70,270 Q62,270 58,264Z' },
+  { id:'panturrilha-esquerda',label:'Panturrilha Esquerda',d:'M142,264 Q146,280 146,300 Q144,314 136,316 Q128,316 124,308 Q120,298 120,278 L120,258 Q122,268 130,270 Q138,270 142,264Z' },
+  { id:'tornozelo-direito', label:'Tornozelo Direito',    d:'M54,300 Q52,312 54,322 L66,322 Q72,318 76,308 Q72,316 64,316 Q56,314 54,300Z' },
+  { id:'tornozelo-esquerdo',label:'Tornozelo Esquerdo',   d:'M146,300 Q148,312 146,322 L134,322 Q128,318 124,308 Q128,316 136,316 Q144,314 146,300Z' },
+  { id:'pe-direito',        label:'Pé Direito',           d:'M54,322 Q50,330 50,340 Q52,348 66,350 Q76,348 78,340 L76,328 L66,322Z' },
+  { id:'pe-esquerdo',       label:'Pé Esquerdo',          d:'M146,322 Q150,330 150,340 Q148,348 134,350 Q124,348 122,340 L124,328 L134,322Z' },
+]
+
+// Detalhes anatômicos por região (paths de detalhe elegantes)
+const DETAIL_PATHS = {
+  'joelho-direito':   ['M60,248 Q70,244 80,248', 'M62,256 Q70,260 78,256', 'M68,248 L68,265'],
+  'joelho-esquerdo':  ['M120,248 Q130,244 140,248', 'M122,256 Q130,260 138,256', 'M130,248 L130,265'],
+  'lombar':           ['M78,128 Q100,126 122,128','M76,136 Q100,134 124,136','M78,144 Q100,142 122,144','M78,152 Q100,150 122,152','M78,160 Q100,158 122,160'],
+  'ombro-direito':    ['M50,88 Q58,80 68,78','M52,96 Q62,92 70,94'],
+  'ombro-esquerdo':   ['M150,88 Q142,80 132,78','M148,96 Q138,92 130,94'],
+  'torax':            ['M80,90 Q100,88 120,90','M82,106 Q100,104 118,106','M80,122 Q100,120 120,122'],
+  'cabeca':           ['M88,30 Q100,24 112,30','M90,42 Q100,44 110,42'],
+  'pescoco':          ['M92,60 L92,72','M100,58 L100,74','M108,60 L108,72'],
+  'pe-direito':       ['M52,330 Q62,328 74,332','M50,338 Q62,340 76,338'],
+  'pe-esquerdo':      ['M148,330 Q138,328 126,332','M150,338 Q138,340 124,338'],
+}
+
+// ── Mapeamento região → tema de fundo ───────────────────────────────────────
+function getBgClass(regionId) {
+  if (!regionId) return 'bg-default'
+  const lower = ['joelho-direito','joelho-esquerdo','pe-direito','pe-esquerdo','tornozelo-direito','tornozelo-esquerdo','panturrilha-direita','panturrilha-esquerda']
+  const lumbar = ['lombar','quadril-direito','quadril-esquerdo']
+  const upper = ['ombro-direito','ombro-esquerdo','pescoco','cabeca']
+  const torso = ['torax','abdome']
+  if (lower.includes(regionId)) return 'bg-lower'
+  if (lumbar.includes(regionId)) return 'bg-lumbar'
+  if (upper.includes(regionId)) return 'bg-upper'
+  if (torso.includes(regionId)) return 'bg-torso'
+  return 'bg-default'
+}
+
+// ── Estado ──────────────────────────────────────────────────────────────────
+
+let sessionId = null
+let lastEventId = null
+let typewriterTimer = null
+
+// ── Partículas idle ─────────────────────────────────────────────────────────
+
+;(function buildIdleParticles() {
+  const cont = document.getElementById('idle-particles')
+  for (let i = 0; i < 35; i++) {
+    const p = document.createElement('div')
+    p.className = 'idle-particle'
+    const sz = Math.random() * 5 + 2
+    p.style.cssText = `
+      width:${sz}px;height:${sz}px;
+      top:${Math.random()*100}%;left:${Math.random()*100}%;
+      --dur:${(Math.random()*5+3).toFixed(1)}s;
+      animation-delay:${(Math.random()*6).toFixed(1)}s;
+    `
+    cont.appendChild(p)
+  }
+})()
+
+// ── SVG base ────────────────────────────────────────────────────────────────
+
+function buildBaseSVG(regions, highlightId) {
+  const svg = document.getElementById('body-svg-shared')
+  svg.innerHTML = ''
+
+  regions.forEach(r => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path')
+    path.setAttribute('d', r.d)
+    path.setAttribute('class', 'svg-region' + (r.id === highlightId ? ' highlighted' : ''))
+    path.setAttribute('data-id', r.id)
+    svg.appendChild(path)
+  })
+
+  // Adiciona detalhes anatômicos da região em destaque
+  if (highlightId && DETAIL_PATHS[highlightId]) {
+    DETAIL_PATHS[highlightId].forEach(d => {
+      const p = document.createElementNS('http://www.w3.org/2000/svg','path')
+      p.setAttribute('d', d)
+      p.setAttribute('class', 'detail-path')
+      svg.appendChild(p)
+    })
+  }
+}
+
+// ── Typewriter ───────────────────────────────────────────────────────────────
+
+function typewriterEffect(text, el, delay = 28) {
+  if (typewriterTimer) clearInterval(typewriterTimer)
+  el.textContent = ''
+  let i = 0
+  typewriterTimer = setInterval(() => {
+    if (i < text.length) {
+      el.textContent += text[i]
+      i++
+    } else {
+      clearInterval(typewriterTimer)
+    }
+  }, delay)
+}
+
+// ── Polling ──────────────────────────────────────────────────────────────────
+
+async function init() {
+  // Tenta recuperar sessão salva
+  const saved = localStorage.getItem('shared_session')
+  if (saved) {
+    try { sessionId = JSON.parse(saved).id } catch (_) {}
+  }
+
+  // Se não tiver sessão, busca a mais recente confirmada
+  if (!sessionId) {
+    try {
+      const r = await fetch('/api/sessions/latest/acknowledged')
+      if (r.ok) {
+        const s = await r.json()
+        sessionId = s.id
+        localStorage.setItem('shared_session', JSON.stringify({ id: s.id }))
+      }
+    } catch (_) {}
+  }
+
+  buildBaseSVG(REGIONS_FRONT, null)
+  startPolling()
+}
+
+function startPolling() {
+  if (sessionId) pollAnatomyEvent()
+  setInterval(async () => {
+    // Verifica se surgiu nova sessão acknowledged
+    try {
+      const r = await fetch('/api/sessions/latest/acknowledged')
+      if (r.ok) {
+        const s = await r.json()
+        if (s.id !== sessionId) {
+          sessionId = s.id
+          lastEventId = null
+          localStorage.setItem('shared_session', JSON.stringify({ id: s.id }))
+        }
+      }
+    } catch (_) {}
+    if (sessionId) pollAnatomyEvent()
+  }, 2000)
+}
+
+async function pollAnatomyEvent() {
+  if (!sessionId) return
+  try {
+    const r = await fetch(`/api/anatomy/latest/${sessionId}`)
+    if (!r.ok) return
+    const event = await r.json()
+    if (event && event.id && event.id !== lastEventId) {
+      lastEventId = event.id
+      showActiveState(event)
+    }
+  } catch (_) {}
+}
+
+function showActiveState(event) {
+  // Evento de acupuntura → modo 3D
+  if (event.region === '__acupuncture__') {
+    showAcupunctureState(event)
+    return
+  }
+
+  // Esconde tela de acupuntura se estava ativa
+  document.getElementById('acu-screen').classList.remove('visible')
+
+  // Determina se frente ou costas baseado na presença da região "lombar"
+  const isBack = event.region === 'Lombar' || event.region === 'Costas superiores'
+  const regions = isBack ? REGIONS_BACK : REGIONS_FRONT
+
+  // Encontra o ID da região pelo label
+  const regionData = regions.find(r => r.label === event.region)
+  const regionId = regionData?.id || null
+
+  // Tema de fundo
+  document.body.className = getBgClass(regionId)
+
+  // Reconstrói SVG com destaque
+  buildBaseSVG(regions, regionId)
+  document.getElementById('shared-region-name').textContent = event.region
+
+  // Texto
+  document.getElementById('expl-title').textContent = event.region
+  typewriterEffect(event.ai_explanation || '', document.getElementById('expl-text'))
+
+  // Exibe tela ativa
+  document.getElementById('idle-screen').classList.add('hidden')
+  document.getElementById('active-screen').classList.add('visible')
+}
+
+// ── Modo Acupuntura 3D ────────────────────────────────────────────────────────
+
+let acuSharedViewer = null
+
+function showAcupunctureState(event) {
+  let points = []
+  try { points = JSON.parse(event.problem || '[]') } catch (_) {}
+
+  // Oculta telas normais, exibe tela de acupuntura
+  document.body.className = 'bg-default'
+  document.getElementById('idle-screen').classList.add('hidden')
+  document.getElementById('active-screen').classList.remove('visible')
+  document.getElementById('acu-screen').classList.add('visible')
+
+  // Inicializa viewer Three.js (só na primeira chamada)
+  const container = document.getElementById('acu-canvas-shared')
+  if (!acuSharedViewer) {
+    if (!window.AcupunctureViewer) {
+      setTimeout(() => showAcupunctureState(event), 350)
+      return
+    }
+    acuSharedViewer = new window.AcupunctureViewer(container, {
+      isDoctor:   false,
+      autoRotate: true,
+    })
+  }
+
+  acuSharedViewer.setSelectedPoints(points)
+  _renderAcuInfoPanel(points)
+}
+
+function _renderAcuInfoPanel(pointIds) {
+  const title = document.getElementById('acu-info-title')
+  const list  = document.getElementById('acu-pts-list')
+  list.innerHTML = ''
+
+  if (!pointIds.length) {
+    title.textContent = 'Nenhum ponto ativo'
+    return
+  }
+
+  title.textContent = `${pointIds.length} ponto${pointIds.length > 1 ? 's' : ''} ativo${pointIds.length > 1 ? 's' : ''}`
+
+  pointIds.forEach((id, idx) => {
+    let ptData = null
+    const baseId = id.replace('-E', '')
+    for (const m of (window.ACU_MERIDIANS || [])) {
+      const p = m.points.find(p => p.id === baseId)
+      if (p) { ptData = { ...p, color: m.color, mName: m.name }; break }
+    }
+    const side = id.endsWith('-E') ? 'Esq.' : 'Dir.'
+    const item = document.createElement('div')
+    item.className = 'acu-pt-item'
+    item.style.animationDelay = `${idx * 0.06}s`
+    item.innerHTML = `
+      <div class="acu-pt-dot" style="background:${ptData?.color || '#aaa'}"></div>
+      <div class="acu-pt-texts">
+        <div style="display:flex;gap:0.5rem;align-items:baseline">
+          <span class="acu-pt-code">${id}</span>
+          <span style="font-size:0.68rem;color:rgba(255,255,255,0.3)">${side}</span>
+        </div>
+        <div class="acu-pt-pinyin">${ptData?.name || '—'}</div>
+        <div class="acu-pt-name-pt">${ptData?.pt || ''}</div>
+      </div>
+    `
+    list.appendChild(item)
+  })
+}
+
+init()
+
+</script>
+
+<!-- Three.js: expõe AcupunctureViewer no escopo global via módulo -->
+<script type="module">
+import { AcupunctureViewer, ACU_MERIDIANS } from '/js/acupuncture-viewer.js'
+window.AcupunctureViewer = AcupunctureViewer
+window.ACU_MERIDIANS     = ACU_MERIDIANS
+</script>
+</body>
+</html>
