@@ -1,12 +1,12 @@
 # Sistema de Recepção Autônoma — Fisioterapia & Acupuntura
 
-Sistema de recepção sem secretária para consultório. Funciona com quatro telas simultâneas em rede local ou remota.
+Sistema de recepção sem secretária para consultório. Funciona com quatro telas simultâneas (totem, celular do paciente, painel da profissional e TV da sala de atendimento), sincronizadas em tempo real via SSE.
 
 ---
 
 ## Pré-requisitos
 
-- Node.js 18+
+- Node.js 18+ (produção usa Node 22)
 - Conta no Supabase (gratuita em [supabase.com](https://supabase.com))
 - Chave da API da Anthropic em [console.anthropic.com](https://console.anthropic.com)
 
@@ -15,117 +15,18 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
 ## Configuração do Supabase
 
 1. Crie um projeto em [supabase.com](https://supabase.com)
-2. Vá em **SQL Editor** e cole e execute o conteúdo de `supabase-setup.sql`
+2. Vá em **SQL Editor** e execute, **nesta ordem**, o conteúdo de cada arquivo:
+   1. `supabase-setup.sql`            — tabelas base (sessions, answers, anatomy_events)
+   2. `supabase-additions.sql`        — pacientes e agendamentos
+   3. `supabase-session-migration.sql`— controle de fluxo e anotações de sessão
+   4. `supabase-v2-migration.sql`     — **login, financeiro, prontuário estruturado e calibração** (novo)
 3. Vá em **Project Settings → API**
-4. Copie a **Project URL** → use como `SUPABASE_URL`
-5. Copie a chave **service_role** (em "Project API keys") → use como `SUPABASE_SERVICE_KEY`
+4. Copie a **Project URL** → `SUPABASE_URL`
+5. Copie a chave **service_role** → `SUPABASE_SERVICE_KEY`
 
 > ⚠️ Use sempre a chave `service_role`, nunca a `anon`. Ela fica apenas no servidor.
 
----
-
-## Configuração do .env
-
-```bash
-cp .env.example .env
-```
-
-Edite o `.env` com suas credenciais:
-
-```
-PORT=3000
-SUPABASE_URL=https://xxxxxxxxxxx.supabase.co
-SUPABASE_SERVICE_KEY=sua_service_role_key_aqui
-ANTHROPIC_API_KEY=sua_chave_aqui
-BASE_URL=http://192.168.1.100:3000
-```
-
-**Descobrir o IP local da máquina:**
-
-```bash
-# Mac / Linux
-ifconfig | grep "inet "
-
-# Windows
-ipconfig
-```
-
-Use o IP que começa com `192.168.` ou `10.` como `BASE_URL`. Esse IP precisa ser acessível pelos outros dispositivos na mesma rede Wi-Fi.
-
----
-
-## Instalação e execução
-
-```bash
-npm install
-node server.js
-```
-
-O servidor exibirá no console as URLs para cada tela e confirmará a conexão com o Supabase.
-
-Para desenvolvimento com reinicialização automática:
-
-```bash
-npm run dev
-```
-
----
-
-## URLs de cada dispositivo
-
-| Dispositivo | URL |
-|---|---|
-| TV sala de espera (Totem) | `http://[IP]:3000/totem` |
-| Celular do paciente | Gerado automaticamente via QR Code |
-| Notebook da Dra. | `http://[IP]:3000/doctor` |
-| TV sala de atendimento | `http://[IP]:3000/shared` |
-
-Substitua `[IP]` pelo endereço configurado em `BASE_URL`.
-
----
-
-## Modo kiosk — fullscreen sem barra do browser
-
-```bash
-# Linux / Raspberry Pi
-chromium-browser --kiosk http://localhost:3000/totem
-
-# Mac
-open -a "Google Chrome" --args --kiosk http://localhost:3000/totem
-
-# Windows
-start chrome --kiosk http://localhost:3000/totem
-```
-
----
-
-## Usando dois monitores na mesma máquina
-
-A Dra. pode ter o notebook com `http://localhost:3000/doctor` e uma TV como segundo monitor com `http://localhost:3000/shared` — ambos acessando o mesmo servidor local.
-
----
-
-## Fluxo completo
-
-```
-[SALA DE ESPERA]
-Paciente chega → digita o nome no Totem
-→ QR Code gerado → paciente escaneia no celular
-→ Responde 4 perguntas temáticas
-→ Totem exibe confirmação de chegada
-
-[NOTEBOOK DA DRA.]
-→ Modal aparece automaticamente com resumo das respostas
-→ Dra. lê e clica "OK, pode entrar"
-→ Dashboard carrega: métricas, alertas, histórico
-
-[SALA DE ATENDIMENTO]
-→ Dra. clica "Modo Consulta"
-→ Seleciona região no corpo anatômico interativo
-→ Descreve o problema → IA gera explicação
-→ Clica "Exibir na TV do paciente"
-→ TV mostra corpo com região destacada + texto com typewriter
-```
+> Já tem o sistema rodando? Basta executar o **`supabase-v2-migration.sql`** — ele é idempotente e não mexe nos dados existentes.
 
 ---
 
@@ -135,26 +36,144 @@ Paciente chega → digita o nome no Totem
 |---|---|
 | `PORT` | Porta do servidor (padrão: 3000) |
 | `SUPABASE_URL` | URL do projeto Supabase |
-| `SUPABASE_SERVICE_KEY` | Chave service_role do Supabase |
+| `SUPABASE_SERVICE_KEY` | Chave `service_role` do Supabase |
 | `ANTHROPIC_API_KEY` | Chave da API da Anthropic |
-| `BASE_URL` | URL base com IP local para gerar QR Codes |
+| `BASE_URL` | URL pública (ou IP local) usada para gerar os QR Codes |
+| `JWT_SECRET` | **Segredo do login do painel.** Valor aleatório longo e fixo — se mudar, os logins caem |
+| `NODE_ENV` | `production` em HTTPS (deixa o cookie de login como `Secure`) |
+
+Copie `.env.example` para `.env` e preencha.
+
+---
+
+## Autenticação (painel da profissional)
+
+O painel `/doctor` e as APIs de pacientes/agenda/financeiro exigem login (contas individuais por e-mail e senha). As telas do paciente (totem, formulário e TV) continuam públicas.
+
+**Primeiro acesso:** abra `/login`. Como ainda não há nenhuma conta, a tela oferece **criar a primeira conta** — é a conta da profissional. Depois disso, `/login` passa a pedir e-mail e senha normalmente.
+
+> Se quiser adicionar outra profissional depois, dá para inserir direto na tabela `users` (com a senha já em hash) — ou me peça uma tela de gerenciamento de usuários.
+
+---
+
+## Deploy (produção — Coolify)
+
+O deploy é **automático**: todo `push` na branch `main` do GitHub dispara o build e o restart do container no Coolify. Não há mais SSH/rebuild manual.
+
+```bash
+git add -A
+git commit -m "minha mudança"
+git push origin main      # o Coolify publica em seguida
+```
+
+No Windows há o atalho `deploy.ps1`, que só faz `commit` + `push`.
+
+**Ao subir esta versão pela primeira vez**, garanta no Coolify:
+1. Rodar o `supabase-v2-migration.sql` no Supabase (antes ou logo após o deploy).
+2. Definir as variáveis `JWT_SECRET` e `NODE_ENV=production` nas envs do serviço.
+3. Acessar `/login` e criar a conta da profissional.
+
+Enquanto o SQL/env não estiverem prontos, as telas do paciente seguem funcionando normalmente; só o painel fica aguardando o login.
+
+---
+
+## Instalação e execução local
+
+```bash
+npm install
+node server.js          # ou: npm run dev  (reinício automático)
+```
+
+O console exibirá as URLs de cada tela e confirmará a conexão com o Supabase.
+
+Para descobrir o IP local (uso em rede Wi-Fi):
+
+```bash
+ipconfig            # Windows
+ifconfig | grep "inet "   # Mac/Linux
+```
+
+Use o IP `192.168.*` ou `10.*` como `BASE_URL`.
+
+---
+
+## URLs de cada dispositivo
+
+| Dispositivo | URL |
+|---|---|
+| TV sala de espera (Totem) | `/totem` |
+| Celular do paciente | Gerado via QR Code |
+| Painel da profissional | `/doctor` (exige login) |
+| TV sala de atendimento | `/shared` |
+| Login | `/login` |
+
+---
+
+## Modo kiosk — fullscreen sem barra do browser
+
+```bash
+# Linux / Raspberry Pi
+chromium-browser --kiosk https://SEU_DOMINIO/totem
+# Windows
+start chrome --kiosk https://SEU_DOMINIO/totem
+```
+
+---
+
+## Fluxo completo
+
+```
+[SALA DE ESPERA — Totem]
+Paciente chega → identifica o agendamento → QR Code (ou formulário na TV)
+→ paciente responde: sono, dor, ONDE dói (mapa do corpo), estresse, motivo
+→ totem confirma chegada
+
+[PAINEL DA PROFISSIONAL]
+→ notificação de chegada aparece automaticamente (com resumo e local da dor)
+→ "Aguardar" ou "Pode entrar"
+→ dashboard: métricas, alertas, histórico
+→ ao finalizar: prontuário estruturado (queixa, conduta, evolução, plano)
+
+[SALA DE ATENDIMENTO — TV do paciente]
+→ Modo Consulta: seleciona região no corpo → IA gera explicação (rascunho privado)
+→ revisa/edita → "Exibir na TV" publica para o paciente
+→ ou Corpo Acupuntura 3D com os pontos selecionados
+```
+
+---
+
+## Novidades desta versão
+
+- **Login** por contas individuais protegendo o painel e os dados dos pacientes (LGPD).
+- **Financeiro**: pagamentos, pacotes pré-pagos e relatório mensal de receita.
+- **Prontuário estruturado** por sessão (queixa, conduta, evolução, plano), com ditado por voz.
+- **Gerar × Exibir**: a explicação da IA vira rascunho privado e só vai para a TV quando a profissional publica.
+- **Mapa de dor** no formulário do celular (o paciente indica onde dói).
+- **Modo claro/escuro** no painel.
+- **Histórico por paciente** vinculado ao cadastro (não confunde homônimos).
+- **Tempo real via SSE** (menos carga no Supabase que o polling anterior).
+- **Calibração de acupuntura** persistida no banco (não se perde no deploy).
 
 ---
 
 ## Estrutura de arquivos
 
 ```
-clinic-reception/
-├── server.js              # Servidor Express
-├── database.js            # Cliente Supabase e funções de acesso
-├── ai.js                  # Integração com Anthropic API
-├── supabase-setup.sql     # SQL para criar as tabelas no Supabase
-├── package.json
-├── .env                   # Suas credenciais (não commitar)
-├── .env.example
+├── server.js                    # Servidor Express + SSE
+├── database.js                  # Acesso ao Supabase
+├── ai.js                        # Integração Anthropic
+├── auth.js                      # Login (hash de senha + cookie assinado)
+├── supabase-setup.sql
+├── supabase-additions.sql
+├── supabase-session-migration.sql
+├── supabase-v2-migration.sql    # login, financeiro, prontuário, calibração
+├── Dockerfile / docker-compose.yml
+├── deploy.ps1                   # atalho: commit + push (Coolify publica)
 └── public/
-    ├── totem/index.html   # TV sala de espera
-    ├── form/index.html    # Formulário do paciente (celular)
-    ├── doctor/index.html  # Painel da Dra.
-    └── shared/index.html  # TV sala de atendimento
+    ├── login/index.html         # tela de acesso / criação da 1ª conta
+    ├── totem/index.html
+    ├── form/index.html
+    ├── doctor/index.html
+    ├── shared/index.html
+    └── calibrate/index.html
 ```

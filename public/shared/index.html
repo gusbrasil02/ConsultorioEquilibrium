@@ -498,13 +498,45 @@ async function init() {
   }
 
   buildBaseSVG(REGIONS_FRONT, null)
-  startPolling()
+  startSharedStream()
 }
 
-function startPolling() {
+// SSE (item 13) com fallback para polling
+let sharedES = null, sharedSSEok = false, fallbackTimer = null
+
+function handlePublic(d) {
+  const sh = d.shared || {}
+  if (sh.session_id && sh.session_id !== sessionId) {
+    sessionId = sh.session_id
+    lastEventId = null
+    localStorage.setItem('shared_session', JSON.stringify({ id: sessionId }))
+  }
+  if (sh.anatomy && sh.anatomy.id && sh.anatomy.id !== lastEventId) {
+    lastEventId = sh.anatomy.id
+    showActiveState(sh.anatomy)
+  }
+}
+
+function startSharedStream() {
+  if (!window.EventSource) { startSharedPolling(); return }
+  try {
+    sharedES = new EventSource('/api/stream/public')
+    sharedES.onopen = () => {
+      sharedSSEok = true
+      if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null }
+    }
+    sharedES.onmessage = (e) => {
+      let d; try { d = JSON.parse(e.data) } catch (_) { return }
+      if (d.type === 'public') handlePublic(d)
+    }
+    sharedES.onerror = () => { if (!sharedSSEok) startSharedPolling() }
+  } catch (_) { startSharedPolling() }
+}
+
+function startSharedPolling() {
+  if (fallbackTimer) return
   if (sessionId) pollAnatomyEvent()
-  setInterval(async () => {
-    // Verifica se surgiu nova sessão acknowledged
+  fallbackTimer = setInterval(async () => {
     try {
       const r = await fetch('/api/sessions/latest/acknowledged')
       if (r.ok) {

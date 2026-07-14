@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from 'uuid'
 import QRCode from 'qrcode'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import fs from 'fs'
 
 import {
   testConnection,
@@ -31,25 +30,110 @@ import {
   getPatientSessions,
   getPatientAnatomyEvents,
   getActiveSession,
-  getIncomingSession,
   setSessionWait,
   setSessionCanEnter,
   startSession,
   finishSession,
-  getTotemState
+  getTotemState,
+  // auth
+  countUsers,
+  getUserByEmail,
+  createUser,
+  // settings / calibração
+  getSetting,
+  setSetting,
+  // financeiro
+  createPayment,
+  getPatientPayments,
+  getPatientPackages,
+  createPackage,
+  updatePackage,
+  consumePackageSession,
+  getMonthlyReport
 } from './database.js'
 import { generateAnatomyExplanation } from './ai.js'
+import {
+  hashPassword,
+  verifyPassword,
+  issueSessionCookie,
+  clearSessionCookie,
+  getUserFromRequest,
+  requireAuth,
+  requireAuthPage
+} from './auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 3000
 
 app.use(express.json())
+
+// ─── Autenticação (item 4) ────────────────────────────────────────────────────
+
+// Estado do login — se ainda não há usuário, o front oferece criar a 1ª conta
+app.get('/api/auth/status', async (req, res) => {
+  try {
+    const user = getUserFromRequest(req)
+    let needsSetup = false
+    try { needsSetup = (await countUsers()) === 0 } catch (_) {}
+    res.json({ authenticated: !!user, needsSetup, user: user ? { name: user.name, email: user.email } : null })
+  } catch (error) {
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Cria a primeira conta (só permitido quando não há nenhum usuário)
+app.post('/api/auth/setup', async (req, res) => {
+  try {
+    if ((await countUsers()) > 0) return res.status(403).json({ error: 'Já existe uma conta. Faça login.' })
+    const { name, email, password } = req.body
+    if (!name?.trim() || !email?.trim() || !password) return res.status(400).json({ error: 'Nome, e-mail e senha são obrigatórios' })
+    if (password.length < 6) return res.status(400).json({ error: 'A senha precisa ter ao menos 6 caracteres' })
+    const user = await createUser({ name: name.trim(), email, password_hash: hashPassword(password) })
+    issueSessionCookie(res, user)
+    res.status(201).json({ success: true, user: { name: user.name, email: user.email } })
+  } catch (error) {
+    console.error('Erro no setup:', error.message)
+    res.status(500).json({ error: 'Erro ao criar conta. Rode a migração SQL v2 no Supabase antes.' })
+  }
+})
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+    if (!email?.trim() || !password) return res.status(400).json({ error: 'Informe e-mail e senha' })
+    const user = await getUserByEmail(email)
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: 'E-mail ou senha inválidos' })
+    }
+    issueSessionCookie(res, user)
+    res.json({ success: true, user: { name: user.name, email: user.email } })
+  } catch (error) {
+    console.error('Erro no login:', error.message)
+    res.status(500).json({ error: 'Erro interno no login' })
+  }
+})
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res)
+  res.json({ success: true })
+})
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ name: req.user.name, email: req.user.email })
+})
+
+// ─── Página do painel protegida (antes do static) ────────────────────────────
+app.get(['/doctor', '/doctor/', '/doctor/index.html'], requireAuthPage, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'doctor', 'index.html'))
+})
+
 app.use(express.static(path.join(__dirname, 'public')))
 
 // ─── Sessões ────────────────────────────────────────────────────────────────
 
-// Inicia nova sessão e gera QR Code
+// Inicia nova sessão e gera QR Code (público — acionado pelo totem)
 app.post('/api/sessions/start', async (req, res) => {
   try {
     const { patient_name, appointment_id, patient_id } = req.body
@@ -82,7 +166,7 @@ app.post('/api/sessions/start', async (req, res) => {
   }
 })
 
-// Salva respostas e marca sessão como completada
+// Salva respostas e marca sessão como completada (público — formulário do paciente)
 app.post('/api/sessions/:id/answers', async (req, res) => {
   try {
     const { id } = req.params
@@ -107,10 +191,8 @@ app.post('/api/sessions/:id/answers', async (req, res) => {
   }
 })
 
-// Rotas /latest/* devem vir antes de /:id para evitar conflito de matching no Express
-
-// Sessão pendente de notificação (polling da tela da Dra.)
-app.get('/api/sessions/latest/pending-notification', async (req, res) => {
+// Sessão pendente de notificação (painel da Dra.) — protegido
+app.get('/api/sessions/latest/pending-notification', requireAuth, async (req, res) => {
   try {
     const session = await getPendingNotification()
     if (!session) return res.status(404).json({ error: 'Nenhuma notificação pendente' })
@@ -121,33 +203,7 @@ app.get('/api/sessions/latest/pending-notification', async (req, res) => {
   }
 })
 
-// Busca dados de uma sessão por ID
-app.get('/api/sessions/:id', async (req, res) => {
-  try {
-    const { id } = req.params
-    const session = await getSession(id)
-    if (!session) {
-      return res.status(404).json({ error: 'Sessão não encontrada ou expirada' })
-    }
-    res.json(session)
-  } catch (error) {
-    console.error('Erro ao buscar sessão:', error.message)
-    res.status(500).json({ error: 'Erro interno' })
-  }
-})
-
-// Dra. confirma chegada do paciente
-app.post('/api/sessions/:id/acknowledge', async (req, res) => {
-  try {
-    await acknowledgeSession(req.params.id)
-    res.json({ success: true })
-  } catch (error) {
-    console.error('Erro ao confirmar sessão:', error.message)
-    res.status(500).json({ error: 'Erro interno' })
-  }
-})
-
-// Última sessão confirmada (polling da tela compartilhada)
+// Última sessão já confirmada (tela do paciente) — público
 app.get('/api/sessions/latest/acknowledged', async (req, res) => {
   try {
     const session = await getLatestAcknowledged()
@@ -159,39 +215,8 @@ app.get('/api/sessions/latest/acknowledged', async (req, res) => {
   }
 })
 
-// Histórico de sessões anteriores do paciente
-app.get('/api/sessions/:id/history', async (req, res) => {
-  try {
-    const session = await getSession(req.params.id)
-    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
-
-    const [history, total] = await Promise.all([
-      getPatientHistory(session.patient_name, req.params.id),
-      countPatientSessions(session.patient_name)
-    ])
-
-    res.json({ history, total_sessions: total })
-  } catch (error) {
-    console.error('Erro ao buscar histórico:', error.message)
-    res.status(500).json({ error: 'Erro interno' })
-  }
-})
-
-// ─── Controle de fluxo de sessão ─────────────────────────────────────────────
-
-// Estado atual do totem (polling a cada 3s)
-app.get('/api/totem/state', async (req, res) => {
-  try {
-    const state = await getTotemState()
-    res.json(state)
-  } catch (error) {
-    console.error('Erro ao buscar estado do totem:', error.message)
-    res.status(500).json({ state: 'idle' })
-  }
-})
-
-// Sessão ativa (in_session) — usada pelo dashboard
-app.get('/api/sessions/active', async (req, res) => {
+// Sessão ativa (in_session) — usada pelo dashboard (recuperação de sessão, item 12)
+app.get('/api/sessions/active', requireAuth, async (req, res) => {
   try {
     const session = await getActiveSession()
     if (!session) return res.status(404).json({ error: 'Sem sessão ativa' })
@@ -202,46 +227,95 @@ app.get('/api/sessions/active', async (req, res) => {
   }
 })
 
-// Dra. diz "aguardar"
-app.post('/api/sessions/:id/wait', async (req, res) => {
+// Busca dados de uma sessão por ID (público — formulário lê a própria sessão)
+app.get('/api/sessions/:id', async (req, res) => {
+  try {
+    const session = await getSession(req.params.id)
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada ou expirada' })
+    res.json(session)
+  } catch (error) {
+    console.error('Erro ao buscar sessão:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Histórico de sessões anteriores do paciente — protegido
+app.get('/api/sessions/:id/history', requireAuth, async (req, res) => {
+  try {
+    const session = await getSession(req.params.id)
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
+
+    const [history, total] = await Promise.all([
+      getPatientHistory(session.patient_name, req.params.id, session.patient_id),
+      countPatientSessions(session.patient_name, session.patient_id)
+    ])
+
+    res.json({ history, total_sessions: total })
+  } catch (error) {
+    console.error('Erro ao buscar histórico:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// ─── Controle de fluxo de sessão (protegido) ─────────────────────────────────
+
+app.get('/api/totem/state', async (req, res) => {
+  try {
+    res.json(await getTotemState())
+  } catch (error) {
+    console.error('Erro ao buscar estado do totem:', error.message)
+    res.status(500).json({ state: 'idle' })
+  }
+})
+
+app.post('/api/sessions/:id/acknowledge', requireAuth, async (req, res) => {
+  try {
+    await acknowledgeSession(req.params.id)
+    res.json({ success: true })
+  } catch (error) {
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+app.post('/api/sessions/:id/wait', requireAuth, async (req, res) => {
   try {
     await setSessionWait(req.params.id)
     res.json({ success: true })
   } catch (error) {
-    console.error('Erro ao setar wait:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
 
-// Dra. diz "pode entrar"
-app.post('/api/sessions/:id/can-enter', async (req, res) => {
+app.post('/api/sessions/:id/can-enter', requireAuth, async (req, res) => {
   try {
     await setSessionCanEnter(req.params.id)
     res.json({ success: true })
   } catch (error) {
-    console.error('Erro ao setar can-enter:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
 
-// Dra. inicia a sessão (cronômetro começa)
-app.post('/api/sessions/:id/begin', async (req, res) => {
+app.post('/api/sessions/:id/begin', requireAuth, async (req, res) => {
   try {
     await startSession(req.params.id)
     res.json({ success: true })
   } catch (error) {
-    console.error('Erro ao iniciar sessão:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
 
-// Dra. finaliza a sessão (aceita anotações e atualiza agendamento)
-app.post('/api/sessions/:id/end', async (req, res) => {
+// Finaliza sessão (aceita prontuário estruturado — item 7)
+app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
   try {
-    const { session_notes, session_observations } = req.body
+    const {
+      session_notes, session_observations,
+      session_complaint, session_conduct, session_evolution, session_plan
+    } = req.body
     const session = await getSession(req.params.id)
-    await finishSession(req.params.id, { session_notes, session_observations })
-    // Atualiza agendamento independente do resultado das notas
+    await finishSession(req.params.id, {
+      session_notes, session_observations,
+      session_complaint, session_conduct, session_evolution, session_plan
+    })
     if (session?.appointment_id) {
       await updateAppointment(session.appointment_id, { status: 'concluido' }).catch(() => {})
     }
@@ -254,22 +328,17 @@ app.post('/api/sessions/:id/end', async (req, res) => {
 
 // ─── Anatomia / IA ───────────────────────────────────────────────────────────
 
-// Gera explicação da IA e salva no Supabase
-app.post('/api/anatomy/explain', async (req, res) => {
+// Gera explicação SEM publicar na TV (item 1 — rascunho privado)
+app.post('/api/anatomy/explain', requireAuth, async (req, res) => {
   try {
     const { session_id, region, problem } = req.body
-
     if (!session_id || !region || !problem) {
       return res.status(400).json({ error: 'session_id, region e problem são obrigatórios' })
     }
-
     const session = await getSession(session_id)
     if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
 
     const explanation = await generateAnatomyExplanation(region, problem, session.patient_name)
-
-    await saveAnatomyEvent({ session_id, region, problem, ai_explanation: explanation })
-
     res.json({ explanation })
   } catch (error) {
     console.error('Erro ao gerar explicação anatômica:', error.message)
@@ -277,20 +346,34 @@ app.post('/api/anatomy/explain', async (req, res) => {
   }
 })
 
-// Evento anatômico mais recente de uma sessão (polling da tela compartilhada)
+// Publica na TV do paciente (item 1 — só agora salva o evento exibido)
+app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
+  try {
+    const { session_id, region, problem, explanation } = req.body
+    if (!session_id || !region) {
+      return res.status(400).json({ error: 'session_id e region são obrigatórios' })
+    }
+    await saveAnatomyEvent({ session_id, region, problem: problem || '', ai_explanation: explanation || '' })
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Erro ao publicar explicação:', error.message)
+    res.status(500).json({ error: 'Erro interno ao publicar' })
+  }
+})
+
+// Evento anatômico mais recente (tela do paciente) — público
 app.get('/api/anatomy/latest/:session_id', async (req, res) => {
   try {
     const event = await getLatestAnatomyEvent(req.params.session_id)
     if (!event) return res.status(404).json({ error: 'Nenhum evento encontrado' })
     res.json(event)
   } catch (error) {
-    console.error('Erro ao buscar evento anatômico:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
 
-// Salva seleção de pontos de acupuntura para exibição na tela compartilhada
-app.post('/api/acupuncture/event', async (req, res) => {
+// Pontos de acupuntura para exibir na TV — protegido
+app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
   try {
     const { session_id, points } = req.body
     if (!session_id) return res.status(400).json({ error: 'session_id obrigatório' })
@@ -302,157 +385,277 @@ app.post('/api/acupuncture/event', async (req, res) => {
     })
     res.json({ ok: true })
   } catch (error) {
-    console.error('Erro ao salvar evento de acupuntura:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
 
-// ─── Pacientes ───────────────────────────────────────────────────────────────
+// ─── Pacientes (protegido) ────────────────────────────────────────────────────
 
-// Rota de busca deve vir antes de /:id para evitar conflito de matching no Express
-app.get('/api/patients/search', async (req, res) => {
+app.get('/api/patients/search', requireAuth, async (req, res) => {
   try {
     const { q } = req.query
     if (!q?.trim()) return res.json([])
-    const patients = await searchPatients(q.trim())
-    res.json(patients)
+    res.json(await searchPatients(q.trim()))
   } catch (error) {
-    console.error('Erro ao buscar pacientes:', error.message)
     res.status(500).json({ error: 'Erro interno ao buscar pacientes' })
   }
 })
 
-// Lista todos os pacientes
-app.get('/api/patients', async (req, res) => {
+app.get('/api/patients', requireAuth, async (req, res) => {
   try {
-    const patients = await getPatients()
-    res.json(patients)
+    res.json(await getPatients())
   } catch (error) {
-    console.error('Erro ao listar pacientes:', error.message)
     res.status(500).json({ error: 'Erro interno ao listar pacientes' })
   }
 })
 
-// Cria novo paciente
-app.post('/api/patients', async (req, res) => {
+app.post('/api/patients', requireAuth, async (req, res) => {
   try {
     const { name, phone, email, birth_date, condition, notes } = req.body
     if (!name?.trim()) return res.status(400).json({ error: 'Nome do paciente obrigatório' })
     const patient = await createPatient({ name: name.trim(), phone, email, birth_date, condition, notes })
     res.status(201).json(patient)
   } catch (error) {
-    console.error('Erro ao criar paciente:', error.message)
     res.status(500).json({ error: 'Erro interno ao criar paciente' })
   }
 })
 
-// Analytics do paciente — sessões + eventos anatômicos para gráficos
-app.get('/api/patients/:id/analytics', async (req, res) => {
+// Analytics do paciente — por patient_id (item 2)
+app.get('/api/patients/:id/analytics', requireAuth, async (req, res) => {
   try {
     const patient = await getPatient(req.params.id)
     if (!patient) return res.status(404).json({ error: 'Paciente não encontrado' })
-
     const [sessions, anatomyEvents] = await Promise.all([
-      getPatientSessions(patient.name),
-      getPatientAnatomyEvents(patient.name)
+      getPatientSessions(patient.name, patient.id),
+      getPatientAnatomyEvents(patient.name, patient.id)
     ])
-
     res.json({ patient, sessions, anatomy_events: anatomyEvents })
   } catch (error) {
-    console.error('Erro ao buscar analytics do paciente:', error.message)
     res.status(500).json({ error: 'Erro interno ao buscar analytics' })
   }
 })
 
-// Detalhes de um paciente
-app.get('/api/patients/:id', async (req, res) => {
+// Financeiro do paciente (item 6)
+app.get('/api/patients/:id/finance', requireAuth, async (req, res) => {
+  try {
+    const [payments, packages] = await Promise.all([
+      getPatientPayments(req.params.id),
+      getPatientPackages(req.params.id)
+    ])
+    res.json({ payments, packages })
+  } catch (error) {
+    console.error('Erro ao buscar financeiro:', error.message)
+    res.status(500).json({ error: 'Erro interno ao buscar financeiro' })
+  }
+})
+
+app.get('/api/patients/:id', requireAuth, async (req, res) => {
   try {
     const patient = await getPatient(req.params.id)
     if (!patient) return res.status(404).json({ error: 'Paciente não encontrado' })
     res.json(patient)
   } catch (error) {
-    console.error('Erro ao buscar paciente:', error.message)
-    res.status(500).json({ error: 'Erro interno ao buscar paciente' })
+    res.status(500).json({ error: 'Erro interno' })
   }
 })
 
-// Atualiza paciente
-app.put('/api/patients/:id', async (req, res) => {
+app.put('/api/patients/:id', requireAuth, async (req, res) => {
   try {
-    const patient = await updatePatient(req.params.id, req.body)
-    res.json(patient)
+    res.json(await updatePatient(req.params.id, req.body))
   } catch (error) {
-    console.error('Erro ao atualizar paciente:', error.message)
     res.status(500).json({ error: 'Erro interno ao atualizar paciente' })
   }
 })
 
-// ─── Agendamentos ─────────────────────────────────────────────────────────────
+// ─── Agendamentos (protegido) ─────────────────────────────────────────────────
 
-// Lista agendamentos — por data ou por range de datas
-app.get('/api/appointments', async (req, res) => {
+app.get('/api/appointments', requireAuth, async (req, res) => {
   try {
     const { date, start, end } = req.query
-    if (date) {
-      const appointments = await getAppointmentsByDate(date)
-      return res.json(appointments)
-    }
-    if (start && end) {
-      const appointments = await getAppointmentsByRange(start, end)
-      return res.json(appointments)
-    }
-    res.status(400).json({ error: 'Forneça date ou start+end como parâmetros' })
+    if (date) return res.json(await getAppointmentsByDate(date))
+    if (start && end) return res.json(await getAppointmentsByRange(start, end))
+    res.status(400).json({ error: 'Forneça date ou start+end' })
   } catch (error) {
-    console.error('Erro ao buscar agendamentos:', error.message)
     res.status(500).json({ error: 'Erro interno ao buscar agendamentos' })
   }
 })
 
-// Cria novo agendamento
-app.post('/api/appointments', async (req, res) => {
+app.post('/api/appointments', requireAuth, async (req, res) => {
   try {
-    const { patient_id, patient_name, appointment_date, appointment_time, type, duration_minutes, notes } = req.body
+    const { patient_id, patient_name, appointment_date, appointment_time, type, duration_minutes, notes, price } = req.body
     if (!patient_name?.trim()) return res.status(400).json({ error: 'Nome do paciente obrigatório' })
-    if (!appointment_date) return res.status(400).json({ error: 'Data do agendamento obrigatória' })
-    if (!appointment_time) return res.status(400).json({ error: 'Horário do agendamento obrigatório' })
-    if (!type) return res.status(400).json({ error: 'Tipo de atendimento obrigatório' })
-
+    if (!appointment_date) return res.status(400).json({ error: 'Data obrigatória' })
+    if (!appointment_time) return res.status(400).json({ error: 'Horário obrigatório' })
+    if (!type) return res.status(400).json({ error: 'Tipo obrigatório' })
     const appointment = await createAppointment({
       patient_id, patient_name: patient_name.trim(),
-      appointment_date, appointment_time, type, duration_minutes, notes
+      appointment_date, appointment_time, type, duration_minutes, notes, price
     })
     res.status(201).json(appointment)
   } catch (error) {
-    console.error('Erro ao criar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao criar agendamento' })
   }
 })
 
-// Atualiza agendamento (status, observações, etc.)
-app.put('/api/appointments/:id', async (req, res) => {
+app.put('/api/appointments/:id', requireAuth, async (req, res) => {
   try {
-    const appointment = await updateAppointment(req.params.id, req.body)
-    res.json(appointment)
+    res.json(await updateAppointment(req.params.id, req.body))
   } catch (error) {
-    console.error('Erro ao atualizar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao atualizar agendamento' })
   }
 })
 
-// ─── Calibração de pontos de acupuntura ─────────────────────────────────────
+// ─── Financeiro (item 6) ──────────────────────────────────────────────────────
 
-// Salva JSON calibrado em public/js/acu-points-calibrated.json
-app.post('/api/calibrate/save', (req, res) => {
+app.post('/api/payments', requireAuth, async (req, res) => {
   try {
-    const json = JSON.stringify(req.body, null, 2)
-    const dest = path.join(__dirname, 'public', 'js', 'acu-points-calibrated.json')
-    fs.writeFileSync(dest, json, 'utf8')
-    res.json({ ok: true })
-  } catch (e) {
-    console.error('Erro ao salvar calibração:', e.message)
-    res.status(500).json({ error: e.message })
+    const { amount } = req.body
+    if (amount === undefined || amount === null || isNaN(Number(amount))) {
+      return res.status(400).json({ error: 'Valor do pagamento obrigatório' })
+    }
+    res.status(201).json(await createPayment(req.body))
+  } catch (error) {
+    console.error('Erro ao registrar pagamento:', error.message)
+    res.status(500).json({ error: 'Erro interno ao registrar pagamento' })
   }
 })
+
+app.post('/api/packages', requireAuth, async (req, res) => {
+  try {
+    const { patient_id, total_sessions } = req.body
+    if (!patient_id || !total_sessions) return res.status(400).json({ error: 'patient_id e total_sessions obrigatórios' })
+    res.status(201).json(await createPackage(req.body))
+  } catch (error) {
+    console.error('Erro ao criar pacote:', error.message)
+    res.status(500).json({ error: 'Erro interno ao criar pacote' })
+  }
+})
+
+app.put('/api/packages/:id', requireAuth, async (req, res) => {
+  try {
+    res.json(await updatePackage(req.params.id, req.body))
+  } catch (error) {
+    res.status(500).json({ error: 'Erro interno ao atualizar pacote' })
+  }
+})
+
+// Consome uma sessão de pacote ativo do paciente
+app.post('/api/patients/:id/consume-package', requireAuth, async (req, res) => {
+  try {
+    const pkg = await consumePackageSession(req.params.id)
+    if (!pkg) return res.status(404).json({ error: 'Nenhum pacote com saldo' })
+    res.json(pkg)
+  } catch (error) {
+    res.status(500).json({ error: 'Erro interno ao consumir pacote' })
+  }
+})
+
+app.get('/api/reports/monthly', requireAuth, async (req, res) => {
+  try {
+    const month = req.query.month || new Date().toISOString().slice(0, 7)
+    res.json(await getMonthlyReport(month))
+  } catch (error) {
+    console.error('Erro no relatório mensal:', error.message)
+    res.status(500).json({ error: 'Erro interno no relatório' })
+  }
+})
+
+// ─── Calibração de acupuntura no banco (item 3) ───────────────────────────────
+
+app.get('/api/calibrate', async (req, res) => {
+  try {
+    res.json((await getSetting('acu_calibration')) || {})
+  } catch (error) {
+    res.json({})
+  }
+})
+
+app.post('/api/calibrate/save', requireAuth, async (req, res) => {
+  try {
+    await setSetting('acu_calibration', req.body || {})
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Erro ao salvar calibração:', error.message)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// ─── SSE — poller único no servidor + fan-out (item 13) ──────────────────────
+
+const sseClients = { public: new Set(), doctor: new Set() }
+let lastJson = { public: '', doctor: '' }
+let lastSnapshot = { public: null, doctor: null }
+let pollTimer = null
+
+function sseWrite(res, data) {
+  try { res.write(`data: ${JSON.stringify(data)}\n\n`) } catch (_) {}
+}
+function broadcast(channel, data) {
+  lastSnapshot[channel] = data
+  for (const res of sseClients[channel]) sseWrite(res, data)
+}
+function ensurePolling() {
+  if (!pollTimer) pollTimer = setInterval(pollOnce, 2500)
+  pollOnce()
+}
+function stopPollingIfIdle() {
+  if (sseClients.public.size === 0 && sseClients.doctor.size === 0 && pollTimer) {
+    clearInterval(pollTimer); pollTimer = null
+  }
+}
+
+async function pollOnce() {
+  try {
+    if (sseClients.public.size > 0) {
+      const totem = await getTotemState()
+      const ack = await getLatestAcknowledged()
+      let anatomy = null
+      if (ack) anatomy = await getLatestAnatomyEvent(ack.id)
+      const payload = {
+        type: 'public',
+        totem,
+        shared: ack ? { session_id: ack.id, patient_name: ack.patient_name, anatomy } : { session_id: null, anatomy: null }
+      }
+      const json = JSON.stringify(payload)
+      if (json !== lastJson.public) { lastJson.public = json; broadcast('public', payload) }
+    }
+    if (sseClients.doctor.size > 0) {
+      const pending = await getPendingNotification()
+      const active = await getActiveSession()
+      const payload = { type: 'doctor', pending: pending || null, active: active || null }
+      const json = JSON.stringify(payload)
+      if (json !== lastJson.doctor) { lastJson.doctor = json; broadcast('doctor', payload) }
+    }
+  } catch (error) {
+    console.error('Erro no poller SSE:', error.message)
+  }
+}
+
+function openSSE(channel, req, res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  })
+  res.write(': ok\n\n')
+  sseClients[channel].add(res)
+  if (lastSnapshot[channel]) sseWrite(res, lastSnapshot[channel])
+  lastJson[channel] = '' // força re-broadcast no próximo tick
+  ensurePolling()
+
+  const heartbeat = setInterval(() => sseWrite(res, { type: 'ping' }), 25000)
+  req.on('close', () => {
+    clearInterval(heartbeat)
+    sseClients[channel].delete(res)
+    stopPollingIfIdle()
+  })
+}
+
+// Público — totem e tela do paciente
+app.get('/api/stream/public', (req, res) => openSSE('public', req, res))
+// Painel da Dra. — inclui dados sensíveis (respostas), então exige login
+app.get('/api/stream/doctor', requireAuth, (req, res) => openSSE('doctor', req, res))
 
 // ─── Inicialização ───────────────────────────────────────────────────────────
 
@@ -463,5 +666,6 @@ app.listen(PORT, async () => {
   console.log('\nURLs do sistema:')
   console.log(`  Totem (sala de espera): http://localhost:${PORT}/totem`)
   console.log(`  Painel da Dra.:         http://localhost:${PORT}/doctor`)
-  console.log(`  Tela do paciente:       http://localhost:${PORT}/shared\n`)
+  console.log(`  Tela do paciente:       http://localhost:${PORT}/shared`)
+  console.log(`  Login:                  http://localhost:${PORT}/login\n`)
 })

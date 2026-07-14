@@ -6,9 +6,8 @@ services:
     env_file: .env
     networks:
       - portainer_default
-    volumes:
-      # Calibração dos pontos de acupuntura — persiste entre deploys
-      - /var/www/ConsultorioEquilibrium/data/acu-points-calibrated.json:/app/public/js/acu-points-calibrated.json
+    # A calibração de acupuntura agora fica no banco (tabela app_settings),
+    # então não precisa mais de volume persistente.
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.consultorio-equilibrium.rule=Host(`consultorioequilibrium.datawavebr.com`)"

@@ -198,6 +198,28 @@
     padding: 0 0.2rem;
   }
 
+  /* Mapa do corpo (onde dói) */
+  .bodymap-toggle { display:flex; gap:0.5rem; margin-bottom:1rem; }
+  .bm-tog-btn {
+    flex:1; padding:0.6rem; border-radius:60px; cursor:pointer;
+    background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25);
+    color:rgba(255,255,255,0.75); font-family:'DM Sans',sans-serif; font-size:0.9rem;
+  }
+  .bm-tog-btn.active { background:rgba(255,255,255,0.9); color:#3d1515; font-weight:500; border-color:transparent; }
+  .bodymap-wrap { display:flex; justify-content:center; margin-bottom:0.8rem; }
+  .bodymap-wrap svg { width:min(240px,70vw); height:auto; touch-action:manipulation; }
+  .bm-region {
+    fill:rgba(255,255,255,0.1); stroke:rgba(255,255,255,0.3); stroke-width:0.8;
+    cursor:pointer; transition:fill 0.15s, stroke 0.15s;
+  }
+  .bm-region.sel { fill:rgba(255,120,120,0.55); stroke:rgba(255,150,150,0.9); stroke-width:1.4; }
+  .bm-chosen { text-align:center; font-size:0.85rem; color:rgba(255,255,255,0.7); min-height:1.3em; margin-bottom:0.8rem; }
+  .bm-skip {
+    display:block; margin:0 auto 0.5rem; padding:0.6rem 1.4rem; border-radius:60px;
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2);
+    color:rgba(255,255,255,0.6); font-family:'DM Sans',sans-serif; font-size:0.85rem; cursor:pointer;
+  }
+
   /* Navegação */
   .nav { display: flex; gap: 1rem; margin-top: auto; padding-top: 1rem; }
   .btn-back {
@@ -314,6 +336,13 @@
       scaleMin: 0, scaleMax: 10
     },
     {
+      key: 'pain_regions',
+      text: 'Onde você sente a dor ou o desconforto? Toque no corpo.',
+      theme: 'q2',
+      type: 'bodymap',
+      optional: true
+    },
+    {
       key: 'stress',
       text: 'Como está seu nível de estresse esta semana?',
       theme: 'q3',
@@ -328,6 +357,37 @@
       options: ['Dor ou desconforto físico', 'Estresse e ansiedade', 'Manutenção e bem-estar', 'Continuação do tratamento']
     }
   ]
+
+  // Regiões do corpo para o mapa de dor (iguais às telas do consultório)
+  const BM_FRONT = [
+    { id:'cabeca', label:'Cabeça', d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
+    { id:'pescoco', label:'Pescoço', d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
+    { id:'torax', label:'Tórax', d:'M72,74 Q100,78 128,74 L132,130 Q100,136 68,130Z' },
+    { id:'abdome', label:'Abdome', d:'M70,130 Q100,134 130,130 L128,168 Q100,172 72,168Z' },
+    { id:'ombro-direito', label:'Ombro Direito', d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
+    { id:'ombro-esquerdo', label:'Ombro Esquerdo', d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
+    { id:'braco-direito', label:'Braço Direito', d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
+    { id:'braco-esquerdo', label:'Braço Esquerdo', d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
+    { id:'antebraco-direito', label:'Antebraço Direito', d:'M44,120 Q38,150 40,186 L50,186 L52,128Z' },
+    { id:'antebraco-esquerdo', label:'Antebraço Esquerdo', d:'M156,120 Q162,150 160,186 L150,186 L148,128Z' },
+    { id:'mao-direita', label:'Mão Direita', d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
+    { id:'mao-esquerda', label:'Mão Esquerda', d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
+    { id:'quadril', label:'Quadril', d:'M68,168 Q100,176 132,168 L128,200 Q100,208 72,200Z' },
+    { id:'coxa-direita', label:'Coxa Direita', d:'M72,200 Q82,220 80,258 Q76,268 66,266 Q60,250 62,220 Z' },
+    { id:'coxa-esquerda', label:'Coxa Esquerda', d:'M128,200 Q118,220 120,258 Q124,268 134,266 Q140,250 138,220 Z' },
+    { id:'joelho-direito', label:'Joelho Direito', d:'M64,262 Q60,278 66,290 Q76,290 80,278 L80,258 Q76,268 66,266Z' },
+    { id:'joelho-esquerdo', label:'Joelho Esquerdo', d:'M136,262 Q140,278 134,290 Q124,290 120,278 L120,258 Q124,268 134,266Z' },
+    { id:'perna-direita', label:'Perna Direita', d:'M64,290 Q58,310 60,336 L74,336 Q80,312 80,286 Q76,290 66,290Z' },
+    { id:'perna-esquerda', label:'Perna Esquerda', d:'M136,290 Q142,310 140,336 L126,336 Q120,312 120,286 Q124,290 134,290Z' },
+    { id:'pe-direito', label:'Pé Direito', d:'M58,336 Q52,346 54,356 Q66,362 76,356 L74,336Z' },
+    { id:'pe-esquerdo', label:'Pé Esquerdo', d:'M142,336 Q148,346 146,356 Q134,362 124,356 L126,336Z' },
+  ]
+  const BM_BACK = BM_FRONT.map(r => {
+    if (r.id === 'torax')  return { ...r, label:'Costas superiores' }
+    if (r.id === 'abdome') return { ...r, label:'Lombar' }
+    return r
+  })
+  let bmView = 'front'
 
   let current = 0
   const answers = {}
@@ -362,8 +422,9 @@
     document.getElementById('btn-back').style.display = index > 0 ? 'block' : 'none'
 
     const nextBtn = document.getElementById('btn-next')
-    nextBtn.disabled = !(q.key in answers)
-    nextBtn.classList.toggle('ready', q.key in answers)
+    const answered = (q.key in answers) || q.optional
+    nextBtn.disabled = !answered
+    nextBtn.classList.toggle('ready', answered)
     nextBtn.textContent = index === questions.length - 1 ? 'Concluir ✓' : 'Próxima →'
 
     // Opções primeiro — garantidas antes de qualquer animação
@@ -403,7 +464,59 @@
       labels.className = 'pain-labels'
       labels.innerHTML = '<span>Sem dor</span><span>Dor intensa</span>'
       area.appendChild(labels)
+    } else if (q.type === 'bodymap') {
+      renderBodyMap(q, area)
     }
+  }
+
+  // Mapa do corpo — múltipla seleção de regiões
+  const painSel = new Set()
+
+  function syncPainAnswer() {
+    answers['pain_regions'] = [...painSel].join(', ')
+    const chosen = document.getElementById('bm-chosen')
+    if (chosen) chosen.textContent = painSel.size ? [...painSel].join(' · ') : 'Nenhuma região selecionada (opcional)'
+    enableNext()
+  }
+
+  function renderBodyMap(q, area) {
+    if (answers[q.key]) {
+      answers[q.key].split(',').map(s => s.trim()).filter(Boolean).forEach(l => painSel.add(l))
+    }
+    area.innerHTML = `
+      <div class="bodymap-toggle">
+        <button type="button" class="bm-tog-btn ${bmView==='front'?'active':''}" data-v="front">Frente</button>
+        <button type="button" class="bm-tog-btn ${bmView==='back'?'active':''}" data-v="back">Costas</button>
+      </div>
+      <div class="bodymap-wrap"><svg id="bm-svg" viewBox="0 0 200 370" xmlns="http://www.w3.org/2000/svg"></svg></div>
+      <div class="bm-chosen" id="bm-chosen"></div>
+      <button type="button" class="bm-skip" id="bm-skip">Não tenho dor localizada</button>
+    `
+    area.querySelectorAll('.bm-tog-btn').forEach(b => {
+      b.onclick = () => { bmView = b.dataset.v; renderBodyMap(q, area) }
+    })
+    area.querySelector('#bm-skip').onclick = () => { painSel.clear(); drawBM(); syncPainAnswer() }
+    drawBM()
+    syncPainAnswer()
+  }
+
+  function drawBM() {
+    const svg = document.getElementById('bm-svg')
+    if (!svg) return
+    svg.innerHTML = ''
+    const regions = bmView === 'front' ? BM_FRONT : BM_BACK
+    regions.forEach(r => {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      p.setAttribute('d', r.d)
+      p.setAttribute('class', 'bm-region' + (painSel.has(r.label) ? ' sel' : ''))
+      p.addEventListener('click', () => {
+        if (painSel.has(r.label)) painSel.delete(r.label)
+        else painSel.add(r.label)
+        p.classList.toggle('sel')
+        syncPainAnswer()
+      })
+      svg.appendChild(p)
+    })
   }
 
   function selectOption(key, value, btn, container) {

@@ -668,25 +668,50 @@ function buildWaves(d) {
 
 // ── Polling do estado do totem ───────────────────────────────────────────────
 
-async function pollTotemState() {
+// Aplica um estado do totem com as mesmas travas (inline/QR/dedup)
+function handleTotemState(data) {
+  if (!data) return
   const activeId = document.querySelector('.state.active')?.id
   // Formulário inline em andamento — não interrompe
   if (activeId === 's-inline') return
+  // QR exibido aguardando preenchimento — só transiciona quando formulário chegar
+  if (activeId === 's-qr' && !['waiting', 'wait', 'can_enter'].includes(data.state)) return
 
+  const key = data.state + (data.patient_name || '') + (data.session_id || '')
+  if (key === lastState) return
+  lastState = key
+  applyTotemState(data)
+}
+
+async function pollTotemState() {
   try {
     const r = await fetch('/api/totem/state')
     if (!r.ok) return
-    const data = await r.json()
-
-    // QR exibido aguardando preenchimento — só transiciona quando formulário chegar
-    if (activeId === 's-qr' && !['waiting', 'wait', 'can_enter'].includes(data.state)) return
-
-    const key = data.state + (data.patient_name || '') + (data.session_id || '')
-    if (key === lastState) return
-    lastState = key
-
-    applyTotemState(data)
+    handleTotemState(await r.json())
   } catch (_) {}
+}
+
+// SSE (item 13) com fallback para polling
+let totemES = null, totemSSEok = false
+function startTotemStream() {
+  if (!window.EventSource) { startTotemPolling(); return }
+  try {
+    totemES = new EventSource('/api/stream/public')
+    totemES.onopen = () => {
+      totemSSEok = true
+      if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null }
+    }
+    totemES.onmessage = (e) => {
+      let d; try { d = JSON.parse(e.data) } catch (_) { return }
+      if (d.type === 'public' && d.totem) handleTotemState(d.totem)
+    }
+    totemES.onerror = () => { if (!totemSSEok) startTotemPolling() }
+  } catch (_) { startTotemPolling() }
+}
+function startTotemPolling() {
+  if (pollingInterval) return
+  pollTotemState()
+  pollingInterval = setInterval(pollTotemState, 3000)
 }
 
 function applyTotemState(data) {
@@ -903,8 +928,7 @@ async function submitInlineForm() {
 
 setTheme('theme-idle')
 buildBgLayer('theme-idle')
-pollTotemState()
-pollingInterval = setInterval(pollTotemState, 3000)
+startTotemStream()
 </script>
 </body>
 </html>

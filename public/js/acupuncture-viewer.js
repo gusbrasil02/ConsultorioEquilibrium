@@ -381,12 +381,20 @@ class AcupunctureViewer {
     }
   }
 
-  // Tenta carregar /js/acu-points-calibrated.json e aplica posições exatas
+  // Carrega calibração do banco (/api/calibrate) e aplica posições exatas.
+  // Cai para o arquivo estático antigo caso a API não responda.
   async _applyCalibrated() {
     try {
-      const res = await fetch('/js/acu-points-calibrated.json', { cache: 'no-cache' })
-      if (!res.ok) return
-      const data = await res.json()
+      let data = null
+      try {
+        const r = await fetch('/api/calibrate', { cache: 'no-cache' })
+        if (r.ok) data = await r.json()
+      } catch (_) {}
+      if (!data || Object.keys(data).length === 0) {
+        const res = await fetch('/js/acu-points-calibrated.json', { cache: 'no-cache' })
+        if (!res.ok) return
+        data = await res.json()
+      }
 
       this.pointMeshes.forEach(mesh => {
         const id     = mesh.userData.id

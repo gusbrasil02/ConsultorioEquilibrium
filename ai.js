@@ -13,7 +13,7 @@ português brasileiro. Estruture a resposta em exatamente 3 parágrafos curtos: 
 async function generateAnatomyExplanation(region, problem, patientName) {
   try {
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 600,
       system: SYSTEM_PROMPT,
       messages: [

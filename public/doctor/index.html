@@ -151,13 +151,21 @@ body {
   background: rgba(255,255,255,0.08);
   color: #fff;
 }
+.header-right { justify-self: end; display: flex; align-items: center; gap: 0.75rem; }
 .header-clock {
   font-size: 1.4rem; font-weight: 300;
   color: rgba(255,255,255,0.6);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  justify-self: end;
 }
+.header-icon-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.6); font-size: 0.95rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.header-icon-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
 
 
 /* ── Views principais ── */
@@ -447,6 +455,8 @@ body {
   min-height: 80px; margin-bottom: 1rem; white-space: pre-wrap;
 }
 .ai-preview.loading { color: rgba(255,255,255,0.3); font-style: italic; }
+textarea.ai-preview { width: 100%; font-family: 'DM Sans', sans-serif; resize: vertical; outline: none; }
+textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
 .btn-send-tv {
   width: 100%; padding: 0.85rem;
   background: rgba(76,175,134,0.2); border: 1px solid rgba(76,175,134,0.4);
@@ -829,6 +839,50 @@ body {
 }
 .timeline-body.open { display: block; }
 .no-history-msg { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.9rem; }
+
+/* ─────────────── MODO CLARO (item 10) ─────────────── */
+body.light { background: #eef0f4; color: #1c1e26; }
+body.light .main-header { background: #ffffff; border-bottom-color: rgba(0,0,0,0.08); }
+body.light .header-clinic { color: rgba(0,0,0,0.45); }
+body.light .header-clock { color: rgba(0,0,0,0.6); }
+body.light .header-icon-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.55); }
+body.light .header-icon-btn:hover { background: rgba(0,0,0,0.1); color: #000; }
+body.light .tab-btn { color: rgba(0,0,0,0.45); }
+body.light .tab-btn:hover { color: rgba(0,0,0,0.7); }
+body.light .tab-btn.active { background: rgba(0,0,0,0.08); color: #000; }
+body.light .hero, body.light .alerts-row, body.light .metrics-grid,
+body.light #session-control, body.light .history-section { border-bottom-color: rgba(0,0,0,0.08); }
+body.light .patient-name, body.light .pain-display, body.light .detail-info h2,
+body.light .modal-title, body.light .modal-sheet h3 { color: rgba(0,0,0,0.9); }
+body.light .metric-card, body.light .patient-card, body.light .chart-card,
+body.light .history-item, body.light .timeline-item, body.light .preview-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+body.light .metric-label, body.light .section-title, body.light .history-date,
+body.light .timeline-summary, body.light .timeline-expand, body.light .preview-label,
+body.light .form-label, body.light .summary-label, body.light .day-name, body.light .time-tick,
+body.light .session-status-label { color: rgba(0,0,0,0.5); }
+body.light .metric-value, body.light .summary-value, body.light .pc-name,
+body.light .timeline-date, body.light .agenda-week-label, body.light .consult-title { color: rgba(0,0,0,0.8); }
+body.light .metric-reason, body.light .metric-value, body.light .timeline-body, body.light .preview-text { color: rgba(0,0,0,0.7); }
+body.light .day-num { color: rgba(0,0,0,0.7); }
+body.light .modal-sheet, body.light .modal-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
+body.light .form-control, body.light .finish-textarea, body.light .search-input,
+body.light .problem-input, body.light textarea.ai-preview, body.light .summary-row,
+body.light .ai-preview { background: #f3f4f7; border-color: rgba(0,0,0,0.12); color: #1c1e26; }
+body.light .form-control option { background: #fff; color: #1c1e26; }
+body.light .week-grid { border-color: rgba(0,0,0,0.1); }
+body.light .day-header, body.light .time-axis-header, body.light .time-tick { background: #f6f7f9; }
+body.light .time-slot { border-bottom-color: rgba(0,0,0,0.06); }
+body.light .day-col { border-right-color: rgba(0,0,0,0.06); }
+body.light .btn-consult, body.light .agenda-nav-btn, body.light .detail-back,
+body.light .toggle-btn, body.light .btn-back-dash, body.light .btn-cancel,
+body.light .patient-suggestions { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.6); }
+body.light .patient-suggestions { background: #ffffff; }
+body.light .suggestion-item { color: rgba(0,0,0,0.8); }
+body.light .pc-phone, body.light .pc-last, body.light .no-history,
+body.light .no-history-msg { color: rgba(0,0,0,0.4); }
+body.light .pc-condition { color: rgba(0,0,0,0.55); }
+body.light .detail-tag, body.light .notes-pill { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.55); }
+body.light .consult-left, body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,0,0.08); }
 </style>
 </head>
 <body>
@@ -864,6 +918,11 @@ body {
         <div class="summary-icon">💬</div>
         <div class="summary-label">Motivo</div>
         <div class="summary-value" id="sum-reason">—</div>
+      </div>
+      <div class="summary-row" id="sum-local-row" style="display:none">
+        <div class="summary-icon">📍</div>
+        <div class="summary-label">Local</div>
+        <div class="summary-value" id="sum-local">—</div>
       </div>
     </div>
     <div class="modal-btn-row">
@@ -921,6 +980,19 @@ body {
         <option value="60" selected>60 min</option>
         <option value="90">90 min</option>
         <option value="120">120 min</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Valor (R$)</label>
+      <input type="number" step="0.01" min="0" class="form-control" id="appt-price" placeholder="0,00">
+    </div>
+    <div class="form-group" id="appt-payment-group" style="display:none">
+      <label class="form-label">Pagamento</label>
+      <select class="form-control" id="appt-payment-status">
+        <option value="pendente">Pendente</option>
+        <option value="pago">Pago</option>
+        <option value="isento">Isento</option>
+        <option value="pacote">No pacote</option>
       </select>
     </div>
     <div class="form-group">
@@ -987,8 +1059,13 @@ body {
   <div class="header-tabs">
     <button class="tab-btn" id="tab-agenda"    onclick="switchTab('agenda')">Agenda</button>
     <button class="tab-btn" id="tab-patients"  onclick="switchTab('patients')">Pacientes</button>
+    <button class="tab-btn" id="tab-finance"   onclick="switchTab('finance')">Financeiro</button>
   </div>
-  <div class="header-clock" id="clock">--:--</div>
+  <div class="header-right">
+    <div class="header-clock" id="clock">--:--</div>
+    <button class="header-icon-btn" id="theme-btn" title="Alternar claro/escuro" onclick="toggleTheme()">☾</button>
+    <button class="header-icon-btn" id="logout-btn" title="Sair" onclick="doLogout()">⇥</button>
+  </div>
 </div>
 
 <!-- Dashboard -->
@@ -1065,8 +1142,9 @@ body {
     </div>
     <div id="selected-region-label" style="text-align:center;font-size:0.8rem;color:rgba(255,180,50,0.7);margin-bottom:1rem;min-height:1.2em;letter-spacing:0.06em;text-transform:uppercase"></div>
     <textarea class="problem-input" id="problem-input" placeholder="Ex: dor ao flexionar, rigidez matinal, formigamento..."></textarea>
-    <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação para o paciente →</button>
-    <div class="ai-preview" id="ai-preview" style="display:none"></div>
+    <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação (rascunho) →</button>
+    <textarea class="ai-preview" id="ai-preview" style="display:none" placeholder="A explicação gerada aparece aqui e pode ser editada antes de exibir."></textarea>
+    <div id="ai-preview-hint" style="display:none;font-size:0.72rem;color:rgba(255,255,255,0.35);margin:-0.5rem 0 1rem;text-align:center">Rascunho privado — o paciente só vê ao clicar em "Exibir na TV".</div>
     <button class="btn-send-tv" id="btn-send-tv" onclick="sendToTV()">Exibir na TV do paciente ✓</button>
   </div>
   <div class="consult-right">
@@ -1105,6 +1183,23 @@ body {
   <div class="patients-grid" id="patients-grid"></div>
 </div>
 
+<!-- Aba Financeiro (relatório mensal) -->
+<div id="finance-view" class="view" style="padding:2rem">
+  <div class="agenda-header">
+    <button class="agenda-nav-btn" onclick="financeMonth(-1)">← Anterior</button>
+    <div class="agenda-week-label" id="finance-month-label"></div>
+    <button class="agenda-nav-btn" onclick="financeMonth(0)">Este mês</button>
+    <button class="agenda-nav-btn" onclick="financeMonth(1)">Próximo →</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem">
+    <div class="metric-card"><div class="metric-label">Receita recebida</div><div class="metric-value" id="fin-total">—</div></div>
+    <div class="metric-card"><div class="metric-label">A receber (pendente)</div><div class="metric-value" id="fin-pending">—</div></div>
+    <div class="metric-card"><div class="metric-label">Pagamentos no mês</div><div class="metric-value" id="fin-count">—</div></div>
+  </div>
+  <div class="section-title">Por forma de pagamento</div>
+  <div id="fin-by-method" class="history-list"></div>
+</div>
+
 <!-- Detalhe do Paciente -->
 <div id="patient-detail-view">
   <button class="detail-back" onclick="backToPatients()">← Pacientes</button>
@@ -1134,8 +1229,80 @@ body {
       <canvas id="chart-regions"></canvas>
     </div>
   </div>
+  <div class="timeline-title" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem">
+    <span>Financeiro do paciente</span>
+    <span style="display:flex;gap:0.5rem">
+      <button class="detail-back" style="margin:0" onclick="openPaymentModal()">+ Pagamento</button>
+      <button class="detail-back" style="margin:0" onclick="openPackageModal()">+ Pacote</button>
+    </span>
+  </div>
+  <div id="finance-detail" style="margin-bottom:2rem"></div>
+
   <div class="timeline-title">Histórico de sessões</div>
   <div class="timeline-list" id="timeline-list"></div>
+</div>
+
+<!-- Modal Pagamento -->
+<div class="generic-overlay" id="payment-modal">
+  <div class="modal-sheet">
+    <h3>Registrar Pagamento</h3>
+    <div class="form-group">
+      <label class="form-label">Valor (R$) *</label>
+      <input type="number" step="0.01" min="0" class="form-control" id="pay-amount" placeholder="0,00">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Forma</label>
+      <select class="form-control" id="pay-method">
+        <option value="pix">Pix</option>
+        <option value="dinheiro">Dinheiro</option>
+        <option value="cartao">Cartão</option>
+        <option value="transferencia">Transferência</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-control" id="pay-status">
+        <option value="pago">Pago</option>
+        <option value="pendente">Pendente</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data</label>
+      <input type="date" class="form-control" id="pay-date">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <input type="text" class="form-control" id="pay-notes" placeholder="Ex: sessão avulsa, referente ao pacote...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePaymentModal()">Cancelar</button>
+      <button class="btn-save" onclick="savePayment()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Pacote -->
+<div class="generic-overlay" id="package-modal">
+  <div class="modal-sheet">
+    <h3>Novo Pacote de Sessões</h3>
+    <div class="form-group">
+      <label class="form-label">Quantidade de sessões *</label>
+      <input type="number" min="1" class="form-control" id="pkg-total" placeholder="Ex: 10">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Valor pago (R$)</label>
+      <input type="number" step="0.01" min="0" class="form-control" id="pkg-amount" placeholder="0,00">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <input type="text" class="form-control" id="pkg-notes" placeholder="Ex: pacote fisioterapia mensal">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePackageModal()">Cancelar</button>
+      <button class="btn-save" onclick="savePackage()">Salvar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal de finalização de sessão -->
@@ -1143,17 +1310,38 @@ body {
   <div class="modal-sheet">
     <h3 id="finish-modal-title">Finalizar Sessão</h3>
     <div class="form-group">
-      <label class="form-label">O que foi feito na sessão</label>
+      <label class="form-label">Queixa / subjetivo (o que o paciente relatou)</label>
       <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-notes" placeholder="Descreva os procedimentos realizados..."></textarea>
-        <button class="btn-mic" id="mic-notes" title="Ditar" onclick="toggleDictation('finish-notes', this)">🎤</button>
+        <textarea class="finish-textarea" id="finish-complaint" placeholder="Ex: relata melhora da dor lombar, ainda com rigidez matinal..."></textarea>
+        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-complaint', this)">🎤</button>
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Observações</label>
+      <label class="form-label">Conduta realizada</label>
       <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-obs" placeholder="Observações adicionais, evolução do paciente..."></textarea>
-        <button class="btn-mic" id="mic-obs" title="Ditar" onclick="toggleDictation('finish-obs', this)">🎤</button>
+        <textarea class="finish-textarea" id="finish-conduct" placeholder="Procedimentos, técnicas e exercícios realizados na sessão..."></textarea>
+        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-conduct', this)">🎤</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Evolução observada</label>
+      <div class="finish-field-wrap">
+        <textarea class="finish-textarea" id="finish-evolution" placeholder="Resposta ao tratamento, ganhos de amplitude, força, etc."></textarea>
+        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-evolution', this)">🎤</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Plano para a próxima sessão</label>
+      <div class="finish-field-wrap">
+        <textarea class="finish-textarea" id="finish-plan" placeholder="Próximos passos, o que trabalhar, orientações de casa..."></textarea>
+        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-plan', this)">🎤</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observações (opcional)</label>
+      <div class="finish-field-wrap">
+        <textarea class="finish-textarea" id="finish-obs" placeholder="Observações adicionais..."></textarea>
+        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-obs', this)">🎤</button>
       </div>
     </div>
     <div class="modal-actions">
@@ -1275,28 +1463,62 @@ let activePatientId = null
 let patientCharts   = {}
 let patientSearchTimer = null
 
+// ── Tema claro/escuro (item 10) ───────────────────────────────────────────────
+function applyTheme(theme) {
+  const light = theme === 'light'
+  document.body.classList.toggle('light', light)
+  const btn = document.getElementById('theme-btn')
+  if (btn) btn.textContent = light ? '☀' : '☾'
+  if (window.Chart) {
+    Chart.defaults.color = light ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)'
+  }
+}
+function toggleTheme() {
+  const next = document.body.classList.contains('light') ? 'dark' : 'light'
+  localStorage.setItem('doctor_theme', next)
+  applyTheme(next)
+  // Redesenha gráficos abertos com as cores do novo tema
+  if (activePatientId && document.getElementById('patient-detail-view').classList.contains('visible')) {
+    openPatientDetail(activePatientId)
+  }
+}
+
+// ── Logout (item 4/12) ────────────────────────────────────────────────────────
+async function doLogout() {
+  if (!confirm('Sair do painel?')) return
+  try { await fetch('/api/auth/logout', { method: 'POST' }) } catch (_) {}
+  localStorage.removeItem('doctor_session')
+  location.href = '/login'
+}
+
 // ── Inicialização ─────────────────────────────────────────────────────────────
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
+  applyTheme(localStorage.getItem('doctor_theme') || 'dark')
   updateClock()
   setInterval(updateClock, 60000)
 
-  // Configura Chart.js padrão para tema escuro
   if (window.Chart) {
-    Chart.defaults.backgroundColor = '#16161e'
-    Chart.defaults.color            = 'rgba(255,255,255,0.6)'
+    Chart.defaults.backgroundColor = 'rgba(0,0,0,0)'
     Chart.defaults.font.family      = "'DM Sans', sans-serif"
     Chart.defaults.font.size        = 11
   }
 
+  // Recupera sessão em andamento (item 12): localStorage → servidor
   const saved = localStorage.getItem('doctor_session')
   if (saved) {
+    try { currentSession = JSON.parse(saved); loadDashboard(currentSession) } catch (_) {}
+  } else {
     try {
-      currentSession = JSON.parse(saved)
-      loadDashboard(currentSession)
+      const r = await fetch('/api/sessions/active')
+      if (r.ok) {
+        currentSession = await r.json()
+        localStorage.setItem('doctor_session', JSON.stringify(currentSession))
+        loadDashboard(currentSession)
+      }
     } catch (_) {}
   }
 
-  startNotificationPolling()
+  startDoctorStream()
   switchTab(currentSession ? activeTab : 'agenda', false)
 })
 
@@ -1325,6 +1547,7 @@ function switchTab(tab, save = true) {
   document.getElementById('agenda-view').classList.remove('visible')
   document.getElementById('patients-view').classList.remove('visible')
   document.getElementById('patient-detail-view').classList.remove('visible')
+  document.getElementById('finance-view').classList.remove('visible')
 
   const fab = document.getElementById('fab-btn')
 
@@ -1343,11 +1566,42 @@ function switchTab(tab, save = true) {
     fab.style.display = 'flex'
     fab.title = 'Novo paciente'
     loadPatients()
+  } else if (tab === 'finance') {
+    document.getElementById('finance-view').classList.add('visible')
+    fab.style.display = 'none'
+    loadFinanceReport()
   }
 }
 
-// ── Polling de notificação ────────────────────────────────────────────────────
+// ── Notificações via SSE (item 13) com fallback para polling ──────────────────
+let doctorES = null
+let doctorSSEok = false
+
+function startDoctorStream() {
+  if (!window.EventSource) return startNotificationPolling()
+  try {
+    doctorES = new EventSource('/api/stream/doctor')
+    doctorES.onopen = () => {
+      doctorSSEok = true
+      if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null }
+    }
+    doctorES.onmessage = (e) => {
+      let data
+      try { data = JSON.parse(e.data) } catch (_) { return }
+      if (data.type !== 'doctor') return
+      if (data.pending && data.pending.id) showNotificationModal(data.pending)
+    }
+    doctorES.onerror = () => {
+      // Se nunca abriu, cai para polling. EventSource tenta reconectar sozinho.
+      if (!doctorSSEok && !pollingInterval) startNotificationPolling()
+    }
+  } catch (_) {
+    startNotificationPolling()
+  }
+}
+
 function startNotificationPolling() {
+  if (pollingInterval) return
   pollingInterval = setInterval(checkPendingNotification, 3000)
   checkPendingNotification()
 }
@@ -1355,6 +1609,7 @@ function startNotificationPolling() {
 async function checkPendingNotification() {
   try {
     const res = await fetch('/api/sessions/latest/pending-notification')
+    if (res.status === 401) { location.href = '/login'; return }
     if (!res.ok) return
     const session = await res.json()
     if (session && session.id) showNotificationModal(session)
@@ -1371,6 +1626,13 @@ function showNotificationModal(session) {
   document.getElementById('sum-pain').textContent    = ans.pain !== undefined ? `${ans.pain}/10` : '—'
   document.getElementById('sum-stress').textContent  = ans.stress || '—'
   document.getElementById('sum-reason').textContent  = ans.reason || '—'
+  const localRow = document.getElementById('sum-local-row')
+  if (ans.pain_regions) {
+    document.getElementById('sum-local').textContent = ans.pain_regions
+    localRow.style.display = 'flex'
+  } else {
+    localRow.style.display = 'none'
+  }
   document.getElementById('notification-overlay').classList.add('visible')
 }
 
@@ -1417,8 +1679,9 @@ async function startSessionAction() {
 function finishSessionAction() {
   if (!currentSession) return
   document.getElementById('finish-modal-title').textContent = `Finalizar — ${currentSession.patient_name}`
-  document.getElementById('finish-notes').value = ''
-  document.getElementById('finish-obs').value   = ''
+  ;['finish-complaint','finish-conduct','finish-evolution','finish-plan','finish-obs'].forEach(id => {
+    document.getElementById(id).value = ''
+  })
   document.getElementById('finish-modal').classList.add('visible')
 }
 
@@ -1429,14 +1692,24 @@ function closeFinishModal() {
 
 async function confirmFinishSession() {
   if (!currentSession) return
-  const notes = document.getElementById('finish-notes').value.trim()
-  const obs   = document.getElementById('finish-obs').value.trim()
+  const complaint = document.getElementById('finish-complaint').value.trim()
+  const conduct   = document.getElementById('finish-conduct').value.trim()
+  const evolution = document.getElementById('finish-evolution').value.trim()
+  const plan      = document.getElementById('finish-plan').value.trim()
+  const obs       = document.getElementById('finish-obs').value.trim()
   closeFinishModal()
   try {
     await fetch(`/api/sessions/${currentSession.id}/end`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_notes: notes || null, session_observations: obs || null })
+      body: JSON.stringify({
+        session_complaint: complaint || null,
+        session_conduct: conduct || null,
+        session_evolution: evolution || null,
+        session_plan: plan || null,
+        session_observations: obs || null,
+        session_notes: conduct || null   // compatibilidade com exibição antiga
+      })
     })
   } catch (_) {}
   stopTimer()
@@ -1715,6 +1988,7 @@ function renderAlerts(ans) {
   if (stress === 'Tranquilo, me sinto bem') add('Bem-estar estável', 'alert-green')
   if (reason === 'Continuação do tratamento') add('Continuação do tratamento', 'alert-purple')
   if (reason === 'Manutenção e bem-estar') add('Manutenção', 'alert-blue')
+  if (ans.pain_regions) add('📍 ' + ans.pain_regions, 'alert-purple')
 }
 
 function renderHistory(history) {
@@ -1784,6 +2058,15 @@ function selectRegion(region) {
   document.getElementById('selected-region-label').textContent = region.label
   document.getElementById('preview-region-label').textContent  = region.label
 }
+// Atualiza o preview da direita conforme a Dra. edita o rascunho
+function syncConsultPreview() {
+  const txt = document.getElementById('ai-preview').value
+  const pv  = document.getElementById('preview-text')
+  pv.textContent  = txt || 'A explicação gerada pela IA aparecerá aqui'
+  pv.style.color  = txt ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.2)'
+  pv.style.fontStyle = txt ? 'normal' : 'italic'
+}
+
 async function generateExplanation() {
   if (!selectedRegion) { alert('Selecione uma região do corpo primeiro.'); return }
   if (!currentSession) { alert('Nenhum paciente ativo.'); return }
@@ -1794,32 +2077,57 @@ async function generateExplanation() {
   btn.textContent = 'Gerando...'
   const preview   = document.getElementById('ai-preview')
   preview.style.display = 'block'
+  document.getElementById('ai-preview-hint').style.display = 'block'
   preview.className     = 'ai-preview loading'
-  preview.textContent   = 'A IA está elaborando a explicação...'
+  preview.value         = 'A IA está elaborando a explicação...'
+  preview.readOnly      = true
   try {
     const res  = await fetch('/api/anatomy/explain', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: currentSession.id, region: selectedRegion.label, problem })
     })
+    if (res.status === 401) { location.href = '/login'; return }
     const data = await res.json()
     generatedExplanation = data.explanation || ''
     preview.className    = 'ai-preview'
-    preview.textContent  = generatedExplanation
-    document.getElementById('preview-text').textContent  = generatedExplanation
-    document.getElementById('preview-text').style.color  = 'rgba(255,255,255,0.75)'
-    document.getElementById('preview-text').style.fontStyle = 'normal'
+    preview.readOnly     = false
+    preview.value        = generatedExplanation
+    preview.oninput      = syncConsultPreview
+    syncConsultPreview()
     document.getElementById('btn-send-tv').classList.add('visible')
   } catch (_) {
     preview.className   = 'ai-preview'
-    preview.textContent = 'Erro ao gerar explicação. Tente novamente.'
+    preview.readOnly    = false
+    preview.value       = 'Erro ao gerar explicação. Tente novamente.'
   }
   btn.disabled    = false
-  btn.textContent = 'Gerar explicação para o paciente →'
+  btn.textContent = 'Gerar explicação (rascunho) →'
 }
+
+// Só agora publica na TV do paciente (item 1)
 async function sendToTV() {
-  const btn = document.getElementById('btn-send-tv')
-  btn.textContent = 'Exibindo na TV... ✓'
-  setTimeout(() => { btn.textContent = 'Exibir na TV do paciente ✓' }, 3000)
+  if (!currentSession || !selectedRegion) return
+  const btn  = document.getElementById('btn-send-tv')
+  const text = document.getElementById('ai-preview').value.trim()
+  if (!text) { alert('Gere ou escreva a explicação antes de exibir.'); return }
+  btn.disabled = true
+  btn.textContent = 'Exibindo...'
+  try {
+    const res = await fetch('/api/anatomy/publish', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: currentSession.id,
+        region: selectedRegion.label,
+        problem: document.getElementById('problem-input').value.trim(),
+        explanation: text
+      })
+    })
+    if (res.status === 401) { location.href = '/login'; return }
+    btn.textContent = '✓ Exibindo na TV'
+  } catch (_) {
+    btn.textContent = 'Erro — tentar de novo'
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = 'Exibir na TV do paciente ✓' }, 3000)
 }
 
 // ── AGENDA ────────────────────────────────────────────────────────────────────
@@ -1859,6 +2167,7 @@ async function loadAgendaWeek() {
 
   try {
     const res  = await fetch(`/api/appointments?start=${formatDate(weekStart)}&end=${formatDate(weekEnd)}`)
+    if (res.status === 401) { location.href = '/login'; return }
     agendaAppointments = res.ok ? await res.json() : []
   } catch (_) { agendaAppointments = [] }
 
@@ -1973,6 +2282,9 @@ function _resetApptModal() {
   document.getElementById('appt-time').value   = ''
   document.getElementById('appt-type').value   = ''
   document.getElementById('appt-notes').value  = ''
+  document.getElementById('appt-price').value  = ''
+  document.getElementById('appt-payment-status').value = 'pendente'
+  document.getElementById('appt-payment-group').style.display = 'none'
   document.getElementById('appt-status-group').style.display = 'none'
   document.getElementById('btn-view-patient-from-appt').style.display = 'none'
   editingApptPatientId = null
@@ -2002,6 +2314,9 @@ function openEditApptModal(appt) {
   document.getElementById('appt-type').value = appt.type
   document.getElementById('appt-duration').value = appt.duration_minutes || 60
   document.getElementById('appt-notes').value = appt.notes || ''
+  document.getElementById('appt-price').value = appt.price ?? ''
+  document.getElementById('appt-payment-group').style.display = 'block'
+  document.getElementById('appt-payment-status').value = appt.payment_status || 'pendente'
   document.getElementById('appt-status-group').style.display = 'block'
   document.getElementById('appt-status').value = appt.status || 'agendado'
 
@@ -2094,11 +2409,19 @@ async function saveAppointment() {
   const duration = document.getElementById('appt-duration').value
   const notes    = document.getElementById('appt-notes').value
   const status   = document.getElementById('appt-status').value
+  const priceRaw = document.getElementById('appt-price').value
+  const price    = priceRaw === '' ? null : parseFloat(priceRaw)
+  const paymentStatus = document.getElementById('appt-payment-status').value
 
   if (!patientName.trim()) { alert('Informe o nome do paciente.'); return }
   if (!date) { alert('Informe a data.'); return }
   if (!time) { alert('Informe o horário.'); return }
   if (!type) { alert('Selecione o tipo de atendimento.'); return }
+
+  if (apptId && (status === 'cancelado' || status === 'falta')) {
+    const label = status === 'cancelado' ? 'cancelar' : 'marcar falta n'
+    if (!confirm(`Deseja mesmo ${label}este agendamento de ${patientName.trim()}?`)) return
+  }
 
   try {
     if (apptId) {
@@ -2110,7 +2433,8 @@ async function saveAppointment() {
           patient_name: patientName.trim(),
           appointment_date: date,
           appointment_time: time,
-          type, duration_minutes: parseInt(duration), notes, status
+          type, duration_minutes: parseInt(duration), notes, status,
+          price, payment_status: paymentStatus
         })
       })
     } else {
@@ -2122,7 +2446,7 @@ async function saveAppointment() {
           patient_name: patientName.trim(),
           appointment_date: date,
           appointment_time: time,
-          type, duration_minutes: parseInt(duration), notes
+          type, duration_minutes: parseInt(duration), notes, price
         })
       })
     }
@@ -2137,6 +2461,7 @@ async function loadPatients(query) {
   try {
     const url  = query ? `/api/patients/search?q=${encodeURIComponent(query)}` : '/api/patients'
     const res  = await fetch(url)
+    if (res.status === 401) { location.href = '/login'; return }
     allPatients = res.ok ? await res.json() : []
   } catch (_) { allPatients = [] }
   renderPatientsGrid(allPatients)
@@ -2215,6 +2540,7 @@ async function openPatientDetail(id) {
 
   try {
     const res  = await fetch(`/api/patients/${id}/analytics`)
+    if (res.status === 401) { location.href = '/login'; return }
     if (!res.ok) throw new Error('Erro ao buscar analytics')
     const { patient, sessions, anatomy_events } = await res.json()
 
@@ -2231,6 +2557,8 @@ async function openPatientDetail(id) {
     if (patient.condition)  meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">${patient.condition}</span>`)
 
     document.getElementById('detail-session-count').textContent = `${patient.session_count} sessão(ões) registrada(s)`
+
+    loadPatientFinance(id)
 
     if (sessions.length === 0) {
       document.getElementById('timeline-list').innerHTML = '<div class="no-history-msg">Nenhuma sessão registrada ainda.</div>'
@@ -2274,9 +2602,10 @@ function buildPatientCharts(sessions, anatomyEvents) {
     return ans.stress in STRESS_MAP ? STRESS_MAP[ans.stress] : null
   })
 
-  // Configuração comum de grid/escala
-  const gridColor   = 'rgba(255,255,255,0.06)'
-  const tickColor   = 'rgba(255,255,255,0.35)'
+  // Configuração comum de grid/escala (adapta ao tema)
+  const light       = document.body.classList.contains('light')
+  const gridColor   = light ? 'rgba(0,0,0,0.08)'  : 'rgba(255,255,255,0.06)'
+  const tickColor   = light ? 'rgba(0,0,0,0.45)'  : 'rgba(255,255,255,0.35)'
   const baseLineOpts = {
     responsive: true,
     maintainAspectRatio: true,
@@ -2434,13 +2763,18 @@ function buildTimeline(sessions, anatomyEvents) {
 
     const body = document.createElement('div')
     body.className = 'timeline-body'
+    const conduct = s.session_conduct || s.session_notes
     body.innerHTML = `
       <div><b>Sono:</b> ${ans.sleep||'—'}</div>
       <div><b>Estresse:</b> ${ans.stress||'—'}</div>
       <div><b>Motivo:</b> ${ans.reason||'—'}</div>
-      ${s.session_notes ? `<div style="margin-top:0.5rem"><b>O que foi feito:</b> ${s.session_notes}</div>` : ''}
+      ${ans.pain_regions ? `<div><b>Local da dor:</b> ${ans.pain_regions}</div>` : ''}
+      ${s.session_complaint ? `<div style="margin-top:0.5rem"><b>Queixa/subjetivo:</b> ${s.session_complaint}</div>` : ''}
+      ${conduct ? `<div><b>Conduta realizada:</b> ${conduct}</div>` : ''}
+      ${s.session_evolution ? `<div><b>Evolução:</b> ${s.session_evolution}</div>` : ''}
+      ${s.session_plan ? `<div><b>Plano p/ próxima:</b> ${s.session_plan}</div>` : ''}
       ${s.session_observations ? `<div><b>Observações:</b> ${s.session_observations}</div>` : ''}
-      ${events.length ? `<div style="margin-top:0.5rem"><b>Regiões tratadas:</b> ${events.map(e => e.region).join(', ')}</div>` : ''}
+      ${events.filter(e => e.region !== '__acupuncture__').length ? `<div style="margin-top:0.5rem"><b>Regiões tratadas:</b> ${events.filter(e => e.region !== '__acupuncture__').map(e => e.region).join(', ')}</div>` : ''}
     `
     item.appendChild(body)
     list.appendChild(item)
@@ -2454,6 +2788,132 @@ function parseAnswers(answers) {
     acc[a.question_key] = a.answer_value
     return acc
   }, {})
+}
+
+// ── Financeiro (item 6) ───────────────────────────────────────────────────────
+function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
+
+let financeMonthDate = new Date()
+
+function financeMonth(delta) {
+  if (delta === 0) financeMonthDate = new Date()
+  else financeMonthDate.setMonth(financeMonthDate.getMonth() + delta)
+  loadFinanceReport()
+}
+
+async function loadFinanceReport() {
+  const y = financeMonthDate.getFullYear()
+  const m = String(financeMonthDate.getMonth() + 1).padStart(2, '0')
+  document.getElementById('finance-month-label').textContent =
+    financeMonthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  try {
+    const r = await fetch(`/api/reports/monthly?month=${y}-${m}`)
+    if (r.status === 401) { location.href = '/login'; return }
+    const d = await r.json()
+    document.getElementById('fin-total').textContent   = brl(d.total)
+    document.getElementById('fin-pending').textContent = brl(d.pending)
+    document.getElementById('fin-count').textContent   = d.count ?? 0
+    const box = document.getElementById('fin-by-method')
+    box.innerHTML = ''
+    const entries = Object.entries(d.by_method || {})
+    if (!entries.length) { box.innerHTML = '<div class="no-history">Sem pagamentos neste mês.</div>'; return }
+    entries.sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
+      const div = document.createElement('div')
+      div.className = 'history-item'
+      div.innerHTML = `<span class="history-date" style="text-transform:capitalize">${k}</span><span style="margin-left:auto;color:rgba(120,200,150,0.95)">${brl(v)}</span>`
+      box.appendChild(div)
+    })
+  } catch (_) {}
+}
+
+async function loadPatientFinance(id) {
+  const box = document.getElementById('finance-detail')
+  box.innerHTML = '<div class="no-history-msg">Carregando...</div>'
+  try {
+    const r = await fetch(`/api/patients/${id}/finance`)
+    if (!r.ok) throw new Error()
+    const { payments, packages } = await r.json()
+    let html = ''
+    ;(packages || []).filter(p => p.active).forEach(p => {
+      const remaining = p.total_sessions - (p.used_sessions || 0)
+      html += `<div class="history-item"><span>📦 Pacote de ${p.total_sessions} sessões</span><span style="margin-left:auto">restam <b>${remaining}</b></span></div>`
+    })
+    if (!payments || !payments.length) {
+      html += '<div class="no-history">Nenhum pagamento registrado.</div>'
+    } else {
+      const total = payments.filter(p => p.status === 'pago').reduce((s, p) => s + Number(p.amount || 0), 0)
+      html += payments.slice(0, 8).map(p => {
+        const date = p.paid_at ? new Date(p.paid_at + 'T00:00').toLocaleDateString('pt-BR') : '—'
+        const stat = p.status === 'pendente' ? ' <span style="color:#f0b070">pendente</span>' : ''
+        return `<div class="history-item"><span class="history-date">${date}</span><span style="text-transform:capitalize;color:rgba(255,255,255,0.5)">${p.method || ''}</span><span style="margin-left:auto">${brl(p.amount)}${stat}</span></div>`
+      }).join('')
+      html += `<div style="text-align:right;margin-top:0.6rem;color:rgba(120,200,150,0.95);font-size:0.9rem">Total recebido: ${brl(total)}</div>`
+    }
+    box.innerHTML = html
+  } catch (_) {
+    box.innerHTML = '<div class="no-history-msg">Erro ao carregar financeiro.</div>'
+  }
+}
+
+function openPaymentModal() {
+  if (!activePatientId) return
+  document.getElementById('pay-amount').value = ''
+  document.getElementById('pay-method').value = 'pix'
+  document.getElementById('pay-status').value = 'pago'
+  document.getElementById('pay-date').value   = formatDate(new Date())
+  document.getElementById('pay-notes').value  = ''
+  document.getElementById('payment-modal').classList.add('visible')
+}
+function closePaymentModal() { document.getElementById('payment-modal').classList.remove('visible') }
+async function savePayment() {
+  const amount = parseFloat(document.getElementById('pay-amount').value)
+  if (isNaN(amount)) { alert('Informe o valor.'); return }
+  try {
+    await fetch('/api/payments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_id: activePatientId, amount,
+        method: document.getElementById('pay-method').value,
+        status: document.getElementById('pay-status').value,
+        paid_at: document.getElementById('pay-date').value,
+        notes: document.getElementById('pay-notes').value.trim()
+      })
+    })
+    closePaymentModal()
+    loadPatientFinance(activePatientId)
+  } catch (_) { alert('Erro ao salvar pagamento.') }
+}
+
+function openPackageModal() {
+  if (!activePatientId) return
+  document.getElementById('pkg-total').value  = ''
+  document.getElementById('pkg-amount').value = ''
+  document.getElementById('pkg-notes').value  = ''
+  document.getElementById('package-modal').classList.add('visible')
+}
+function closePackageModal() { document.getElementById('package-modal').classList.remove('visible') }
+async function savePackage() {
+  const total = parseInt(document.getElementById('pkg-total').value)
+  if (!total || total < 1) { alert('Informe a quantidade de sessões.'); return }
+  const amt = parseFloat(document.getElementById('pkg-amount').value)
+  try {
+    await fetch('/api/packages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patient_id: activePatientId, total_sessions: total,
+        amount_paid: isNaN(amt) ? null : amt,
+        notes: document.getElementById('pkg-notes').value.trim()
+      })
+    })
+    if (!isNaN(amt) && amt > 0) {
+      await fetch('/api/payments', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_id: activePatientId, amount: amt, method: 'pacote', status: 'pago', paid_at: formatDate(new Date()), notes: 'Compra de pacote' })
+      })
+    }
+    closePackageModal()
+    loadPatientFinance(activePatientId)
+  } catch (_) { alert('Erro ao salvar pacote.') }
 }
 
 // ── Acupuntura — Modal ────────────────────────────────────────────────────────

@@ -110,12 +110,19 @@ async function getLatestAcknowledged() {
   return data
 }
 
+// Aplica o filtro de paciente preferindo patient_id (evita confundir homônimos
+// e não quebra o histórico por erro de digitação no nome). Cai para o nome
+// apenas quando não há patient_id (sessões avulsas antigas do totem).
+function byPatient(query, patient_name, patient_id) {
+  return patient_id ? query.eq('patient_id', patient_id) : query.eq('patient_name', patient_name)
+}
+
 // Busca últimas 3 sessões anteriores do mesmo paciente
-async function getPatientHistory(patient_name, current_session_id) {
-  const { data, error } = await supabase
-    .from('sessions')
-    .select('*, answers(*)')
-    .eq('patient_name', patient_name)
+async function getPatientHistory(patient_name, current_session_id, patient_id) {
+  const { data, error } = await byPatient(
+    supabase.from('sessions').select('*, answers(*)'),
+    patient_name, patient_id
+  )
     .neq('id', current_session_id)
     .not('completed_at', 'is', null)
     .order('completed_at', { ascending: false })
@@ -126,12 +133,11 @@ async function getPatientHistory(patient_name, current_session_id) {
 }
 
 // Conta total de sessões completadas do paciente (incluindo a atual)
-async function countPatientSessions(patient_name) {
-  const { count, error } = await supabase
-    .from('sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('patient_name', patient_name)
-    .not('completed_at', 'is', null)
+async function countPatientSessions(patient_name, patient_id) {
+  const { count, error } = await byPatient(
+    supabase.from('sessions').select('id', { count: 'exact', head: true }),
+    patient_name, patient_id
+  ).not('completed_at', 'is', null)
 
   if (error) return 1
   return count || 1
@@ -222,8 +228,8 @@ async function startSession(id) {
   if (error) throw error
 }
 
-// Dra. finaliza sessão — status finished, finished_at agora, salva anotações
-async function finishSession(id, { session_notes, session_observations } = {}) {
+// Dra. finaliza sessão — status finished, finished_at agora, salva prontuário
+async function finishSession(id, notes = {}) {
   // Sempre marca como finalizada (status + tempo)
   const { error } = await supabase
     .from('sessions')
@@ -231,12 +237,13 @@ async function finishSession(id, { session_notes, session_observations } = {}) {
     .eq('id', id)
   if (error) throw error
 
-  // Salva notas separadamente — falha silenciosa caso colunas não existam ainda
+  // Salva prontuário separadamente — falha silenciosa caso colunas não existam
+  const cols = ['session_notes', 'session_observations', 'session_complaint',
+                'session_conduct', 'session_evolution', 'session_plan']
   const noteUpdates = {}
-  if (session_notes        !== undefined) noteUpdates.session_notes        = session_notes
-  if (session_observations !== undefined) noteUpdates.session_observations = session_observations
+  for (const c of cols) if (notes[c] !== undefined) noteUpdates[c] = notes[c]
   if (Object.keys(noteUpdates).length > 0) {
-    await supabase.from('sessions').update(noteUpdates).eq('id', id)
+    try { await supabase.from('sessions').update(noteUpdates).eq('id', id) } catch (_) {}
   }
 }
 
@@ -358,12 +365,11 @@ async function getPatient(id) {
       .single()
     if (error) throw error
 
-    // Conta sessões completadas do paciente pelo nome
-    const { count } = await supabase
-      .from('sessions')
-      .select('id', { count: 'exact', head: true })
-      .eq('patient_name', data.name)
-      .not('completed_at', 'is', null)
+    // Conta sessões completadas do paciente (por vínculo de id, com fallback nome)
+    const { count } = await byPatient(
+      supabase.from('sessions').select('id', { count: 'exact', head: true }),
+      data.name, data.id
+    ).not('completed_at', 'is', null)
 
     return { ...data, session_count: count || 0 }
   } catch (error) {
@@ -492,12 +498,12 @@ async function updateAppointment(id, updates) {
 }
 
 // Busca todas as sessões completadas de um paciente (para gráficos de histórico)
-async function getPatientSessions(patient_name) {
+async function getPatientSessions(patient_name, patient_id) {
   try {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*, answers(*)')
-      .eq('patient_name', patient_name)
+    const { data, error } = await byPatient(
+      supabase.from('sessions').select('*, answers(*)'),
+      patient_name, patient_id
+    )
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: true })
     if (error) throw error
@@ -509,14 +515,13 @@ async function getPatientSessions(patient_name) {
 }
 
 // Busca todos os eventos anatômicos das sessões de um paciente (para gráfico de regiões)
-async function getPatientAnatomyEvents(patient_name) {
+async function getPatientAnatomyEvents(patient_name, patient_id) {
   try {
     // Primeiro busca os IDs das sessões do paciente
-    const { data: sessions, error: sessErr } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('patient_name', patient_name)
-      .not('completed_at', 'is', null)
+    const { data: sessions, error: sessErr } = await byPatient(
+      supabase.from('sessions').select('id'),
+      patient_name, patient_id
+    ).not('completed_at', 'is', null)
     if (sessErr) throw sessErr
     if (!sessions || sessions.length === 0) return []
 
@@ -533,6 +538,159 @@ async function getPatientAnatomyEvents(patient_name) {
     console.error('Erro ao buscar eventos anatômicos do paciente:', error.message)
     throw error
   }
+}
+
+// ─── Usuários / autenticação (item 4) ────────────────────────────────────────
+
+async function countUsers() {
+  const { count, error } = await supabase
+    .from('users')
+    .select('id', { count: 'exact', head: true })
+  if (error) throw error
+  return count || 0
+}
+
+async function getUserByEmail(email) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', String(email).toLowerCase().trim())
+    .single()
+  if (error) return null
+  return data
+}
+
+async function createUser({ email, password_hash, name }) {
+  const { data, error } = await supabase
+    .from('users')
+    .insert({ email: String(email).toLowerCase().trim(), password_hash, name })
+    .select('id, email, name, role, created_at')
+    .single()
+  if (error) throw error
+  return data
+}
+
+// ─── Configurações da aplicação (item 3 — calibração no banco) ────────────────
+
+async function getSetting(key) {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', key)
+    .single()
+  if (error) return null
+  return data?.value ?? null
+}
+
+async function setSetting(key, value) {
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  if (error) throw error
+}
+
+// ─── Financeiro (item 6) ──────────────────────────────────────────────────────
+
+async function createPayment({ patient_id, appointment_id, session_id, package_id, amount, method, status, paid_at, notes }) {
+  const { data, error } = await supabase
+    .from('payments')
+    .insert({
+      patient_id: patient_id || null,
+      appointment_id: appointment_id || null,
+      session_id: session_id || null,
+      package_id: package_id || null,
+      amount,
+      method: method || null,
+      status: status || 'pago',
+      paid_at: paid_at || null,
+      notes: notes || null
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+async function getPatientPayments(patient_id) {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('patient_id', patient_id)
+    .order('paid_at', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+async function getPatientPackages(patient_id) {
+  const { data, error } = await supabase
+    .from('patient_packages')
+    .select('*')
+    .eq('patient_id', patient_id)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+async function createPackage({ patient_id, total_sessions, amount_paid, notes }) {
+  const { data, error } = await supabase
+    .from('patient_packages')
+    .insert({ patient_id, total_sessions, amount_paid: amount_paid || null, notes: notes || null })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+async function updatePackage(id, updates) {
+  const { data, error } = await supabase
+    .from('patient_packages')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Consome uma sessão de um pacote ativo (usa o mais antigo com saldo)
+async function consumePackageSession(patient_id) {
+  const { data: pkgs } = await supabase
+    .from('patient_packages')
+    .select('*')
+    .eq('patient_id', patient_id)
+    .eq('active', true)
+    .order('created_at', { ascending: true })
+  const pkg = (pkgs || []).find(p => (p.used_sessions || 0) < p.total_sessions)
+  if (!pkg) return null
+  const used = (pkg.used_sessions || 0) + 1
+  const active = used < pkg.total_sessions
+  return updatePackage(pkg.id, { used_sessions: used, active })
+}
+
+// Relatório mensal — receita e contagem de pagamentos no mês (YYYY-MM)
+async function getMonthlyReport(month) {
+  const start = `${month}-01`
+  const [y, m] = month.split('-').map(Number)
+  const endDate = new Date(Date.UTC(y, m, 1)) // primeiro dia do mês seguinte
+  const end = endDate.toISOString().slice(0, 10)
+
+  const { data, error } = await supabase
+    .from('payments')
+    .select('amount, method, status, paid_at')
+    .gte('paid_at', start)
+    .lt('paid_at', end)
+  if (error) throw error
+
+  const rows = data || []
+  const paid = rows.filter(r => r.status === 'pago')
+  const total = paid.reduce((s, r) => s + Number(r.amount || 0), 0)
+  const pending = rows.filter(r => r.status === 'pendente')
+    .reduce((s, r) => s + Number(r.amount || 0), 0)
+  const byMethod = {}
+  paid.forEach(r => { const k = r.method || 'outro'; byMethod[k] = (byMethod[k] || 0) + Number(r.amount || 0) })
+
+  return { month, total, pending, count: paid.length, by_method: byMethod }
 }
 
 export {
@@ -569,5 +727,20 @@ export {
   createAppointment,
   updateAppointment,
   getPatientSessions,
-  getPatientAnatomyEvents
+  getPatientAnatomyEvents,
+  // Usuários / auth
+  countUsers,
+  getUserByEmail,
+  createUser,
+  // Configurações
+  getSetting,
+  setSetting,
+  // Financeiro
+  createPayment,
+  getPatientPayments,
+  getPatientPackages,
+  createPackage,
+  updatePackage,
+  consumePackageSession,
+  getMonthlyReport
 }
