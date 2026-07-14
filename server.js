@@ -52,6 +52,8 @@ import {
   getMonthlyReport,
   getActivePackage,
   getAppointment,
+  deleteAppointment,
+  deleteAppointmentSeries,
   syncAppointmentPayment,
   syncAppointmentPackage,
   hasConflict
@@ -633,6 +635,26 @@ app.put('/api/appointments/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Erro ao atualizar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao atualizar agendamento' })
+  }
+})
+
+// Exclui agendamento (?scope=series apaga a série recorrente inteira).
+// Estorna pacote e remove o lançamento do caixa junto.
+app.delete('/api/appointments/:id', requireAuth, async (req, res) => {
+  try {
+    const appt = await getAppointment(req.params.id)
+    if (!appt) return res.status(404).json({ error: 'Agendamento não encontrado' })
+
+    if (req.query.scope === 'series' && appt.series_id) {
+      const deleted = await deleteAppointmentSeries(appt.series_id)
+      return res.json({ success: true, deleted })
+    }
+
+    await deleteAppointment(req.params.id)
+    res.json({ success: true, deleted: 1 })
+  } catch (error) {
+    console.error('Erro ao excluir agendamento:', error.message)
+    res.status(500).json({ error: 'Erro interno ao excluir agendamento' })
   }
 })
 

@@ -743,6 +743,35 @@ async function syncAppointmentPackage(appt) {
   return null
 }
 
+// Exclui um agendamento com limpeza: estorna pacote e remove o lançamento.
+// Sem isso o pagamento viraria "cobrança fantasma" no caixa (FK é SET NULL).
+async function deleteAppointment(id) {
+  const appt = await getAppointment(id)
+  if (!appt) return null
+
+  // Devolve a sessão ao pacote, se este agendamento tinha consumido uma
+  if (appt.package_id) {
+    try { await restorePackageSession(appt.package_id) } catch (_) {}
+  }
+  // Remove o lançamento vinculado antes de apagar o agendamento
+  try { await supabase.from('payments').delete().eq('appointment_id', id) } catch (_) {}
+
+  const { error } = await supabase.from('appointments').delete().eq('id', id)
+  if (error) throw error
+  return appt
+}
+
+// Exclui toda uma série recorrente
+async function deleteAppointmentSeries(series_id) {
+  const { data } = await supabase
+    .from('appointments').select('id').eq('series_id', series_id)
+  const ids = (data || []).map(a => a.id)
+  for (const id of ids) {
+    try { await deleteAppointment(id) } catch (_) {}
+  }
+  return ids.length
+}
+
 // Verifica se um horário já está ocupado (usado pela agenda recorrente)
 async function hasConflict(dateStr, timeStr, durationMin) {
   const appts = await getAppointmentsByDate(dateStr)
@@ -839,6 +868,8 @@ export {
   getActivePackage,
   restorePackageSession,
   getAppointment,
+  deleteAppointment,
+  deleteAppointmentSeries,
   syncAppointmentPayment,
   syncAppointmentPackage,
   hasConflict

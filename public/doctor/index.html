@@ -665,6 +665,14 @@ textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
   cursor: pointer; transition: opacity 0.2s;
 }
 .btn-save:hover { opacity: 0.9; }
+.btn-delete {
+  padding: 0.75rem 1.4rem;
+  background: rgba(200,60,60,0.15); border: 1px solid rgba(200,60,60,0.45);
+  border-radius: 60px; color: #f08888;
+  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-delete:hover { background: rgba(200,60,60,0.3); color: #fff; }
 
 /* ── Modal de finalização de sessão ── */
 .finish-field-wrap { position: relative; }
@@ -1022,8 +1030,9 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
       </select>
     </div>
     <div class="modal-actions">
+      <button id="btn-delete-appt" class="btn-delete" onclick="deleteAppointmentAction()" style="display:none;margin-right:auto">🗑 Excluir</button>
+      <button id="btn-view-patient-from-appt" class="btn-cancel" onclick="viewPatientFromAppt()" style="display:none">Ver paciente →</button>
       <button class="btn-cancel" onclick="closeApptModal()">Cancelar</button>
-      <button id="btn-view-patient-from-appt" class="btn-cancel" onclick="viewPatientFromAppt()" style="display:none;margin-right:auto">Ver paciente →</button>
       <button class="btn-save" onclick="saveAppointment()">Salvar</button>
     </div>
   </div>
@@ -2505,6 +2514,7 @@ function agendaToday()    { agendaWeekOffset = 0; loadAgendaWeek() }
 // ── Modais de agendamento ─────────────────────────────────────────────────────
 
 let editingApptPatientId = null  // patient_id do agendamento sendo editado
+let editingAppt = null           // objeto completo do agendamento em edição
 
 function fabAction() {
   if (activeTab === 'agenda')   openApptModal()
@@ -2525,7 +2535,9 @@ function _resetApptModal() {
   document.getElementById('appt-payment-group').style.display = 'none'
   document.getElementById('appt-status-group').style.display = 'none'
   document.getElementById('btn-view-patient-from-appt').style.display = 'none'
+  document.getElementById('btn-delete-appt').style.display = 'none'
   editingApptPatientId = null
+  editingAppt = null
 }
 
 function openApptModal() {
@@ -2545,6 +2557,8 @@ function openApptModalWithSlot(dateStr, timeStr) {
 
 function openEditApptModal(appt) {
   _resetApptModal()
+  editingAppt = appt
+  document.getElementById('btn-delete-appt').style.display = 'inline-block'
   document.getElementById('appt-modal-title').textContent = 'Editar Agendamento'
   document.getElementById('appt-id').value = appt.id
   document.getElementById('appt-date').value = appt.appointment_date
@@ -2582,6 +2596,50 @@ function viewPatientFromAppt() {
   closeApptModal()
   switchTab('patients', false)
   openPatientDetail(editingApptPatientId)
+}
+
+// Exclui o agendamento (opcionalmente toda a série recorrente).
+// O servidor estorna o pacote e remove o lançamento do caixa junto.
+async function deleteAppointmentAction() {
+  if (!editingAppt) return
+  const a = editingAppt
+  const dia  = new Date(a.appointment_date + 'T12:00').toLocaleDateString('pt-BR')
+  const hora = String(a.appointment_time).slice(0, 5)
+
+  let scope = ''
+  if (a.series_id) {
+    scope = confirm(
+      `Este agendamento faz parte de uma SÉRIE recorrente.\n\n` +
+      `OK  → excluir a série INTEIRA\n` +
+      `Cancelar → escolher excluir só este (${dia})`
+    ) ? 'series' : ''
+  }
+
+  if (scope !== 'series') {
+    let msg = `Excluir o agendamento de ${a.patient_name} em ${dia} às ${hora}?`
+    if (a.status === 'concluido') {
+      msg += '\n\n⚠️ Este atendimento já foi concluído. O lançamento financeiro dele também será removido do caixa.'
+    }
+    if (a.package_id) {
+      msg += '\n\n📦 A sessão será devolvida ao pacote do paciente.'
+    }
+    if (!confirm(msg)) return
+  } else {
+    if (!confirm('Confirmar exclusão de TODOS os agendamentos desta série?\nOs lançamentos financeiros deles também serão removidos.')) return
+  }
+
+  try {
+    const url = `/api/appointments/${a.id}` + (scope === 'series' ? '?scope=series' : '')
+    const r = await fetch(url, { method: 'DELETE' })
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error()
+    const d = await r.json()
+    closeApptModal()
+    loadAgendaWeek()
+    if (d.deleted > 1) alert(`${d.deleted} agendamentos da série foram excluídos.`)
+  } catch (_) {
+    alert('Erro ao excluir agendamento.')
+  }
 }
 
 // Busca de paciente no modal de agendamento
