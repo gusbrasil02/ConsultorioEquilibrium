@@ -738,6 +738,40 @@ body.light .fin-label { color: rgba(0,0,0,0.8); }
 .kpi-warn { color: #f0b070 !important; }
 .chart-card canvas { max-height: 220px; }
 
+/* Lista de lançamentos */
+.ledger-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin: 2rem 0 1rem;
+}
+.ledger-filters { display: flex; gap: 0.3rem; }
+.led-btn.active {
+  background: rgba(106,63,168,0.35); border-color: rgba(140,110,220,0.6); color: #fff;
+}
+.led-row {
+  display: flex; align-items: center; gap: 1rem;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; padding: 0.75rem 1.1rem; font-size: 0.86rem;
+  flex-wrap: wrap;
+}
+body.light .led-row { background: #fff; border-color: rgba(0,0,0,0.08); }
+.led-date  { color: rgba(255,255,255,0.4); min-width: 78px; }
+body.light .led-date { color: rgba(0,0,0,0.45); }
+.led-name  { font-weight: 500; min-width: 150px; }
+.led-meta  { color: rgba(255,255,255,0.4); text-transform: capitalize; font-size: 0.8rem; }
+body.light .led-meta { color: rgba(0,0,0,0.45); }
+.led-amount { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+.led-tag {
+  font-size: 0.72rem; padding: 0.2rem 0.65rem; border-radius: 60px; white-space: nowrap;
+}
+.led-tag.pago     { background: rgba(60,180,120,0.18); border: 1px solid rgba(60,180,120,0.4); color: #7ad4a4; }
+.led-tag.pendente { background: rgba(220,150,60,0.18); border: 1px solid rgba(220,150,60,0.45); color: #f0b070; }
+.led-pay-btn {
+  padding: 0.35rem 0.9rem; border-radius: 60px; cursor: pointer;
+  background: rgba(60,180,120,0.16); border: 1px solid rgba(60,180,120,0.45);
+  color: #7ad4a4; font-family: 'DM Sans', sans-serif; font-size: 0.76rem;
+}
+.led-pay-btn:hover { background: rgba(60,180,120,0.34); color: #fff; }
+
 /* Selo de pacote ativo (fechamento da consulta) */
 .pkg-badge {
   background: rgba(100,80,180,0.18); border: 1px solid rgba(140,110,220,0.4);
@@ -1107,6 +1141,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
     <button class="tab-btn" id="tab-agenda"    onclick="switchTab('agenda')">Agenda</button>
     <button class="tab-btn" id="tab-patients"  onclick="switchTab('patients')">Pacientes</button>
     <button class="tab-btn" id="tab-finance"   onclick="switchTab('finance')">Financeiro</button>
+    <button class="tab-btn" id="tab-analytics" onclick="switchTab('analytics')">Dashboard</button>
   </div>
   <div class="header-right">
     <div class="header-clock" id="clock">--:--</div>
@@ -1230,57 +1265,97 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
   <div class="patients-grid" id="patients-grid"></div>
 </div>
 
-<!-- Aba Financeiro — dashboard -->
+<!-- Aba Financeiro -->
 <div id="finance-view" class="view" style="padding:2rem">
   <div class="fin-toolbar">
     <div class="fin-presets">
-      <button class="agenda-nav-btn preset-btn" data-mode="month" onclick="finPreset('month')">Mês</button>
-      <button class="agenda-nav-btn preset-btn" data-mode="year"  onclick="finPreset('year')">Ano</button>
-      <button class="agenda-nav-btn preset-btn" data-mode="30d"   onclick="finPreset('30d')">Últimos 30 dias</button>
-      <button class="agenda-nav-btn preset-btn" data-mode="custom" onclick="finPreset('custom')">Período</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="month"  onclick="setPeriod('month')">Mês</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="year"   onclick="setPeriod('year')">Ano</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="30d"    onclick="setPeriod('30d')">30 dias</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="custom" onclick="setPeriod('custom')">Período</button>
     </div>
     <div class="fin-nav" id="fin-nav">
-      <button class="agenda-nav-btn" onclick="finShift(-1)">←</button>
+      <button class="agenda-nav-btn" onclick="shiftPeriod(-1)">←</button>
       <span class="fin-label" id="fin-label"></span>
-      <button class="agenda-nav-btn" onclick="finShift(1)">→</button>
+      <button class="agenda-nav-btn" onclick="shiftPeriod(1)">→</button>
     </div>
     <div class="fin-custom" id="fin-custom" style="display:none">
-      <input type="date" class="form-control" id="fin-start" style="max-width:160px">
-      <span style="color:rgba(255,255,255,0.35)">até</span>
-      <input type="date" class="form-control" id="fin-end" style="max-width:160px">
-      <button class="agenda-nav-btn" onclick="loadFinance()">Aplicar</button>
+      <input type="date" class="form-control" id="fin-start" style="max-width:150px" onchange="applyCustom('fin')">
+      <span style="opacity:0.4">até</span>
+      <input type="date" class="form-control" id="fin-end" style="max-width:150px" onchange="applyCustom('fin')">
     </div>
     <button class="agenda-nav-btn" style="margin-left:auto" onclick="openPricesModal()">Tabela de preços</button>
   </div>
 
-  <!-- KPIs -->
-  <div class="kpi-grid">
+  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
     <div class="metric-card"><div class="metric-label">Recebido</div><div class="metric-value kpi-good" id="k-paid">—</div></div>
     <div class="metric-card"><div class="metric-label">A receber</div><div class="metric-value kpi-warn" id="k-pending">—</div></div>
+    <div class="metric-card"><div class="metric-label">Total do período</div><div class="metric-value" id="k-total">—</div></div>
     <div class="metric-card"><div class="metric-label">Ticket médio</div><div class="metric-value" id="k-ticket">—</div></div>
-    <div class="metric-card"><div class="metric-label">Sessões realizadas</div><div class="metric-value" id="k-sessions">—</div></div>
-    <div class="metric-card"><div class="metric-label">Pacientes atendidos</div><div class="metric-value" id="k-patients">—</div></div>
-    <div class="metric-card"><div class="metric-label">Taxa de presença</div><div class="metric-value" id="k-attendance">—</div></div>
   </div>
 
-  <!-- Gráficos -->
   <div class="charts-grid" style="margin-top:1.5rem">
     <div class="chart-card" style="grid-column:1/-1">
       <h4>Receita no período — recebido x a receber</h4>
       <canvas id="ch-revenue"></canvas>
     </div>
-    <div class="chart-card">
-      <h4>Formas de pagamento</h4>
-      <canvas id="ch-method"></canvas>
+    <div class="chart-card"><h4>Formas de pagamento</h4><canvas id="ch-method"></canvas></div>
+    <div class="chart-card"><h4>Recebido x A receber</h4><canvas id="ch-split"></canvas></div>
+  </div>
+
+  <div class="ledger-header">
+    <div class="section-title" style="margin:0">Lançamentos do período</div>
+    <div class="ledger-filters">
+      <button class="agenda-nav-btn led-btn active" data-f="all"      onclick="setLedgerFilter('all')">Todos</button>
+      <button class="agenda-nav-btn led-btn"        data-f="pago"     onclick="setLedgerFilter('pago')">Pagos</button>
+      <button class="agenda-nav-btn led-btn"        data-f="pendente" onclick="setLedgerFilter('pendente')">Em aberto</button>
     </div>
-    <div class="chart-card">
-      <h4>Agendamentos por situação</h4>
-      <canvas id="ch-status"></canvas>
+  </div>
+  <div id="ledger-list" class="history-list"></div>
+  <div id="ledger-total" style="text-align:right;margin-top:0.9rem;font-size:0.9rem"></div>
+</div>
+
+<!-- Aba Dashboard — análises do sistema -->
+<div id="analytics-view" class="view" style="padding:2rem">
+  <div class="fin-toolbar">
+    <div class="fin-presets">
+      <button class="agenda-nav-btn preset-btn" data-mode="month"  onclick="setPeriod('month')">Mês</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="year"   onclick="setPeriod('year')">Ano</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="30d"    onclick="setPeriod('30d')">30 dias</button>
+      <button class="agenda-nav-btn preset-btn" data-mode="custom" onclick="setPeriod('custom')">Período</button>
+    </div>
+    <div class="fin-nav" id="dash-nav">
+      <button class="agenda-nav-btn" onclick="shiftPeriod(-1)">←</button>
+      <span class="fin-label" id="dash-label"></span>
+      <button class="agenda-nav-btn" onclick="shiftPeriod(1)">→</button>
+    </div>
+    <div class="fin-custom" id="dash-custom" style="display:none">
+      <input type="date" class="form-control" id="dash-start" style="max-width:150px" onchange="applyCustom('dash')">
+      <span style="opacity:0.4">até</span>
+      <input type="date" class="form-control" id="dash-end" style="max-width:150px" onchange="applyCustom('dash')">
     </div>
   </div>
 
-  <div class="section-title" style="margin-top:0.5rem">Resumo operacional</div>
-  <div id="fin-ops" class="history-list"></div>
+  <div class="kpi-grid">
+    <div class="metric-card"><div class="metric-label">Sessões realizadas</div><div class="metric-value" id="d-sessions">—</div></div>
+    <div class="metric-card"><div class="metric-label">Pacientes atendidos</div><div class="metric-value" id="d-patients">—</div></div>
+    <div class="metric-card"><div class="metric-label">Pacientes novos</div><div class="metric-value" id="d-new">—</div></div>
+    <div class="metric-card"><div class="metric-label">Taxa de presença</div><div class="metric-value kpi-good" id="d-attendance">—</div></div>
+    <div class="metric-card"><div class="metric-label">Faltas</div><div class="metric-value kpi-warn" id="d-noshow">—</div></div>
+    <div class="metric-card"><div class="metric-label">Duração média</div><div class="metric-value" id="d-duration">—</div></div>
+  </div>
+
+  <div class="charts-grid" style="margin-top:1.5rem">
+    <div class="chart-card"><h4>Agendamentos por situação</h4><canvas id="ch-status"></canvas></div>
+    <div class="chart-card"><h4>Tipos de atendimento</h4><canvas id="ch-type"></canvas></div>
+    <div class="chart-card"><h4>Movimento por dia da semana</h4><canvas id="ch-weekday"></canvas></div>
+    <div class="chart-card"><h4>Horários mais movimentados</h4><canvas id="ch-hour"></canvas></div>
+    <div class="chart-card"><h4>Regiões mais tratadas</h4><canvas id="ch-regions"></canvas></div>
+    <div class="chart-card"><h4>Dor média relatada (0–10)</h4><canvas id="ch-pain"></canvas></div>
+  </div>
+
+  <div class="section-title" style="margin-top:0.5rem">Resumo do período</div>
+  <div id="dash-ops" class="history-list"></div>
 </div>
 
 <!-- Modal Tabela de Preços -->
@@ -1664,9 +1739,8 @@ function toggleTheme() {
   if (activePatientId && document.getElementById('patient-detail-view').classList.contains('visible')) {
     openPatientDetail(activePatientId)
   }
-  if (document.getElementById('finance-view').classList.contains('visible')) {
-    loadFinance()
-  }
+  if (document.getElementById('finance-view').classList.contains('visible'))   loadFinance()
+  if (document.getElementById('analytics-view').classList.contains('visible')) loadAnalytics()
 }
 
 // ── Logout (item 4/12) ────────────────────────────────────────────────────────
@@ -1740,6 +1814,7 @@ function switchTab(tab, save = true) {
   document.getElementById('patients-view').classList.remove('visible')
   document.getElementById('patient-detail-view').classList.remove('visible')
   document.getElementById('finance-view').classList.remove('visible')
+  document.getElementById('analytics-view').classList.remove('visible')
 
   const fab = document.getElementById('fab-btn')
 
@@ -1761,7 +1836,13 @@ function switchTab(tab, save = true) {
   } else if (tab === 'finance') {
     document.getElementById('finance-view').classList.add('visible')
     fab.style.display = 'none'
-    finPreset(finState.mode || 'month')
+    syncPeriodUI()
+    loadFinance()
+  } else if (tab === 'analytics') {
+    document.getElementById('analytics-view').classList.add('visible')
+    fab.style.display = 'none'
+    syncPeriodUI()
+    loadAnalytics()
   }
 }
 
@@ -3221,124 +3302,150 @@ function closePricesModal() {
   document.getElementById('prices-modal').classList.remove('visible')
 }
 
-// ── Dashboard financeiro: período flexível ────────────────────────────────────
-let finState  = { mode: 'month', anchor: new Date() }
-let finCharts = {}
+// ── Período compartilhado entre Financeiro e Dashboard ────────────────────────
+let periodState = { mode: 'month', anchor: new Date(), customStart: '', customEnd: '' }
+let finCharts   = {}
+let dashCharts  = {}
+let ledgerRows  = []
+let ledgerFilter = 'all'
 
 function pad(n) { return String(n).padStart(2, '0') }
 function iso(d)  { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
 
-// Calcula início/fim + rótulo conforme o modo selecionado
-function finRange() {
-  const a = finState.anchor
-  if (finState.mode === 'month') {
-    const start = new Date(a.getFullYear(), a.getMonth(), 1)
-    const end   = new Date(a.getFullYear(), a.getMonth() + 1, 0)
-    return { start: iso(start), end: iso(end),
-             label: a.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) }
+function periodRange() {
+  const a = periodState.anchor
+  if (periodState.mode === 'month') {
+    return {
+      start: iso(new Date(a.getFullYear(), a.getMonth(), 1)),
+      end:   iso(new Date(a.getFullYear(), a.getMonth() + 1, 0)),
+      label: a.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    }
   }
-  if (finState.mode === 'year') {
-    return { start: `${a.getFullYear()}-01-01`, end: `${a.getFullYear()}-12-31`,
-             label: String(a.getFullYear()) }
+  if (periodState.mode === 'year') {
+    return { start: `${a.getFullYear()}-01-01`, end: `${a.getFullYear()}-12-31`, label: String(a.getFullYear()) }
   }
-  if (finState.mode === '30d') {
+  if (periodState.mode === '30d') {
     const end = new Date(a)
     const start = new Date(a); start.setDate(start.getDate() - 29)
     return { start: iso(start), end: iso(end), label: 'Últimos 30 dias' }
   }
-  // custom
-  const s = document.getElementById('fin-start').value
-  const e = document.getElementById('fin-end').value
-  return { start: s, end: e, label: 'Período personalizado' }
+  const s = periodState.customStart, e = periodState.customEnd
+  const lbl = (s && e)
+    ? `${new Date(s + 'T12:00').toLocaleDateString('pt-BR')} – ${new Date(e + 'T12:00').toLocaleDateString('pt-BR')}`
+    : 'Escolha o período'
+  return { start: s, end: e, label: lbl }
 }
 
-function finPreset(mode) {
-  finState.mode = mode
-  finState.anchor = new Date()
-  document.querySelectorAll('.preset-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === mode)
+// Mantém as duas barras (Financeiro e Dashboard) refletindo o mesmo período
+function syncPeriodUI() {
+  const { label } = periodRange()
+  const custom = periodState.mode === 'custom'
+  ;['fin', 'dash'].forEach(p => {
+    const lbl = document.getElementById(p + '-label')
+    if (lbl) lbl.textContent = label
+    const box = document.getElementById(p + '-custom')
+    if (box) box.style.display = custom ? 'flex' : 'none'
+    const nav = document.getElementById(p + '-nav')
+    if (nav) nav.style.display = custom ? 'none' : 'flex'
+    const s = document.getElementById(p + '-start')
+    const e = document.getElementById(p + '-end')
+    if (s) s.value = periodState.customStart
+    if (e) e.value = periodState.customEnd
   })
-  const custom = mode === 'custom'
-  document.getElementById('fin-custom').style.display = custom ? 'flex' : 'none'
-  document.getElementById('fin-nav').style.display    = custom ? 'none' : 'flex'
-  if (custom) {
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === periodState.mode)
+  })
+}
+
+function setPeriod(mode) {
+  periodState.mode = mode
+  periodState.anchor = new Date()
+  if (mode === 'custom' && !periodState.customStart) {
     const end = new Date()
     const start = new Date(); start.setDate(start.getDate() - 29)
-    if (!document.getElementById('fin-start').value) document.getElementById('fin-start').value = iso(start)
-    if (!document.getElementById('fin-end').value)   document.getElementById('fin-end').value   = iso(end)
+    periodState.customStart = iso(start)
+    periodState.customEnd   = iso(end)
   }
-  loadFinance()
+  syncPeriodUI()
+  reloadActiveReport()
 }
 
-function finShift(dir) {
-  const a = finState.anchor
-  if (finState.mode === 'month')      a.setMonth(a.getMonth() + dir)
-  else if (finState.mode === 'year')  a.setFullYear(a.getFullYear() + dir)
-  else if (finState.mode === '30d')   a.setDate(a.getDate() + dir * 30)
-  loadFinance()
+function shiftPeriod(dir) {
+  const a = periodState.anchor
+  if (periodState.mode === 'month')     a.setMonth(a.getMonth() + dir)
+  else if (periodState.mode === 'year') a.setFullYear(a.getFullYear() + dir)
+  else if (periodState.mode === '30d')  a.setDate(a.getDate() + dir * 30)
+  syncPeriodUI()
+  reloadActiveReport()
 }
 
-async function loadFinance() {
-  const { start, end, label } = finRange()
-  if (!start || !end) { alert('Informe as duas datas do período.'); return }
-  document.getElementById('fin-label').textContent = label
-
-  let d
-  try {
-    const r = await fetch(`/api/reports/overview?start=${start}&end=${end}`)
-    if (r.status === 401) { location.href = '/login'; return }
-    if (!r.ok) throw new Error()
-    d = await r.json()
-  } catch (_) { return }
-
-  // KPIs
-  const rev = d.revenue || {}
-  document.getElementById('k-paid').textContent     = brl(rev.paid)
-  document.getElementById('k-pending').textContent  = brl(rev.pending)
-  document.getElementById('k-ticket').textContent   = brl(rev.ticket_medio)
-  document.getElementById('k-sessions').textContent = d.appointments?.attended ?? 0
-  document.getElementById('k-patients').textContent = d.patients?.attended_unique ?? 0
-  document.getElementById('k-attendance').textContent =
-    d.attendance_rate == null ? '—' : d.attendance_rate + '%'
-
-  // Resumo operacional
-  const ops = document.getElementById('fin-ops')
-  const ap  = d.appointments || {}
-  const rows = [
-    ['Agendamentos no período', ap.total ?? 0],
-    ['Compareceram (concluídos)', ap.attended ?? 0],
-    ['Faltas', ap.no_show ?? 0],
-    ['Cancelamentos', ap.cancelled ?? 0],
-    ['Pacientes novos cadastrados', d.patients?.new ?? 0],
-    ['Pagamentos recebidos', rev.count ?? 0]
-  ]
-  ops.innerHTML = rows.map(([k, v]) =>
-    `<div class="history-item"><span>${k}</span><span style="margin-left:auto;font-weight:500">${v}</span></div>`
-  ).join('')
-
-  renderFinanceCharts(d)
+function applyCustom(prefix) {
+  periodState.customStart = document.getElementById(prefix + '-start').value
+  periodState.customEnd   = document.getElementById(prefix + '-end').value
+  syncPeriodUI()
+  reloadActiveReport()
 }
 
-function renderFinanceCharts(d) {
-  Object.values(finCharts).forEach(c => { try { c.destroy() } catch (_) {} })
-  finCharts = {}
-  if (!window.Chart) return
+function reloadActiveReport() {
+  if (activeTab === 'finance')        loadFinance()
+  else if (activeTab === 'analytics') loadAnalytics()
+}
 
+// Cores dos gráficos conforme o tema
+function chartTheme() {
   const light = document.body.classList.contains('light')
-  const grid  = light ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)'
-  const tick  = light ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)'
-  const legendColor = light ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)'
-
-  // 1. Receita ao longo do período (recebido x a receber)
-  const series = d.series || []
-  const fmt = p => d.granularity === 'month'
+  return {
+    grid:   light ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)',
+    tick:   light ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)',
+    legend: light ? 'rgba(0,0,0,0.6)'  : 'rgba(255,255,255,0.6)'
+  }
+}
+function destroyCharts(store) {
+  Object.values(store).forEach(c => { try { c.destroy() } catch (_) {} })
+}
+function fmtPeriod(p, granularity) {
+  return granularity === 'month'
     ? new Date(p + '-01T12:00').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
     : new Date(p + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
 
+// ── FINANCEIRO ────────────────────────────────────────────────────────────────
+async function loadFinance() {
+  const { start, end } = periodRange()
+  syncPeriodUI()
+  if (!start || !end) return
+
+  let d, pays
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch(`/api/reports/overview?start=${start}&end=${end}`),
+      fetch(`/api/reports/payments?start=${start}&end=${end}`)
+    ])
+    if (r1.status === 401 || r2.status === 401) { location.href = '/login'; return }
+    if (!r1.ok || !r2.ok) throw new Error()
+    d    = await r1.json()
+    pays = await r2.json()
+  } catch (_) { return }
+
+  const rev = d.revenue || {}
+  document.getElementById('k-paid').textContent    = brl(rev.paid)
+  document.getElementById('k-pending').textContent = brl(rev.pending)
+  document.getElementById('k-total').textContent   = brl(rev.total)
+  document.getElementById('k-ticket').textContent  = brl(rev.ticket_medio)
+
+  ledgerRows = pays || []
+  renderLedger()
+
+  // Gráficos
+  destroyCharts(finCharts); finCharts = {}
+  if (!window.Chart) return
+  const T = chartTheme()
+
+  const series = d.series || []
   finCharts.revenue = new Chart(document.getElementById('ch-revenue'), {
     type: 'bar',
     data: {
-      labels: series.map(s => fmt(s.period)),
+      labels: series.map(s => fmtPeriod(s.period, d.granularity)),
       datasets: [
         { label: 'Recebido',  data: series.map(s => s.paid),
           backgroundColor: 'rgba(90,190,140,0.75)', borderRadius: 4 },
@@ -3348,16 +3455,14 @@ function renderFinanceCharts(d) {
     },
     options: {
       responsive: true, maintainAspectRatio: true,
-      plugins: { legend: { display: true, labels: { color: legendColor, boxWidth: 12 } } },
+      plugins: { legend: { labels: { color: T.legend, boxWidth: 12 } } },
       scales: {
-        x: { stacked: true, grid: { color: grid }, ticks: { color: tick, font: { size: 10 } } },
-        y: { stacked: true, grid: { color: grid },
-             ticks: { color: tick, callback: v => 'R$ ' + v } }
+        x: { stacked: true, grid: { color: T.grid }, ticks: { color: T.tick, font: { size: 10 } } },
+        y: { stacked: true, grid: { color: T.grid }, ticks: { color: T.tick, callback: v => 'R$ ' + v } }
       }
     }
   })
 
-  // 2. Formas de pagamento
   const me = Object.entries(d.by_method || {})
   finCharts.method = new Chart(document.getElementById('ch-method'), {
     type: 'doughnut',
@@ -3365,46 +3470,240 @@ function renderFinanceCharts(d) {
       labels: me.length ? me.map(([k]) => k) : ['Sem pagamentos'],
       datasets: [{
         data: me.length ? me.map(([, v]) => v) : [1],
-        backgroundColor: me.length
-          ? me.map((_, i) => `hsla(${170 + i * 40},55%,58%,0.85)`)
-          : ['rgba(255,255,255,0.08)'],
+        backgroundColor: me.length ? me.map((_, i) => `hsla(${170 + i * 40},55%,58%,0.85)`) : ['rgba(150,150,150,0.15)'],
         borderWidth: 0
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: true,
-      plugins: { legend: { position: 'bottom', labels: { color: legendColor, boxWidth: 12, font: { size: 11 } } } }
+      plugins: { legend: { position: 'bottom', labels: { color: T.legend, boxWidth: 12, font: { size: 11 } } } }
     }
   })
 
-  // 3. Agendamentos por situação
-  const LBL = {
-    agendado: 'Agendado', confirmado: 'Confirmado', atendimento: 'Em atendimento',
-    concluido: 'Concluído', cancelado: 'Cancelado', falta: 'Falta'
-  }
-  const COL = {
-    agendado: 'rgba(80,150,220,0.8)', confirmado: 'rgba(90,190,140,0.8)',
-    atendimento: 'rgba(230,200,80,0.8)', concluido: 'rgba(140,120,220,0.85)',
-    cancelado: 'rgba(220,90,90,0.8)', falta: 'rgba(230,150,70,0.85)'
-  }
-  const st = Object.entries(d.appointments?.by_status || {})
-  finCharts.status = new Chart(document.getElementById('ch-status'), {
-    type: 'bar',
+  const hasMoney = (rev.paid || 0) + (rev.pending || 0) > 0
+  finCharts.split = new Chart(document.getElementById('ch-split'), {
+    type: 'doughnut',
     data: {
-      labels: st.map(([k]) => LBL[k] || k),
+      labels: hasMoney ? ['Recebido', 'A receber'] : ['Sem lançamentos'],
       datasets: [{
-        data: st.map(([, v]) => v),
-        backgroundColor: st.map(([k]) => COL[k] || 'rgba(150,150,150,0.7)'),
-        borderRadius: 4
+        data: hasMoney ? [rev.paid, rev.pending] : [1],
+        backgroundColor: hasMoney
+          ? ['rgba(90,190,140,0.85)', 'rgba(230,170,90,0.8)']
+          : ['rgba(150,150,150,0.15)'],
+        borderWidth: 0
       }]
     },
     options: {
-      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position: 'bottom', labels: { color: T.legend, boxWidth: 12, font: { size: 11 } } } }
+    }
+  })
+}
+
+function setLedgerFilter(f) {
+  ledgerFilter = f
+  document.querySelectorAll('.led-btn').forEach(b => b.classList.toggle('active', b.dataset.f === f))
+  renderLedger()
+}
+
+function renderLedger() {
+  const box = document.getElementById('ledger-list')
+  const tot = document.getElementById('ledger-total')
+  const rows = ledgerRows.filter(r => ledgerFilter === 'all' || r.status === ledgerFilter)
+
+  if (!rows.length) {
+    box.innerHTML = '<div class="no-history">Nenhum lançamento neste período.</div>'
+    tot.textContent = ''
+    return
+  }
+
+  box.innerHTML = rows.map(p => {
+    const nome = p.patients?.name || p.notes || 'Paciente não vinculado'
+    const data = p.paid_at ? new Date(p.paid_at + 'T12:00').toLocaleDateString('pt-BR') : '—'
+    const tipo = p.appointments?.type ? ` · ${p.appointments.type}` : ''
+    const meio = p.method ? ` · ${p.method}` : ''
+    const pago = p.status === 'pago'
+    return `
+      <div class="led-row">
+        <span class="led-date">${data}</span>
+        <span class="led-name">${nome}</span>
+        <span class="led-meta">${(tipo + meio).replace(/^ · /, '')}</span>
+        <span class="led-amount">${brl(p.amount)}</span>
+        <span class="led-tag ${p.status}">${pago ? 'Pago' : 'Em aberto'}</span>
+        ${pago ? '' : `<button class="led-pay-btn" onclick="markPaid(${p.id})">Marcar pago</button>`}
+      </div>`
+  }).join('')
+
+  const soma = rows.reduce((s, r) => s + Number(r.amount || 0), 0)
+  const rotulo = ledgerFilter === 'pago' ? 'Total recebido'
+               : ledgerFilter === 'pendente' ? 'Total em aberto'
+               : 'Total lançado'
+  tot.innerHTML = `<span style="color:rgba(255,255,255,0.45)">${rotulo}:</span> <b>${brl(soma)}</b> <span style="opacity:0.5">(${rows.length} lançamento${rows.length > 1 ? 's' : ''})</span>`
+}
+
+async function markPaid(id) {
+  const p = ledgerRows.find(r => r.id === id)
+  if (!p) return
+  const metodo = prompt('Forma de pagamento (pix, dinheiro, cartao, transferencia):', p.method || 'pix')
+  if (metodo === null) return
+  try {
+    const r = await fetch(`/api/payments/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'pago',
+        method: metodo.trim() || 'outro',
+        paid_at: formatDate(new Date())
+      })
+    })
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error()
+    loadFinance()
+  } catch (_) { alert('Erro ao marcar como pago.') }
+}
+
+// ── DASHBOARD (análises do sistema) ───────────────────────────────────────────
+async function loadAnalytics() {
+  const { start, end } = periodRange()
+  syncPeriodUI()
+  if (!start || !end) return
+
+  let d
+  try {
+    const r = await fetch(`/api/reports/clinical?start=${start}&end=${end}`)
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error()
+    d = await r.json()
+  } catch (_) { return }
+
+  const ap = d.appointments || {}
+  document.getElementById('d-sessions').textContent   = d.sessions?.completed ?? 0
+  document.getElementById('d-patients').textContent   = d.patients?.attended_unique ?? 0
+  document.getElementById('d-new').textContent        = d.patients?.new ?? 0
+  document.getElementById('d-attendance').textContent = d.attendance_rate == null ? '—' : d.attendance_rate + '%'
+  document.getElementById('d-noshow').textContent     = ap.no_show ?? 0
+  document.getElementById('d-duration').textContent   =
+    d.sessions?.avg_duration_min == null ? '—' : d.sessions.avg_duration_min + ' min'
+
+  const resumo = [
+    ['Agendamentos no período', ap.total ?? 0],
+    ['Compareceram (concluídos)', ap.attended ?? 0],
+    ['Faltas', ap.no_show ?? 0],
+    ['Cancelamentos', ap.cancelled ?? 0],
+    ['Pacientes novos cadastrados', d.patients?.new ?? 0],
+    ['Total de pacientes no sistema', d.patients?.total ?? 0],
+    ['Dor média relatada', d.pain?.avg == null ? '—' : `${d.pain.avg}/10`],
+    ['Duração média da sessão', d.sessions?.avg_duration_min == null ? '—' : `${d.sessions.avg_duration_min} min`]
+  ]
+  document.getElementById('dash-ops').innerHTML = resumo.map(([k, v]) =>
+    `<div class="history-item"><span>${k}</span><span style="margin-left:auto;font-weight:500">${v}</span></div>`
+  ).join('')
+
+  destroyCharts(dashCharts); dashCharts = {}
+  if (!window.Chart) return
+  const T = chartTheme()
+
+  const barOpts = (horizontal) => ({
+    indexAxis: horizontal ? 'y' : 'x',
+    responsive: true, maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: T.grid }, ticks: { color: T.tick, font: { size: 10 }, precision: 0 } },
+      y: { grid: { color: T.grid }, ticks: { color: T.tick, font: { size: 10 }, precision: 0 } }
+    }
+  })
+
+  // 1. Situação dos agendamentos
+  const LBL = { agendado:'Agendado', confirmado:'Confirmado', atendimento:'Em atendimento',
+                concluido:'Concluído', cancelado:'Cancelado', falta:'Falta' }
+  const COL = { agendado:'rgba(80,150,220,0.8)', confirmado:'rgba(90,190,140,0.8)',
+                atendimento:'rgba(230,200,80,0.8)', concluido:'rgba(140,120,220,0.85)',
+                cancelado:'rgba(220,90,90,0.8)', falta:'rgba(230,150,70,0.85)' }
+  const st = Object.entries(ap.by_status || {})
+  dashCharts.status = new Chart(document.getElementById('ch-status'), {
+    type: 'bar',
+    data: {
+      labels: st.map(([k]) => LBL[k] || k),
+      datasets: [{ data: st.map(([, v]) => v),
+                   backgroundColor: st.map(([k]) => COL[k] || 'rgba(150,150,150,0.7)'), borderRadius: 4 }]
+    },
+    options: barOpts(true)
+  })
+
+  // 2. Tipos de atendimento
+  const ty = Object.entries(ap.by_type || {})
+  dashCharts.type = new Chart(document.getElementById('ch-type'), {
+    type: 'doughnut',
+    data: {
+      labels: ty.length ? ty.map(([k]) => k) : ['Sem dados'],
+      datasets: [{
+        data: ty.length ? ty.map(([, v]) => v) : [1],
+        backgroundColor: ty.length ? ty.map((_, i) => `hsla(${260 + i * 32},58%,62%,0.85)`) : ['rgba(150,150,150,0.15)'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { position: 'bottom', labels: { color: T.legend, boxWidth: 12, font: { size: 11 } } } }
+    }
+  })
+
+  // 3. Dia da semana
+  const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+  dashCharts.weekday = new Chart(document.getElementById('ch-weekday'), {
+    type: 'bar',
+    data: {
+      labels: DIAS,
+      datasets: [{ data: d.by_weekday || [], backgroundColor: 'rgba(120,150,230,0.8)', borderRadius: 4 }]
+    },
+    options: barOpts(false)
+  })
+
+  // 4. Horários
+  const hrs = Object.entries(d.by_hour || {}).sort((a, b) => a[0].localeCompare(b[0]))
+  dashCharts.hour = new Chart(document.getElementById('ch-hour'), {
+    type: 'bar',
+    data: {
+      labels: hrs.map(([h]) => h + 'h'),
+      datasets: [{ data: hrs.map(([, v]) => v), backgroundColor: 'rgba(110,200,190,0.8)', borderRadius: 4 }]
+    },
+    options: barOpts(false)
+  })
+
+  // 5. Regiões mais tratadas
+  const rg = d.top_regions || []
+  dashCharts.regions = new Chart(document.getElementById('ch-regions'), {
+    type: 'bar',
+    data: {
+      labels: rg.length ? rg.map(([k]) => k) : ['Sem registros'],
+      datasets: [{
+        data: rg.length ? rg.map(([, v]) => v) : [0],
+        backgroundColor: rg.map((_, i) => `hsla(${280 + i * 14},55%,62%,0.8)`),
+        borderRadius: 4
+      }]
+    },
+    options: barOpts(true)
+  })
+
+  // 6. Dor média ao longo do período
+  const ps = d.pain?.series || []
+  dashCharts.pain = new Chart(document.getElementById('ch-pain'), {
+    type: 'line',
+    data: {
+      labels: ps.map(s => fmtPeriod(s.period, d.granularity)),
+      datasets: [{
+        data: ps.map(s => s.avg),
+        borderColor: 'rgba(220,90,90,0.9)',
+        backgroundColor: 'rgba(220,90,90,0.12)',
+        fill: true, tension: 0.35, pointRadius: 3,
+        pointBackgroundColor: 'rgba(220,90,90,0.95)'
+      }]
+    },
+    options: {
       responsive: true, maintainAspectRatio: true,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { color: grid }, ticks: { color: tick, stepSize: 1, precision: 0 } },
-        y: { grid: { color: grid }, ticks: { color: tick, font: { size: 11 } } }
+        x: { grid: { color: T.grid }, ticks: { color: T.tick, font: { size: 10 } } },
+        y: { min: 0, max: 10, grid: { color: T.grid }, ticks: { color: T.tick, stepSize: 2 } }
       }
     }
   })

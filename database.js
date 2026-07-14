@@ -907,6 +907,146 @@ async function getOverviewReport(start, end, granularity = 'day') {
   }
 }
 
+// Lista de lançamentos do período (pagos e em aberto), com nome do paciente
+async function getPaymentsInPeriod(start, end) {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*, patients(name), appointments(type, appointment_date)')
+    .gte('paid_at', start)
+    .lte('paid_at', end)
+    .order('paid_at', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+async function updatePayment(id, updates) {
+  const { data, error } = await supabase
+    .from('payments').update(updates).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+async function deletePayment(id) {
+  const { error } = await supabase.from('payments').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ─── Dashboard clínico/operacional ───────────────────────────────────────────
+async function getClinicalReport(start, end, granularity = 'day') {
+  const endTs = end + 'T23:59:59'
+
+  const [{ data: appts }, { data: sess }] = await Promise.all([
+    supabase.from('appointments')
+      .select('id, patient_id, patient_name, status, type, appointment_date, appointment_time')
+      .gte('appointment_date', start).lte('appointment_date', end),
+    supabase.from('sessions')
+      .select('id, patient_id, patient_name, completed_at, started_at, finished_at, answers(*)')
+      .not('completed_at', 'is', null)
+      .gte('completed_at', start).lte('completed_at', endTs)
+  ])
+
+  const A = appts || []
+  const S = sess  || []
+
+  // Pacientes
+  let totalPatients = 0, newPatients = 0
+  try {
+    const { count } = await supabase.from('patients').select('id', { count: 'exact', head: true })
+    totalPatients = count || 0
+  } catch (_) {}
+  try {
+    const { count } = await supabase.from('patients')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', start).lte('created_at', endTs)
+    newPatients = count || 0
+  } catch (_) {}
+
+  // Regiões mais tratadas (eventos anatômicos das sessões do período)
+  const regions = {}
+  if (S.length) {
+    try {
+      const { data: ev } = await supabase
+        .from('anatomy_events').select('region').in('session_id', S.map(s => s.id))
+      ;(ev || []).filter(e => e.region !== '__acupuncture__').forEach(e => {
+        regions[e.region] = (regions[e.region] || 0) + 1
+      })
+    } catch (_) {}
+  }
+
+  // Situação e tipo dos agendamentos
+  const byStatus = {}, byType = {}
+  A.forEach(a => {
+    const s = a.status || 'agendado'
+    byStatus[s] = (byStatus[s] || 0) + 1
+    const t = a.type || 'Outro'
+    byType[t] = (byType[t] || 0) + 1
+  })
+  const attended  = byStatus['concluido'] || 0
+  const noShow    = byStatus['falta'] || 0
+  const cancelled = byStatus['cancelado'] || 0
+  const base = attended + noShow
+  const attendanceRate = base > 0 ? Math.round((attended / base) * 100) : null
+
+  // Movimento por dia da semana e por horário (ignora cancelados)
+  const byWeekday = [0, 0, 0, 0, 0, 0, 0]
+  const byHour = {}
+  A.filter(a => a.status !== 'cancelado').forEach(a => {
+    const d = new Date(a.appointment_date + 'T12:00:00')
+    byWeekday[d.getDay()]++
+    const h = String(a.appointment_time).slice(0, 2)
+    byHour[h] = (byHour[h] || 0) + 1
+  })
+
+  // Respostas do formulário: dor, sono, estresse
+  const bucket = d => granularity === 'month' ? String(d).slice(0, 7) : String(d).slice(0, 10)
+  const pains = [], sleepDist = {}, stressDist = {}, painMap = {}
+  S.forEach(s => {
+    const ans = {}
+    ;(s.answers || []).forEach(a => { ans[a.question_key] = a.answer_value })
+    const p = parseInt(ans.pain)
+    if (!isNaN(p)) {
+      pains.push(p)
+      const k = bucket(s.completed_at)
+      if (!painMap[k]) painMap[k] = { period: k, sum: 0, n: 0 }
+      painMap[k].sum += p
+      painMap[k].n++
+    }
+    if (ans.sleep)  sleepDist[ans.sleep]   = (sleepDist[ans.sleep] || 0) + 1
+    if (ans.stress) stressDist[ans.stress] = (stressDist[ans.stress] || 0) + 1
+  })
+  const painSeries = Object.values(painMap)
+    .sort((a, b) => a.period.localeCompare(b.period))
+    .map(x => ({ period: x.period, avg: +(x.sum / x.n).toFixed(1) }))
+  const avgPain = pains.length
+    ? +(pains.reduce((a, b) => a + b, 0) / pains.length).toFixed(1) : null
+
+  // Duração média real da sessão (início → fim)
+  const durs = S
+    .filter(s => s.started_at && s.finished_at)
+    .map(s => (new Date(s.finished_at) - new Date(s.started_at)) / 60000)
+    .filter(d => d > 0 && d < 600)
+  const avgDuration = durs.length
+    ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : null
+
+  const uniq = new Set()
+  A.filter(a => a.status === 'concluido').forEach(a => uniq.add(a.patient_id || a.patient_name))
+
+  return {
+    start, end, granularity,
+    sessions: { completed: S.length, avg_duration_min: avgDuration },
+    appointments: { total: A.length, attended, no_show: noShow, cancelled, by_status: byStatus, by_type: byType },
+    attendance_rate: attendanceRate,
+    by_weekday: byWeekday,
+    by_hour: byHour,
+    patients: { total: totalPatients, new: newPatients, attended_unique: uniq.size },
+    pain: { avg: avgPain, series: painSeries },
+    sleep_distribution: sleepDist,
+    stress_distribution: stressDist,
+    top_regions: Object.entries(regions).sort((a, b) => b[1] - a[1]).slice(0, 10)
+  }
+}
+
 export {
   testConnection,
   createSession,
@@ -958,6 +1098,10 @@ export {
   consumePackageSession,
   getMonthlyReport,
   getOverviewReport,
+  getClinicalReport,
+  getPaymentsInPeriod,
+  updatePayment,
+  deletePayment,
   // Livro-caixa / pacotes / agenda recorrente
   getActivePackage,
   restorePackageSession,

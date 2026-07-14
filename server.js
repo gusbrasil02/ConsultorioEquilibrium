@@ -51,6 +51,10 @@ import {
   consumePackageSession,
   getMonthlyReport,
   getOverviewReport,
+  getClinicalReport,
+  getPaymentsInPeriod,
+  updatePayment,
+  deletePayment,
   getActivePackage,
   getAppointment,
   deleteAppointment,
@@ -738,20 +742,78 @@ app.get('/api/reports/monthly', requireAuth, async (req, res) => {
   }
 })
 
-// Dashboard: período livre + granularidade (dia ou mês)
+// Períodos longos agrupam por mês; curtos, por dia
+function pickGranularity(start, end, requested) {
+  if (requested) return requested
+  const days = (new Date(end) - new Date(start)) / 86400000
+  return days > 62 ? 'month' : 'day'
+}
+
+// Financeiro: receita, a receber, formas de pagamento
 app.get('/api/reports/overview', requireAuth, async (req, res) => {
   try {
     const { start, end } = req.query
     if (!start || !end) return res.status(400).json({ error: 'Informe start e end (YYYY-MM-DD)' })
-
-    // Períodos longos agrupam por mês; curtos, por dia
-    const days = (new Date(end) - new Date(start)) / 86400000
-    const granularity = req.query.granularity || (days > 62 ? 'month' : 'day')
-
-    res.json(await getOverviewReport(start, end, granularity))
+    res.json(await getOverviewReport(start, end, pickGranularity(start, end, req.query.granularity)))
   } catch (error) {
     console.error('Erro no relatório geral:', error.message)
     res.status(500).json({ error: 'Erro interno no relatório' })
+  }
+})
+
+// Dashboard clínico/operacional: sessões, presença, tipos, horários, dor, regiões
+app.get('/api/reports/clinical', requireAuth, async (req, res) => {
+  try {
+    const { start, end } = req.query
+    if (!start || !end) return res.status(400).json({ error: 'Informe start e end (YYYY-MM-DD)' })
+    res.json(await getClinicalReport(start, end, pickGranularity(start, end, req.query.granularity)))
+  } catch (error) {
+    console.error('Erro no relatório clínico:', error.message)
+    res.status(500).json({ error: 'Erro interno no relatório' })
+  }
+})
+
+// Lista de lançamentos do período (pagos e em aberto)
+app.get('/api/reports/payments', requireAuth, async (req, res) => {
+  try {
+    const { start, end } = req.query
+    if (!start || !end) return res.status(400).json({ error: 'Informe start e end (YYYY-MM-DD)' })
+    res.json(await getPaymentsInPeriod(start, end))
+  } catch (error) {
+    console.error('Erro ao listar lançamentos:', error.message)
+    res.status(500).json({ error: 'Erro interno ao listar lançamentos' })
+  }
+})
+
+// Alterar um lançamento (ex.: marcar em aberto como pago)
+app.put('/api/payments/:id', requireAuth, async (req, res) => {
+  try {
+    const updates = {}
+    for (const k of ['amount', 'method', 'status', 'paid_at', 'notes']) {
+      if (req.body[k] !== undefined) updates[k] = req.body[k]
+    }
+    const payment = await updatePayment(req.params.id, updates)
+
+    // Mantém o agendamento coerente com o lançamento
+    if (payment.appointment_id && updates.status) {
+      await updateAppointment(payment.appointment_id, {
+        payment_status: updates.status,
+        ...(updates.method ? { payment_method: updates.method } : {})
+      }).catch(() => {})
+    }
+    res.json(payment)
+  } catch (error) {
+    console.error('Erro ao atualizar lançamento:', error.message)
+    res.status(500).json({ error: 'Erro interno ao atualizar lançamento' })
+  }
+})
+
+app.delete('/api/payments/:id', requireAuth, async (req, res) => {
+  try {
+    await deletePayment(req.params.id)
+    res.json({ success: true })
+  } catch (error) {
+    res.status(500).json({ error: 'Erro interno ao excluir lançamento' })
   }
 })
 
