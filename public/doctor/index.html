@@ -1383,45 +1383,59 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
 <!-- Modal Chave Pix -->
 <div class="generic-overlay" id="pix-modal">
   <div class="modal-sheet">
-    <h3>Pix da consulta</h3>
-    <div style="font-size:0.82rem;color:rgba(255,255,255,0.4);margin-bottom:1.2rem;line-height:1.55">
-      Com a chave configurada, o paciente vê o <b>QR Code e o copia-e-cola</b> já com o valor
-      da consulta no celular, ao responder o formulário. O dinheiro cai direto na sua conta —
-      não passa por nenhum intermediário.
-    </div>
-
-    <label class="meridian-toggle" style="margin-bottom:1.2rem;font-size:0.9rem">
-      <input type="checkbox" id="pix-enabled">
-      <span>Oferecer pagamento por Pix no formulário</span>
-    </label>
+    <h3>Pagamento da consulta</h3>
 
     <div class="form-group">
-      <label class="form-label">Tipo de chave</label>
-      <select class="form-control" id="pix-key-type">
-        <option value="cpf">CPF</option>
-        <option value="cnpj">CNPJ</option>
-        <option value="email">E-mail</option>
-        <option value="telefone">Telefone</option>
-        <option value="aleatoria">Chave aleatória</option>
+      <label class="form-label">Como o paciente paga</label>
+      <select class="form-control" id="pix-provider" onchange="onPixProviderChange()">
+        <option value="none">Não oferecer pagamento no formulário</option>
+        <option value="mercadopago">Mercado Pago — Pix confirmado automaticamente</option>
+        <option value="estatico">Pix estático — chave própria (confirmação manual)</option>
       </select>
     </div>
-    <div class="form-group">
-      <label class="form-label">Chave Pix *</label>
-      <input type="text" class="form-control" id="pix-key" placeholder="Sua chave Pix" autocomplete="off">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Nome do recebedor * (máx. 25)</label>
-      <input type="text" class="form-control" id="pix-name" maxlength="25" placeholder="Como aparece na sua conta">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Cidade * (máx. 15)</label>
-      <input type="text" class="form-control" id="pix-city" maxlength="15" placeholder="Ex: Sao Paulo">
+
+    <!-- Mercado Pago -->
+    <div id="pix-mp-block" style="display:none">
+      <div class="pkg-badge" id="mp-status"></div>
+      <div class="form-group">
+        <label class="form-label">URL do webhook (cole no painel do Mercado Pago)</label>
+        <input type="text" class="form-control" id="mp-webhook-url" readonly onclick="this.select()">
+      </div>
+      <div style="font-size:0.8rem;color:rgba(255,255,255,0.4);line-height:1.55;margin-bottom:1rem">
+        O token de acesso e a assinatura secreta ficam nas variáveis de ambiente do servidor
+        (<b>MERCADOPAGO_ACCESS_TOKEN</b> e <b>MERCADOPAGO_WEBHOOK_SECRET</b>) — nunca no banco
+        nem no navegador.
+      </div>
     </div>
 
-    <div class="pkg-badge" style="background:rgba(220,150,60,0.14);border-color:rgba(220,150,60,0.4);color:#f0c090">
-      ⚠️ O Pix estático <b>não avisa o sistema</b> quando o dinheiro cai. O paciente pode tocar em
-      "já paguei", e você confirma com 1 clique na lista de lançamentos depois de conferir no banco.
-      <br><br>Faça um teste de <b>R$ 0,01</b> antes de usar de verdade.
+    <!-- Pix estático -->
+    <div id="pix-static-block" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Tipo de chave</label>
+        <select class="form-control" id="pix-key-type">
+          <option value="cpf">CPF</option>
+          <option value="cnpj">CNPJ</option>
+          <option value="email">E-mail</option>
+          <option value="telefone">Telefone</option>
+          <option value="aleatoria">Chave aleatória</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Chave Pix *</label>
+        <input type="text" class="form-control" id="pix-key" placeholder="Sua chave Pix" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nome do recebedor * (máx. 25)</label>
+        <input type="text" class="form-control" id="pix-name" maxlength="25" placeholder="Como aparece na sua conta">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cidade * (máx. 15)</label>
+        <input type="text" class="form-control" id="pix-city" maxlength="15" placeholder="Ex: Sao Paulo">
+      </div>
+      <div class="pkg-badge" style="background:rgba(220,150,60,0.14);border-color:rgba(220,150,60,0.4);color:#f0c090">
+        ⚠️ O Pix estático <b>não avisa o sistema</b> quando o dinheiro cai. Você confirma com
+        1 clique na lista de lançamentos depois de conferir no banco.
+      </div>
     </div>
 
     <div class="modal-actions">
@@ -2069,6 +2083,34 @@ async function finishSessionAction() {
       badge.innerHTML = `📦 <b>Pacote ativo:</b> ${restam} de ${pkg.total_sessions} sessões restantes.<br>Escolha <b>"Debitar do pacote"</b> para consumir uma agora.`
       badge.style.display = 'block'
       document.getElementById('bill-mode').value = 'pacote'
+    }
+
+    // Pagamento JÁ CONFIRMADO pelo provedor (Mercado Pago): não há o que cobrar
+    if (closeoutCtx.payment?.confirmed) {
+      document.getElementById('bill-mode').value   = 'pago'
+      document.getElementById('bill-method').value = 'pix'
+      if (closeoutCtx.payment.amount != null) {
+        document.getElementById('bill-amount').value = closeoutCtx.payment.amount
+      }
+      badge.innerHTML = `✅ <b>Pagamento já confirmado via Pix (Mercado Pago).</b><br>O valor de ${brl(closeoutCtx.payment.amount)} entrou automaticamente no financeiro — não precisa fazer nada.`
+      badge.style.background  = 'rgba(60,180,120,0.16)'
+      badge.style.borderColor = 'rgba(60,180,120,0.45)'
+      badge.style.color       = '#9fe0c0'
+      badge.style.display     = 'block'
+      onBillModeChange()
+      // Sugestão de retorno segue normalmente
+      const appt0 = closeoutCtx.appointment
+      const base0 = new Date(); base0.setDate(base0.getDate() + 7)
+      document.getElementById('rec-date').value = formatDate(base0)
+      document.getElementById('rec-time').value = appt0?.appointment_time?.slice(0, 5) || '09:00'
+      if (appt0?.type) {
+        const sel0 = document.getElementById('rec-type')
+        if ([...sel0.options].some(o => o.value === appt0.type)) sel0.value = appt0.type
+      }
+      if (appt0?.duration_minutes) document.getElementById('rec-duration').value = appt0.duration_minutes
+      onRecTypeChange()
+      updateRecSummary()
+      return
     }
 
     // Já vem preenchido com o que o paciente escolheu no formulário
@@ -3408,17 +3450,21 @@ function closePricesModal() {
   document.getElementById('prices-modal').classList.remove('visible')
 }
 
-// ── Configuração da chave Pix ─────────────────────────────────────────────────
+// ── Configuração do pagamento (Mercado Pago / Pix estático) ───────────────────
+let pixCfg = {}
+
 async function openPixModal() {
   try {
     const r = await fetch('/api/settings/pix')
     if (r.status === 401) { location.href = '/login'; return }
-    const c = r.ok ? await r.json() : {}
-    document.getElementById('pix-enabled').checked = !!c.enabled
-    document.getElementById('pix-key-type').value  = c.key_type || 'aleatoria'
-    document.getElementById('pix-key').value       = c.key  || ''
-    document.getElementById('pix-name').value      = c.name || ''
-    document.getElementById('pix-city').value      = c.city || ''
+    pixCfg = r.ok ? await r.json() : {}
+    document.getElementById('pix-provider').value  = pixCfg.provider || 'none'
+    document.getElementById('pix-key-type').value  = pixCfg.key_type || 'aleatoria'
+    document.getElementById('pix-key').value       = pixCfg.key  || ''
+    document.getElementById('pix-name').value      = pixCfg.name || ''
+    document.getElementById('pix-city').value      = pixCfg.city || ''
+    document.getElementById('mp-webhook-url').value = pixCfg.webhook_url || ''
+    onPixProviderChange()
   } catch (_) {}
   document.getElementById('pix-modal').classList.add('visible')
 }
@@ -3426,21 +3472,50 @@ function closePixModal() {
   document.getElementById('pix-modal').classList.remove('visible')
 }
 
-async function savePixConfig() {
-  const enabled = document.getElementById('pix-enabled').checked
-  const key     = document.getElementById('pix-key').value.trim()
-  const name    = document.getElementById('pix-name').value.trim()
-  const city    = document.getElementById('pix-city').value.trim()
+function onPixProviderChange() {
+  const p = document.getElementById('pix-provider').value
+  document.getElementById('pix-mp-block').style.display     = p === 'mercadopago' ? 'block' : 'none'
+  document.getElementById('pix-static-block').style.display = p === 'estatico'    ? 'block' : 'none'
 
-  if (enabled && (!key || !name || !city)) {
-    alert('Para ativar o Pix, preencha chave, nome do recebedor e cidade.')
+  if (p === 'mercadopago') {
+    const box = document.getElementById('mp-status')
+    const okToken   = pixCfg.mp_ready
+    const okSegredo = pixCfg.mp_webhook_secret_set
+    if (okToken && okSegredo) {
+      box.innerHTML = '✅ <b>Mercado Pago conectado.</b> O pagamento do paciente será confirmado automaticamente no financeiro.'
+      box.style.background  = 'rgba(60,180,120,0.16)'
+      box.style.borderColor = 'rgba(60,180,120,0.45)'
+      box.style.color       = '#9fe0c0'
+    } else {
+      const faltando = [
+        !okToken   ? 'MERCADOPAGO_ACCESS_TOKEN' : null,
+        !okSegredo ? 'MERCADOPAGO_WEBHOOK_SECRET' : null
+      ].filter(Boolean).join(' e ')
+      box.innerHTML = `⚠️ <b>Falta configurar no servidor (Coolify):</b><br>${faltando}<br><br>` +
+                      (okToken ? 'Sem a assinatura secreta o webhook funciona, mas sem validação de origem.'
+                               : 'Sem o token não é possível criar a cobrança.')
+      box.style.background  = 'rgba(220,150,60,0.14)'
+      box.style.borderColor = 'rgba(220,150,60,0.4)'
+      box.style.color       = '#f0c090'
+    }
+  }
+}
+
+async function savePixConfig() {
+  const provider = document.getElementById('pix-provider').value
+  const key  = document.getElementById('pix-key').value.trim()
+  const name = document.getElementById('pix-name').value.trim()
+  const city = document.getElementById('pix-city').value.trim()
+
+  if (provider === 'estatico' && (!key || !name || !city)) {
+    alert('Para o Pix estático, preencha chave, nome do recebedor e cidade.')
     return
   }
   try {
     const r = await fetch('/api/settings/pix', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        enabled, key, name, city,
+        provider, key, name, city,
         key_type: document.getElementById('pix-key-type').value
       })
     })

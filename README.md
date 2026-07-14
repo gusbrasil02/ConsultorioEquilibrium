@@ -163,23 +163,61 @@ A tabela **`payments` é o livro-caixa único** — é dela que o relatório men
 
 ---
 
-## Pix no formulário do paciente
+## Pagamento no formulário do paciente
 
-Configure em **Financeiro → Chave Pix** (chave, nome do recebedor e cidade). O sistema gera o **BR Code** (padrão EMV do Banco Central) localmente — **sem gateway, sem taxa, sem intermediário**. O dinheiro cai direto na sua conta.
+Configure em **Financeiro → Chave Pix**. Há dois modos:
 
-Com o Pix ativo, o formulário do celular ganha uma última pergunta — *"Como você prefere pagar a consulta?"* — que só aparece **se houver valor a cobrar** (não aparece se for pacote ou isento):
+### 1. Mercado Pago — Pix confirmado automaticamente (recomendado)
+
+O sistema cria a cobrança na API do Mercado Pago e recebe um **webhook** quando o paciente paga → o lançamento vira **pago sozinho** no financeiro. Você não precisa conferir o banco.
+
+**Passo a passo:**
+
+1. **Cadastre uma chave Pix na sua conta do Mercado Pago** (sem isso a API de Pix não funciona).
+2. Acesse [mercadopago.com.br/developers/panel](https://www.mercadopago.com.br/developers/panel) → **Criar aplicação**
+   - Produto: *Pagamentos online / Checkout Transparente*
+3. Na aplicação → **Credenciais de produção** → copie o **Access Token** (`APP_USR-...`)
+4. Na aplicação → **Webhooks** → **Configurar notificações**:
+   - URL: `https://SEU_DOMINIO/api/webhooks/mercadopago`
+   - Evento: **Pagamentos**
+   - Copie a **Assinatura secreta** gerada
+5. No **Coolify**, adicione as variáveis e faça o deploy:
+   ```
+   MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
+   MERCADOPAGO_WEBHOOK_SECRET=...
+   ```
+6. Rode o `supabase-v4-migration.sql` no Supabase
+7. No painel → **Financeiro → Chave Pix** → escolha **Mercado Pago** → Salvar
+8. **Teste com R$ 0,01** antes de usar com paciente
+
+> O Access Token **nunca** vai para o banco nem para o navegador — fica só nas variáveis de ambiente do servidor.
+>
+> O Mercado Pago cobra uma taxa por transação (consulte a vigente) e o dinheiro fica na conta MP até você transferir para o banco.
+
+### 2. Pix estático — chave própria (sem taxa, confirmação manual)
+
+O sistema gera o **BR Code** (padrão EMV do Banco Central) localmente, a partir da sua chave. **Sem gateway, sem taxa, sem intermediário** — cai direto na sua conta.
+
+⚠️ Pix estático **não avisa o sistema** quando o dinheiro cai. O paciente toca em "já paguei" e você confirma com **1 clique** em *Financeiro → Lançamentos → "Marcar pago"*.
+
+---
+
+### O que o paciente vê (nos dois modos)
+
+O formulário (celular **e** totem) ganha uma última pergunta — *"Como você prefere pagar a consulta?"* — que só aparece **se houver valor a cobrar** (não aparece se for pacote ou isento):
 
 | Paciente escolhe | O que acontece |
 |---|---|
-| **Pix** | Mostra QR Code + botão **copia e cola** + a chave. Pode tocar em **"Já paguei"** |
+| **Pix** | QR Code + **copia e cola** (+ a chave, no modo estático). Com Mercado Pago, a tela mostra **"✅ Pagamento confirmado!"** sozinha assim que o dinheiro cai |
 | **Dinheiro / Cartão** | Combina pagar na recepção |
 | **Estou com dificuldade** | Avisa a profissional para combinar pessoalmente |
 
-Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no fechamento da consulta** (se declarou Pix pago → sugere "Pago"; se pediu ajuda → sugere "Pendente").
+Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no fechamento da consulta**:
+- Pix confirmado pelo Mercado Pago → *"✅ Pagamento já confirmado — não precisa fazer nada"*
+- Declarou Pix pago (estático) → sugere **Pago** (confira no banco)
+- Pediu ajuda → sugere **Pendente**
 
-> ⚠️ **Limitação do Pix estático:** ele **não avisa o sistema** quando o dinheiro cai (isso exigiria um gateway com webhook). O paciente declara que pagou, você confere no app do banco e confirma com **1 clique** em *Financeiro → Lançamentos → "Marcar pago"*.
->
-> **Faça um teste de R$ 0,01** antes de usar de verdade.
+**Faça um teste de R$ 0,01** antes de usar de verdade, em qualquer um dos dois modos.
 
 ---
 

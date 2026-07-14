@@ -427,6 +427,28 @@
     border-radius: 16px; padding: 1.1rem; margin-top: 1.2rem;
     font-size: 1.05rem; line-height: 1.55; color: rgba(255,255,255,0.9); text-align: center;
   }
+  .pay-confirmed {
+    background: rgba(76,175,134,0.95); border-radius: 18px;
+    padding: 1.5rem; margin-top: 1.2rem; text-align: center;
+    font-size: 1.4rem; font-weight: 500; color: #fff; line-height: 1.5;
+    animation: pop-in 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  }
+  .pay-confirmed span { font-size: 1rem; font-weight: 400; opacity: 0.9; }
+  .pay-waiting {
+    display: flex; align-items: center; justify-content: center; gap: 0.45rem;
+    margin-top: 1.1rem; font-size: 1rem; color: rgba(255,255,255,0.6);
+  }
+  .pay-waiting .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,0.55);
+    animation: dot-bounce 1.3s ease-in-out infinite;
+  }
+  .pay-waiting .dot:nth-child(2) { animation-delay: 0.18s; }
+  .pay-waiting .dot:nth-child(3) { animation-delay: 0.36s; margin-right: 0.45rem; }
+  @keyframes dot-bounce {
+    0%,70%,100% { opacity: 0.3; transform: scale(0.8); }
+    35%         { opacity: 1;   transform: scale(1.2); }
+  }
 
   .inline-nav {
     display: flex; gap: 1rem;
@@ -903,6 +925,7 @@ function startInlineForm() {
   bmView = 'front'
   QUESTIONS = BASE_QUESTIONS.slice()
   payInfo = null
+  if (payPollTimer) { clearInterval(payPollTimer); payPollTimer = null }
 
   renderInlineStep()
   show('inline')
@@ -1108,25 +1131,43 @@ function renderInlinePayExtra(opt) {
 
   if (opt === 'Pix' && payInfo?.pix?.enabled) {
     const pix = payInfo.pix
+
+    if (pix.already_paid || inlineAnswers['pix_declared'] === 'confirmado') {
+      extra.innerHTML = `<div class="pay-confirmed">✅ Pagamento confirmado!<br><span>Obrigado — está tudo certo.</span></div>`
+      inlineAnswers['pix_declared'] = 'confirmado'
+      return
+    }
+
     const jaPagou = inlineAnswers['pix_declared'] === 'sim'
     extra.innerHTML = `
       <div class="pix-card">
         <img src="${pix.qr_code_base64}" alt="QR Code Pix">
         <div class="hint">Abra o app do seu banco no celular, escolha <b>Pix &rsaquo; Ler QR Code</b> e aponte para o código na tela.</div>
-        <div class="chave">
-          Ou pague pela chave:<br>
-          <b>${pix.key}</b>
-          ${pix.name ? `<br><span style="opacity:0.7">${pix.name}</span>` : ''}
-        </div>
+        ${pix.key ? `
+          <div class="chave">
+            Ou pague pela chave:<br>
+            <b>${pix.key}</b>
+            ${pix.name ? `<br><span style="opacity:0.7">${pix.name}</span>` : ''}
+          </div>` : ''}
       </div>
-      <button class="pay-done-btn ${jaPagou ? 'done' : ''}" id="btn-ja-paguei">
-        ${jaPagou ? '✓ Pagamento informado' : 'Já paguei'}
-      </button>
+      ${pix.auto_confirm
+        ? `<div class="pay-waiting">
+             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+             Aguardando a confirmação do pagamento...
+           </div>`
+        : `<button class="pay-done-btn ${jaPagou ? 'done' : ''}" id="btn-ja-paguei">
+             ${jaPagou ? '✓ Pagamento informado' : 'Já paguei'}
+           </button>`}
     `
-    document.getElementById('btn-ja-paguei').onclick = (e) => {
-      inlineAnswers['pix_declared'] = 'sim'
-      e.target.classList.add('done')
-      e.target.textContent = '✓ Pagamento informado'
+
+    if (pix.auto_confirm) {
+      startPaymentPolling()
+    } else {
+      document.getElementById('btn-ja-paguei').onclick = (e) => {
+        inlineAnswers['pix_declared'] = 'sim'
+        e.target.classList.add('done')
+        e.target.textContent = '✓ Pagamento informado'
+      }
     }
     return
   }
@@ -1140,6 +1181,28 @@ function renderInlinePayExtra(opt) {
     return
   }
   extra.innerHTML = ''
+}
+
+// Com o Mercado Pago o pagamento se confirma sozinho — o totem só pergunta ao servidor
+let payPollTimer = null
+function startPaymentPolling() {
+  if (payPollTimer || !currentSessionId) return
+  payPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch(`/api/sessions/${currentSessionId}/payment-status`)
+      if (!r.ok) return
+      const d = await r.json()
+      if (d.status === 'pago') {
+        clearInterval(payPollTimer)
+        payPollTimer = null
+        inlineAnswers['pix_declared'] = 'confirmado'
+        const extra = document.getElementById('pay-extra')
+        if (extra) {
+          extra.innerHTML = `<div class="pay-confirmed">✅ Pagamento confirmado!<br><span>Obrigado — está tudo certo.</span></div>`
+        }
+      }
+    } catch (_) {}
+  }, 4000)
 }
 
 function enableInlineNext() {

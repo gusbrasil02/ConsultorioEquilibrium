@@ -719,7 +719,15 @@ async function syncAppointmentPayment(appt) {
   const price  = appt.price == null || appt.price === '' ? null : Number(appt.price)
 
   const { data: existing } = await supabase
-    .from('payments').select('id').eq('appointment_id', appt.id).maybeSingle()
+    .from('payments')
+    .select('id, status, provider_payment_id')
+    .eq('appointment_id', appt.id)
+    .maybeSingle()
+
+  // Dinheiro que já entrou de verdade (confirmado pelo provedor) é intocável:
+  // não sobrescrevemos nem apagamos o lançamento.
+  const jaRecebido = existing && existing.status === 'pago' && existing.provider_payment_id
+  if (jaRecebido) return
 
   // Só gera lançamento quando há dinheiro envolvido (isento/pacote não geram)
   const chargeable = (status === 'pago' || status === 'pendente') && price > 0
@@ -920,6 +928,26 @@ async function getPaymentsInPeriod(start, end) {
   return data || []
 }
 
+async function getPaymentByAppointment(appointment_id) {
+  const { data } = await supabase
+    .from('payments').select('*').eq('appointment_id', appointment_id).maybeSingle()
+  return data || null
+}
+
+async function getPaymentBySession(session_id) {
+  const { data } = await supabase
+    .from('payments').select('*').eq('session_id', session_id)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+  return data || null
+}
+
+// O webhook do provedor só manda o id dele — é por aqui que achamos o lançamento
+async function getPaymentByProviderId(provider_payment_id) {
+  const { data } = await supabase
+    .from('payments').select('*').eq('provider_payment_id', String(provider_payment_id)).maybeSingle()
+  return data || null
+}
+
 async function updatePayment(id, updates) {
   const { data, error } = await supabase
     .from('payments').update(updates).eq('id', id).select().single()
@@ -1100,6 +1128,9 @@ export {
   getOverviewReport,
   getClinicalReport,
   getPaymentsInPeriod,
+  getPaymentByAppointment,
+  getPaymentBySession,
+  getPaymentByProviderId,
   updatePayment,
   deletePayment,
   // Livro-caixa / pacotes / agenda recorrente
