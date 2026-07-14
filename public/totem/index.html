@@ -364,6 +364,70 @@
     margin-bottom: 1.5rem; padding: 0 0.2rem;
   }
 
+  /* Tema da pergunta de pagamento */
+  body.theme-q5 { background: linear-gradient(160deg, #05231a 0%, #0d3f2e 55%, #0a2f3f 100%); animation: none; }
+
+  /* ── Mapa do corpo (onde dói) ── */
+  .bm-toggle { display: flex; gap: 0.6rem; margin-bottom: 1rem; }
+  .bm-tog-btn {
+    flex: 1; padding: 0.7rem; border-radius: 60px; cursor: pointer;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28);
+    color: rgba(255,255,255,0.8); font-family: 'DM Sans', sans-serif; font-size: 1rem;
+  }
+  .bm-tog-btn.active { background: rgba(255,255,255,0.95); color: #3d1515; font-weight: 500; border-color: transparent; }
+  .bm-wrap { display: flex; justify-content: center; margin-bottom: 0.8rem; }
+  .bm-wrap svg { width: min(260px, 42vh); height: auto; }
+  .bm-region {
+    fill: rgba(255,255,255,0.1); stroke: rgba(255,255,255,0.32); stroke-width: 0.8;
+    cursor: pointer; transition: fill 0.15s, stroke 0.15s;
+  }
+  .bm-region:hover { fill: rgba(255,255,255,0.22); }
+  .bm-region.sel { fill: rgba(255,120,120,0.6); stroke: rgba(255,160,160,0.95); stroke-width: 1.5; }
+  .bm-chosen {
+    text-align: center; font-size: 1rem; color: rgba(255,255,255,0.75);
+    min-height: 1.4em; margin-bottom: 0.8rem;
+  }
+  .bm-skip {
+    display: block; margin: 0 auto 0.5rem; padding: 0.65rem 1.6rem; border-radius: 60px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.65); font-family: 'DM Sans', sans-serif; font-size: 0.95rem; cursor: pointer;
+  }
+
+  /* ── Pagamento / Pix no totem ── */
+  .pay-top { text-align: center; margin-bottom: 1.3rem; }
+  .pay-top .lbl {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.14em;
+    color: rgba(255,255,255,0.4);
+  }
+  .pay-top .val {
+    font-family: 'Playfair Display', serif; font-size: clamp(2rem, 4vw, 2.8rem);
+    font-weight: 300; color: #fff; margin-top: 0.2rem;
+  }
+  .pix-card {
+    background: #fff; border-radius: 22px; padding: 1.5rem;
+    margin-top: 1.2rem; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 0.8rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .pix-card img { width: min(260px, 34vh); height: auto; border-radius: 10px; }
+  .pix-card .hint { font-size: 1rem; color: #35485c; line-height: 1.5; max-width: 340px; }
+  .pix-card .chave {
+    font-size: 0.92rem; color: #16324a; word-break: break-all;
+    border-top: 1px solid rgba(0,0,0,0.08); padding-top: 0.8rem; width: 100%;
+  }
+  .pay-done-btn {
+    width: 100%; padding: 1rem; margin-top: 1rem;
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 60px;
+    background: rgba(255,255,255,0.14); color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 1.05rem; cursor: pointer;
+  }
+  .pay-done-btn.done { background: rgba(76,175,134,0.95); border-color: transparent; font-weight: 500; }
+  .pay-help {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 16px; padding: 1.1rem; margin-top: 1.2rem;
+    font-size: 1.05rem; line-height: 1.55; color: rgba(255,255,255,0.9); text-align: center;
+  }
+
   .inline-nav {
     display: flex; gap: 1rem;
   }
@@ -498,7 +562,7 @@
 <script>
 // ── Perguntas do formulário inline ──────────────────────────────────────────
 
-const QUESTIONS = [
+const BASE_QUESTIONS = [
   {
     key: 'sleep', theme: 'theme-q1',
     text: 'Como foi o seu sono na última noite?',
@@ -509,6 +573,12 @@ const QUESTIONS = [
     key: 'pain', theme: 'theme-q2',
     text: 'Qual o nível de desconforto ou dor agora?',
     type: 'scale'
+  },
+  {
+    key: 'pain_regions', theme: 'theme-q2',
+    text: 'Onde você sente a dor? Toque no corpo.',
+    type: 'bodymap',
+    optional: true
   },
   {
     key: 'stress', theme: 'theme-q3',
@@ -523,6 +593,42 @@ const QUESTIONS = [
     options: ['Dor ou desconforto físico','Estresse e ansiedade','Manutenção e bem-estar','Continuação do tratamento']
   }
 ]
+
+// A lista pode ganhar a pergunta de pagamento, dependendo da cobrança da sessão
+let QUESTIONS = BASE_QUESTIONS.slice()
+let payInfo   = null
+
+// ── Regiões do corpo para o mapa de dor ──────────────────────────────────────
+const BM_FRONT = [
+  { id:'cabeca', label:'Cabeça', d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
+  { id:'pescoco', label:'Pescoço', d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
+  { id:'torax', label:'Tórax', d:'M72,74 Q100,78 128,74 L132,130 Q100,136 68,130Z' },
+  { id:'abdome', label:'Abdome', d:'M70,130 Q100,134 130,130 L128,168 Q100,172 72,168Z' },
+  { id:'ombro-direito', label:'Ombro Direito', d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
+  { id:'ombro-esquerdo', label:'Ombro Esquerdo', d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
+  { id:'braco-direito', label:'Braço Direito', d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
+  { id:'braco-esquerdo', label:'Braço Esquerdo', d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
+  { id:'antebraco-direito', label:'Antebraço Direito', d:'M44,120 Q38,150 40,186 L50,186 L52,128Z' },
+  { id:'antebraco-esquerdo', label:'Antebraço Esquerdo', d:'M156,120 Q162,150 160,186 L150,186 L148,128Z' },
+  { id:'mao-direita', label:'Mão Direita', d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
+  { id:'mao-esquerda', label:'Mão Esquerda', d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
+  { id:'quadril', label:'Quadril', d:'M68,168 Q100,176 132,168 L128,200 Q100,208 72,200Z' },
+  { id:'coxa-direita', label:'Coxa Direita', d:'M72,200 Q82,220 80,258 Q76,268 66,266 Q60,250 62,220 Z' },
+  { id:'coxa-esquerda', label:'Coxa Esquerda', d:'M128,200 Q118,220 120,258 Q124,268 134,266 Q140,250 138,220 Z' },
+  { id:'joelho-direito', label:'Joelho Direito', d:'M64,262 Q60,278 66,290 Q76,290 80,278 L80,258 Q76,268 66,266Z' },
+  { id:'joelho-esquerdo', label:'Joelho Esquerdo', d:'M136,262 Q140,278 134,290 Q124,290 120,278 L120,258 Q124,268 134,266Z' },
+  { id:'perna-direita', label:'Perna Direita', d:'M64,290 Q58,310 60,336 L74,336 Q80,312 80,286 Q76,290 66,290Z' },
+  { id:'perna-esquerda', label:'Perna Esquerda', d:'M136,290 Q142,310 140,336 L126,336 Q120,312 120,286 Q124,290 134,290Z' },
+  { id:'pe-direito', label:'Pé Direito', d:'M58,336 Q52,346 54,356 Q66,362 76,356 L74,336Z' },
+  { id:'pe-esquerdo', label:'Pé Esquerdo', d:'M142,336 Q148,346 146,356 Q134,362 124,356 L126,336Z' },
+]
+const BM_BACK = BM_FRONT.map(r => {
+  if (r.id === 'torax')  return { ...r, label:'Costas superiores' }
+  if (r.id === 'abdome') return { ...r, label:'Lombar' }
+  return r
+})
+let bmView = 'front'
+const painSel = new Set()
 
 // ── Estado global ────────────────────────────────────────────────────────────
 
@@ -721,9 +827,14 @@ function applyTotemState(data) {
       show('idle')
       currentPatientName = null
       currentApptId = null
+      currentPatientId = null
+      currentSessionId = null   // não carrega a sessão do paciente anterior
       break
 
     case 'show_patient':
+      // Novo paciente na fila: descarta qualquer sessão pendente da anterior.
+      // (Só chegamos aqui quando não estamos exibindo QR nem o formulário.)
+      currentSessionId   = null
       currentPatientName = data.patient_name
       currentApptId      = data.appointment_id || null
       currentPatientId   = data.patient_id || null
@@ -788,23 +899,73 @@ function startInlineForm() {
   if (!currentPatientName) return
   inlineStep = 0
   Object.keys(inlineAnswers).forEach(k => delete inlineAnswers[k])
+  painSel.clear()
+  bmView = 'front'
+  QUESTIONS = BASE_QUESTIONS.slice()
+  payInfo = null
+
   renderInlineStep()
   show('inline')
+
+  // Em paralelo: cria a sessão e descobre se há valor a cobrar.
+  // A pergunta de pagamento é a última, então dá tempo de chegar.
+  prepareCharge()
+}
+
+// Cria a sessão (necessária para gerar o Pix) e acrescenta a pergunta de pagamento
+async function prepareCharge() {
+  try {
+    if (!currentSessionId) {
+      const r = await fetch('/api/sessions/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_name: currentPatientName,
+          appointment_id: currentApptId,
+          patient_id: currentPatientId
+        })
+      })
+      if (!r.ok) return
+      const d = await r.json()
+      currentSessionId = d.session_id
+    }
+
+    const r2 = await fetch(`/api/sessions/${currentSessionId}/pix`)
+    if (!r2.ok) return
+    payInfo = await r2.json()
+
+    if (payInfo?.charge?.required && !QUESTIONS.some(q => q.key === 'payment_method')) {
+      QUESTIONS.push({
+        key: 'payment_method',
+        theme: 'theme-q5',
+        text: 'Como você prefere pagar a consulta?',
+        type: 'payment'
+      })
+      // Atualiza a barra de progresso e o rótulo do botão
+      updateInlineProgress()
+    }
+  } catch (_) {}
+}
+
+function updateInlineProgress() {
+  document.getElementById('prog-fill').style.width =
+    ((inlineStep + 1) / QUESTIONS.length * 100) + '%'
+  const nextBtn = document.getElementById('btn-next-inline')
+  nextBtn.textContent = inlineStep === QUESTIONS.length - 1 ? 'Concluir ✓' : 'Próxima →'
 }
 
 function renderInlineStep() {
   const q = QUESTIONS[inlineStep]
   setTheme(q.theme)
 
-  document.getElementById('prog-fill').style.width =
-    ((inlineStep + 1) / QUESTIONS.length * 100) + '%'
   document.getElementById('inline-question').textContent = q.text
   document.getElementById('btn-back-inline').style.display = inlineStep > 0 ? 'block' : 'none'
 
   const nextBtn = document.getElementById('btn-next-inline')
-  nextBtn.disabled = !(q.key in inlineAnswers)
-  nextBtn.classList.toggle('ready', q.key in inlineAnswers)
-  nextBtn.textContent = inlineStep === QUESTIONS.length - 1 ? 'Concluir ✓' : 'Próxima →'
+  const answered = (q.key in inlineAnswers) || q.optional
+  nextBtn.disabled = !answered
+  nextBtn.classList.toggle('ready', answered)
+  updateInlineProgress()
 
   const optArea = document.getElementById('inline-options')
   optArea.innerHTML = ''
@@ -825,8 +986,8 @@ function renderInlineStep() {
       grid.appendChild(btn)
     })
     optArea.appendChild(grid)
-  } else {
-    // Escala de dor
+
+  } else if (q.type === 'scale') {
     const pg = document.createElement('div')
     pg.className = 'pain-grid'
     for (let i = 0; i <= 10; i++) {
@@ -846,8 +1007,139 @@ function renderInlineStep() {
     labels.innerHTML = '<span>Sem dor</span><span>Dor intensa</span>'
     optArea.appendChild(pg)
     optArea.appendChild(labels)
+
+  } else if (q.type === 'bodymap') {
+    renderInlineBodyMap(q, optArea)
+
+  } else if (q.type === 'payment') {
+    renderInlinePayment(q, optArea)
+  }
+}
+
+// ── Mapa de dor no totem ─────────────────────────────────────────────────────
+function renderInlineBodyMap(q, area) {
+  if (inlineAnswers[q.key]) {
+    inlineAnswers[q.key].split(',').map(s => s.trim()).filter(Boolean).forEach(l => painSel.add(l))
+  }
+  area.innerHTML = `
+    <div class="bm-toggle">
+      <button class="bm-tog-btn ${bmView==='front'?'active':''}" data-v="front">Frente</button>
+      <button class="bm-tog-btn ${bmView==='back'?'active':''}" data-v="back">Costas</button>
+    </div>
+    <div class="bm-wrap"><svg id="bm-svg" viewBox="0 0 200 370" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="bm-chosen" id="bm-chosen"></div>
+    <button class="bm-skip" id="bm-skip">Não tenho dor localizada</button>
+  `
+  area.querySelectorAll('.bm-tog-btn').forEach(b => {
+    b.onclick = () => { bmView = b.dataset.v; renderInlineBodyMap(q, area) }
+  })
+  area.querySelector('#bm-skip').onclick = () => { painSel.clear(); drawInlineBM(); syncPainAnswer() }
+  drawInlineBM()
+  syncPainAnswer()
+}
+
+function drawInlineBM() {
+  const svg = document.getElementById('bm-svg')
+  if (!svg) return
+  svg.innerHTML = ''
+  ;(bmView === 'front' ? BM_FRONT : BM_BACK).forEach(r => {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    p.setAttribute('d', r.d)
+    p.setAttribute('class', 'bm-region' + (painSel.has(r.label) ? ' sel' : ''))
+    p.addEventListener('click', () => {
+      if (painSel.has(r.label)) painSel.delete(r.label)
+      else painSel.add(r.label)
+      p.classList.toggle('sel')
+      syncPainAnswer()
+    })
+    svg.appendChild(p)
+  })
+}
+
+function syncPainAnswer() {
+  inlineAnswers['pain_regions'] = [...painSel].join(', ')
+  const chosen = document.getElementById('bm-chosen')
+  if (chosen) chosen.textContent = painSel.size ? [...painSel].join(' · ') : 'Nenhuma região selecionada (opcional)'
+  enableInlineNext()
+}
+
+// ── Pagamento no totem (Pix estático) ────────────────────────────────────────
+const PAY_OPTIONS = ['Pix', 'Dinheiro', 'Cartão', 'Estou com dificuldade']
+
+function renderInlinePayment(q, area) {
+  const valor = payInfo?.charge?.amount
+  const valorFmt = valor != null
+    ? Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : ''
+
+  area.innerHTML = `
+    ${valor != null ? `
+      <div class="pay-top">
+        <div class="lbl">Valor da consulta</div>
+        <div class="val">${valorFmt}</div>
+      </div>` : ''}
+    <div class="options-grid" id="pay-options"></div>
+    <div id="pay-extra"></div>
+  `
+
+  const box = area.querySelector('#pay-options')
+  PAY_OPTIONS.forEach(opt => {
+    if (opt === 'Pix' && !payInfo?.pix?.enabled) return
+    const btn = document.createElement('button')
+    btn.className = 'opt-btn' + (inlineAnswers[q.key] === opt ? ' selected' : '')
+    btn.textContent = opt
+    btn.onclick = () => {
+      box.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'))
+      btn.classList.add('selected')
+      inlineAnswers[q.key] = opt
+      if (opt !== 'Pix') delete inlineAnswers['pix_declared']
+      renderInlinePayExtra(opt)
+      enableInlineNext()
+    }
+    box.appendChild(btn)
+  })
+
+  if (inlineAnswers[q.key]) renderInlinePayExtra(inlineAnswers[q.key])
+}
+
+function renderInlinePayExtra(opt) {
+  const extra = document.getElementById('pay-extra')
+  if (!extra) return
+
+  if (opt === 'Pix' && payInfo?.pix?.enabled) {
+    const pix = payInfo.pix
+    const jaPagou = inlineAnswers['pix_declared'] === 'sim'
+    extra.innerHTML = `
+      <div class="pix-card">
+        <img src="${pix.qr_code_base64}" alt="QR Code Pix">
+        <div class="hint">Abra o app do seu banco no celular, escolha <b>Pix &rsaquo; Ler QR Code</b> e aponte para o código na tela.</div>
+        <div class="chave">
+          Ou pague pela chave:<br>
+          <b>${pix.key}</b>
+          ${pix.name ? `<br><span style="opacity:0.7">${pix.name}</span>` : ''}
+        </div>
+      </div>
+      <button class="pay-done-btn ${jaPagou ? 'done' : ''}" id="btn-ja-paguei">
+        ${jaPagou ? '✓ Pagamento informado' : 'Já paguei'}
+      </button>
+    `
+    document.getElementById('btn-ja-paguei').onclick = (e) => {
+      inlineAnswers['pix_declared'] = 'sim'
+      e.target.classList.add('done')
+      e.target.textContent = '✓ Pagamento informado'
+    }
     return
   }
+
+  if (opt === 'Estou com dificuldade') {
+    extra.innerHTML = `<div class="pay-help">Sem problema. 🙂<br>A profissional foi avisada e vai combinar o pagamento com você.</div>`
+    return
+  }
+  if (opt === 'Dinheiro' || opt === 'Cartão') {
+    extra.innerHTML = `<div class="pay-help">Combinado! Você paga na recepção com a profissional.</div>`
+    return
+  }
+  extra.innerHTML = ''
 }
 
 function enableInlineNext() {
