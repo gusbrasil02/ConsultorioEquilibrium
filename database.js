@@ -718,9 +718,11 @@ async function syncAppointmentPayment(appt) {
   const status = appt.payment_status || 'pendente'
   const price  = appt.price == null || appt.price === '' ? null : Number(appt.price)
 
+  // select('*') de propósito: se a migração v4 ainda não rodou, pedir colunas
+  // que não existem faria o select falhar e quebrar o lançamento no caixa.
   const { data: existing } = await supabase
     .from('payments')
-    .select('id, status, provider_payment_id')
+    .select('*')
     .eq('appointment_id', appt.id)
     .maybeSingle()
 
