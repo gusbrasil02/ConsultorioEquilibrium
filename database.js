@@ -465,11 +465,26 @@ async function getAppointmentsByRange(start, end) {
 }
 
 // Cria novo agendamento
-async function createAppointment({ patient_id, patient_name, appointment_date, appointment_time, type, duration_minutes, notes }) {
+async function createAppointment({ patient_id, patient_name, appointment_date, appointment_time, type, duration_minutes, notes, price, payment_status }) {
   try {
+    const row = {
+      patient_id: patient_id || null,
+      patient_name,
+      appointment_date,
+      appointment_time,
+      type,
+      duration_minutes: duration_minutes || 60,
+      notes
+    }
+    // Valor precisa ser gravado — sem ele o caixa nunca gera o "a receber"
+    if (price !== undefined && price !== null && price !== '' && !isNaN(Number(price))) {
+      row.price = Number(price)
+    }
+    if (payment_status) row.payment_status = payment_status
+
     const { data, error } = await supabase
       .from('appointments')
-      .insert({ patient_id: patient_id || null, patient_name, appointment_date, appointment_time, type, duration_minutes: duration_minutes || 60, notes })
+      .insert(row)
       .select()
       .single()
     if (error) throw error
@@ -814,6 +829,84 @@ async function getMonthlyReport(month) {
   return { month, total, pending, count: paid.length, by_method: byMethod }
 }
 
+// Relatório completo de um período livre (dashboard financeiro/operacional).
+// granularity: 'day' | 'month' — define o agrupamento da série temporal.
+async function getOverviewReport(start, end, granularity = 'day') {
+  const [{ data: pays }, { data: appts }] = await Promise.all([
+    supabase.from('payments')
+      .select('amount, method, status, paid_at')
+      .gte('paid_at', start).lte('paid_at', end),
+    supabase.from('appointments')
+      .select('id, patient_id, patient_name, status, appointment_date, type')
+      .gte('appointment_date', start).lte('appointment_date', end)
+  ])
+
+  let newPatients = 0
+  try {
+    const { count } = await supabase.from('patients')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', start).lte('created_at', end + 'T23:59:59')
+    newPatients = count || 0
+  } catch (_) {}
+
+  const rows     = pays || []
+  const paidRows = rows.filter(r => r.status === 'pago')
+  const pendRows = rows.filter(r => r.status === 'pendente')
+  const sum      = list => list.reduce((s, r) => s + Number(r.amount || 0), 0)
+  const paid     = sum(paidRows)
+  const pending  = sum(pendRows)
+
+  const byMethod = {}
+  paidRows.forEach(r => {
+    const k = r.method || 'outro'
+    byMethod[k] = (byMethod[k] || 0) + Number(r.amount || 0)
+  })
+
+  // Série temporal (recebido x a receber)
+  const bucket = d => granularity === 'month' ? String(d).slice(0, 7) : String(d).slice(0, 10)
+  const map = {}
+  rows.forEach(r => {
+    if (!r.paid_at) return
+    const k = bucket(r.paid_at)
+    if (!map[k]) map[k] = { period: k, paid: 0, pending: 0 }
+    if (r.status === 'pago') map[k].paid += Number(r.amount || 0)
+    else if (r.status === 'pendente') map[k].pending += Number(r.amount || 0)
+  })
+  const series = Object.values(map).sort((a, b) => a.period.localeCompare(b.period))
+
+  // Operacional
+  const A = appts || []
+  const byStatus = {}
+  A.forEach(a => {
+    const s = a.status || 'agendado'
+    byStatus[s] = (byStatus[s] || 0) + 1
+  })
+  const attended  = byStatus['concluido'] || 0
+  const noShow    = byStatus['falta'] || 0
+  const cancelled = byStatus['cancelado'] || 0
+
+  // Taxa de presença: dos que deveriam acontecer (compareceu vs faltou)
+  const base = attended + noShow
+  const attendanceRate = base > 0 ? Math.round((attended / base) * 100) : null
+
+  const uniq = new Set()
+  A.filter(a => a.status === 'concluido').forEach(a => uniq.add(a.patient_id || a.patient_name))
+
+  return {
+    start, end, granularity,
+    revenue: {
+      paid, pending, total: paid + pending,
+      count: paidRows.length,
+      ticket_medio: paidRows.length ? paid / paidRows.length : 0
+    },
+    by_method: byMethod,
+    series,
+    appointments: { total: A.length, attended, no_show: noShow, cancelled, by_status: byStatus },
+    attendance_rate: attendanceRate,
+    patients: { attended_unique: uniq.size, new: newPatients }
+  }
+}
+
 export {
   testConnection,
   createSession,
@@ -864,6 +957,7 @@ export {
   updatePackage,
   consumePackageSession,
   getMonthlyReport,
+  getOverviewReport,
   // Livro-caixa / pacotes / agenda recorrente
   getActivePackage,
   restorePackageSession,

@@ -50,6 +50,7 @@ import {
   updatePackage,
   consumePackageSession,
   getMonthlyReport,
+  getOverviewReport,
   getActivePackage,
   getAppointment,
   deleteAppointment,
@@ -733,6 +734,23 @@ app.get('/api/reports/monthly', requireAuth, async (req, res) => {
     res.json(await getMonthlyReport(month))
   } catch (error) {
     console.error('Erro no relatório mensal:', error.message)
+    res.status(500).json({ error: 'Erro interno no relatório' })
+  }
+})
+
+// Dashboard: período livre + granularidade (dia ou mês)
+app.get('/api/reports/overview', requireAuth, async (req, res) => {
+  try {
+    const { start, end } = req.query
+    if (!start || !end) return res.status(400).json({ error: 'Informe start e end (YYYY-MM-DD)' })
+
+    // Períodos longos agrupam por mês; curtos, por dia
+    const days = (new Date(end) - new Date(start)) / 86400000
+    const granularity = req.query.granularity || (days > 62 ? 'month' : 'day')
+
+    res.json(await getOverviewReport(start, end, granularity))
+  } catch (error) {
+    console.error('Erro no relatório geral:', error.message)
     res.status(500).json({ error: 'Erro interno no relatório' })
   }
 })
