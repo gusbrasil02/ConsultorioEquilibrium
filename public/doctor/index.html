@@ -703,6 +703,17 @@ textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 
+/* Selo de pacote ativo (fechamento da consulta) */
+.pkg-badge {
+  background: rgba(100,80,180,0.18); border: 1px solid rgba(140,110,220,0.4);
+  color: #cbbcf2; border-radius: 12px; padding: 0.7rem 0.9rem;
+  font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.45;
+}
+.modal-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 1.5rem 0; }
+body.light .modal-divider { background: rgba(0,0,0,0.1); }
+.rec-summary { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-top: 0.4rem; line-height: 1.5; }
+body.light .rec-summary { color: rgba(0,0,0,0.5); }
+
 /* Campo de busca de paciente no modal de agendamento */
 .patient-search-wrapper { position: relative; }
 .patient-suggestions {
@@ -962,7 +973,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
     </div>
     <div class="form-group">
       <label class="form-label">Tipo</label>
-      <select class="form-control" id="appt-type">
+      <select class="form-control" id="appt-type" onchange="onApptTypeChange()">
         <option value="">Selecione...</option>
         <option value="Fisioterapia">Fisioterapia</option>
         <option value="Acupuntura">Acupuntura</option>
@@ -1198,6 +1209,13 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
   </div>
   <div class="section-title">Por forma de pagamento</div>
   <div id="fin-by-method" class="history-list"></div>
+
+  <div class="section-title" style="margin-top:2.5rem">Tabela de preços padrão</div>
+  <div style="font-size:0.8rem;color:rgba(255,255,255,0.35);margin-bottom:1rem">
+    Preenchido automaticamente ao agendar e ao fechar a consulta — você ainda pode editar caso a caso.
+  </div>
+  <div id="price-table" class="history-list"></div>
+  <button class="btn-save" style="margin-top:1rem" onclick="savePrices()">Salvar preços</button>
 </div>
 
 <!-- Detalhe do Paciente -->
@@ -1344,9 +1362,93 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
         <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-obs', this)">🎤</button>
       </div>
     </div>
+
+    <!-- ── Cobrança ── -->
+    <div class="modal-divider"></div>
+    <div class="section-title" style="margin-bottom:1rem">Cobrança</div>
+    <div id="pkg-badge" class="pkg-badge" style="display:none"></div>
+    <div class="form-group">
+      <label class="form-label">Situação</label>
+      <select class="form-control" id="bill-mode" onchange="onBillModeChange()">
+        <option value="pago">Pago agora</option>
+        <option value="pendente">Pendente (a receber)</option>
+        <option value="pacote">Debitar do pacote</option>
+        <option value="isento">Isento / cortesia</option>
+      </select>
+    </div>
+    <div class="form-group" id="bill-amount-group">
+      <label class="form-label">Valor (R$)</label>
+      <input type="number" step="0.01" min="0" class="form-control" id="bill-amount" placeholder="0,00">
+    </div>
+    <div class="form-group" id="bill-method-group">
+      <label class="form-label">Forma de pagamento</label>
+      <select class="form-control" id="bill-method">
+        <option value="pix">Pix</option>
+        <option value="dinheiro">Dinheiro</option>
+        <option value="cartao">Cartão</option>
+        <option value="transferencia">Transferência</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+
+    <!-- ── Próximo retorno ── -->
+    <div class="modal-divider"></div>
+    <div class="section-title" style="margin-bottom:1rem">Próximo retorno</div>
+    <label class="meridian-toggle" style="margin-bottom:1rem;font-size:0.9rem">
+      <input type="checkbox" id="rec-enabled" onchange="onRecToggle()">
+      <span>Já agendar o(s) retorno(s)</span>
+    </label>
+    <div id="rec-fields" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Primeira data</label>
+        <input type="date" class="form-control" id="rec-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Horário</label>
+        <input type="time" class="form-control" id="rec-time">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Frequência</label>
+        <select class="form-control" id="rec-freq" onchange="updateRecSummary()">
+          <option value="semanal">Semanal (1x por semana)</option>
+          <option value="2x">2x por semana</option>
+          <option value="quinzenal">Quinzenal</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Quantas sessões</label>
+        <input type="number" min="1" max="52" class="form-control" id="rec-count" value="4" oninput="updateRecSummary()">
+        <div class="rec-summary" id="rec-summary"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select class="form-control" id="rec-type" onchange="onRecTypeChange()">
+          <option value="Fisioterapia">Fisioterapia</option>
+          <option value="Acupuntura">Acupuntura</option>
+          <option value="Retorno" selected>Retorno</option>
+          <option value="Pilates">Pilates</option>
+          <option value="Avaliação">Avaliação</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Duração</label>
+        <select class="form-control" id="rec-duration">
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+          <option value="60" selected>60 min</option>
+          <option value="90">90 min</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Valor de cada retorno (R$)</label>
+        <input type="number" step="0.01" min="0" class="form-control" id="rec-price" placeholder="Usa o preço padrão do tipo">
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeFinishModal()">Cancelar</button>
-      <button class="btn-finish btn-session-action" style="padding:0.75rem 2rem;border-radius:60px" onclick="confirmFinishSession()">■ Finalizar Sessão</button>
+      <button class="btn-finish btn-session-action" style="padding:0.75rem 2rem;border-radius:60px" onclick="confirmFinishSession()">■ Fechar Consulta</button>
     </div>
   </div>
 </div>
@@ -1518,6 +1620,12 @@ window.addEventListener('load', async () => {
     } catch (_) {}
   }
 
+  // Tabela de preços fica em memória para autopreencher agenda/fechamento
+  try {
+    const r = await fetch('/api/settings/prices')
+    if (r.ok) defaultPrices = await r.json()
+  } catch (_) {}
+
   startDoctorStream()
   switchTab(currentSession ? activeTab : 'agenda', false)
 })
@@ -1676,13 +1784,101 @@ async function startSessionAction() {
   renderSessionControls()
 }
 
-function finishSessionAction() {
+let closeoutCtx = { default_prices: {}, active_package: null }
+
+async function finishSessionAction() {
   if (!currentSession) return
-  document.getElementById('finish-modal-title').textContent = `Finalizar — ${currentSession.patient_name}`
+  document.getElementById('finish-modal-title').textContent = `Fechar consulta — ${currentSession.patient_name}`
   ;['finish-complaint','finish-conduct','finish-evolution','finish-plan','finish-obs'].forEach(id => {
     document.getElementById(id).value = ''
   })
+
+  // Reset da cobrança/retorno
+  document.getElementById('bill-mode').value   = 'pago'
+  document.getElementById('bill-amount').value = ''
+  document.getElementById('bill-method').value = 'pix'
+  document.getElementById('rec-enabled').checked = false
+  document.getElementById('rec-fields').style.display = 'none'
+  document.getElementById('pkg-badge').style.display = 'none'
+  document.getElementById('rec-price').value = ''
   document.getElementById('finish-modal').classList.add('visible')
+
+  // Contexto: preço sugerido, pacote ativo, tabela de preços
+  try {
+    const r = await fetch(`/api/sessions/${currentSession.id}/closeout`)
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) return
+    closeoutCtx = await r.json()
+
+    if (closeoutCtx.suggested_amount != null) {
+      document.getElementById('bill-amount').value = closeoutCtx.suggested_amount
+    }
+
+    const pkg = closeoutCtx.active_package
+    const badge = document.getElementById('pkg-badge')
+    if (pkg) {
+      const restam = pkg.total_sessions - (pkg.used_sessions || 0)
+      badge.innerHTML = `📦 <b>Pacote ativo:</b> ${restam} de ${pkg.total_sessions} sessões restantes.<br>Escolha <b>"Debitar do pacote"</b> para consumir uma agora.`
+      badge.style.display = 'block'
+      document.getElementById('bill-mode').value = 'pacote'
+    }
+    onBillModeChange()
+
+    // Sugestão de retorno: mesmo horário do agendamento, daqui a 1 semana
+    const appt = closeoutCtx.appointment
+    const base = new Date()
+    base.setDate(base.getDate() + 7)
+    document.getElementById('rec-date').value = formatDate(base)
+    document.getElementById('rec-time').value = appt?.appointment_time?.slice(0, 5) || '09:00'
+    if (appt?.type) {
+      const sel = document.getElementById('rec-type')
+      if ([...sel.options].some(o => o.value === appt.type)) sel.value = appt.type
+    }
+    if (appt?.duration_minutes) document.getElementById('rec-duration').value = appt.duration_minutes
+    onRecTypeChange()
+    updateRecSummary()
+  } catch (_) {}
+}
+
+// "Debitar do pacote" e "Isento" não pedem valor/forma
+function onBillModeChange() {
+  const mode = document.getElementById('bill-mode').value
+  const money = mode === 'pago' || mode === 'pendente'
+  document.getElementById('bill-amount-group').style.display = money ? 'block' : 'none'
+  document.getElementById('bill-method-group').style.display = mode === 'pago' ? 'block' : 'none'
+}
+
+function onRecToggle() {
+  const on = document.getElementById('rec-enabled').checked
+  document.getElementById('rec-fields').style.display = on ? 'block' : 'none'
+  if (on) updateRecSummary()
+}
+
+function onRecTypeChange() {
+  const type = document.getElementById('rec-type').value
+  const p = closeoutCtx.default_prices?.[type]
+  const field = document.getElementById('rec-price')
+  if (p != null && !field.value) field.value = p
+  updateRecSummary()
+}
+
+// Mostra as datas que serão criadas (sem contar conflitos, que o servidor pula)
+function updateRecSummary() {
+  const el = document.getElementById('rec-summary')
+  if (!el) return
+  const count = Math.min(parseInt(document.getElementById('rec-count').value) || 0, 52)
+  const freq  = document.getElementById('rec-freq').value
+  const start = document.getElementById('rec-date').value
+  if (!count || !start) { el.textContent = ''; return }
+  const step = freq === 'quinzenal' ? 14 : freq === '2x' ? 3.5 : 7
+  const dates = []
+  for (let i = 0; i < Math.min(count, 4); i++) {
+    const d = new Date(start + 'T12:00:00')
+    d.setDate(d.getDate() + Math.round(step * i))
+    dates.push(d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }))
+  }
+  const more = count > 4 ? ` … (+${count - 4})` : ''
+  el.textContent = `Serão criados ${count} agendamentos: ${dates.join(', ')}${more}. Horários já ocupados são pulados.`
 }
 
 function closeFinishModal() {
@@ -1697,9 +1893,40 @@ async function confirmFinishSession() {
   const evolution = document.getElementById('finish-evolution').value.trim()
   const plan      = document.getElementById('finish-plan').value.trim()
   const obs       = document.getElementById('finish-obs').value.trim()
+
+  const mode      = document.getElementById('bill-mode').value
+  const amountRaw = document.getElementById('bill-amount').value
+  const billing = {
+    mode,
+    amount: (mode === 'pago' || mode === 'pendente') && amountRaw !== '' ? parseFloat(amountRaw) : null,
+    method: mode === 'pago' ? document.getElementById('bill-method').value : null
+  }
+
+  if ((mode === 'pago' || mode === 'pendente') && !(billing.amount > 0)) {
+    if (!confirm('Nenhum valor informado — a consulta não vai gerar lançamento no financeiro. Continuar assim?')) return
+  }
+
+  const recEnabled = document.getElementById('rec-enabled').checked
+  const recurrence = recEnabled ? {
+    enabled: true,
+    start_date: document.getElementById('rec-date').value,
+    time:       document.getElementById('rec-time').value,
+    frequency:  document.getElementById('rec-freq').value,
+    count:      parseInt(document.getElementById('rec-count').value) || 1,
+    type:       document.getElementById('rec-type').value,
+    duration_minutes: parseInt(document.getElementById('rec-duration').value) || 60,
+    price:      document.getElementById('rec-price').value || null
+  } : null
+
+  if (recEnabled && (!recurrence.start_date || !recurrence.time)) {
+    alert('Informe data e horário do retorno.')
+    return
+  }
+
   closeFinishModal()
+  let result = null
   try {
-    await fetch(`/api/sessions/${currentSession.id}/end`, {
+    const r = await fetch(`/api/sessions/${currentSession.id}/end`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1708,16 +1935,27 @@ async function confirmFinishSession() {
         session_evolution: evolution || null,
         session_plan: plan || null,
         session_observations: obs || null,
-        session_notes: conduct || null   // compatibilidade com exibição antiga
+        session_notes: conduct || null,   // compatibilidade com exibição antiga
+        billing,
+        recurrence
       })
     })
+    if (r.ok) result = await r.json()
   } catch (_) {}
+
   stopTimer()
   currentSession = null
   previewPatient = null
   localStorage.removeItem('doctor_session')
   document.getElementById('session-control').classList.add('hidden')
   switchTab('agenda')
+
+  if (result && (result.created?.length || result.skipped?.length)) {
+    let msg = ''
+    if (result.created.length) msg += `${result.created.length} retorno(s) agendado(s).`
+    if (result.skipped.length) msg += `\n${result.skipped.length} data(s) pulada(s) por conflito de horário: ${result.skipped.join(', ')}`
+    alert(msg)
+  }
 }
 
 // ── Ditado por voz ────────────────────────────────────────────────────────────
@@ -2793,6 +3031,55 @@ function parseAnswers(answers) {
 // ── Financeiro (item 6) ───────────────────────────────────────────────────────
 function brl(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
 
+const APPT_TYPES = ['Fisioterapia', 'Acupuntura', 'Avaliação', 'Retorno', 'Pilates', 'Outro']
+let defaultPrices = {}
+
+// Tabela de preços padrão por tipo de atendimento
+async function loadPrices() {
+  try {
+    const r = await fetch('/api/settings/prices')
+    if (r.status === 401) { location.href = '/login'; return }
+    if (r.ok) defaultPrices = await r.json()
+  } catch (_) { defaultPrices = {} }
+
+  const box = document.getElementById('price-table')
+  if (!box) return
+  box.innerHTML = ''
+  APPT_TYPES.forEach(t => {
+    const row = document.createElement('div')
+    row.className = 'history-item'
+    row.innerHTML = `
+      <span style="min-width:130px">${t}</span>
+      <input type="number" step="0.01" min="0" class="form-control" data-type="${t}"
+             value="${defaultPrices[t] ?? ''}" placeholder="0,00"
+             style="max-width:150px;margin-left:auto">`
+    box.appendChild(row)
+  })
+}
+
+async function savePrices() {
+  const body = {}
+  document.querySelectorAll('#price-table input[data-type]').forEach(i => {
+    if (i.value !== '') body[i.dataset.type] = parseFloat(i.value)
+  })
+  try {
+    const r = await fetch('/api/settings/prices', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    if (!r.ok) throw new Error()
+    defaultPrices = await r.json()
+    alert('Preços salvos.')
+  } catch (_) { alert('Erro ao salvar preços.') }
+}
+
+// Preenche o valor do agendamento a partir do tipo
+function onApptTypeChange() {
+  const t = document.getElementById('appt-type').value
+  const f = document.getElementById('appt-price')
+  if (!f.value && defaultPrices[t] != null) f.value = defaultPrices[t]
+}
+
 let financeMonthDate = new Date()
 
 function financeMonth(delta) {
@@ -2816,14 +3103,18 @@ async function loadFinanceReport() {
     const box = document.getElementById('fin-by-method')
     box.innerHTML = ''
     const entries = Object.entries(d.by_method || {})
-    if (!entries.length) { box.innerHTML = '<div class="no-history">Sem pagamentos neste mês.</div>'; return }
-    entries.sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
-      const div = document.createElement('div')
-      div.className = 'history-item'
-      div.innerHTML = `<span class="history-date" style="text-transform:capitalize">${k}</span><span style="margin-left:auto;color:rgba(120,200,150,0.95)">${brl(v)}</span>`
-      box.appendChild(div)
-    })
+    if (!entries.length) {
+      box.innerHTML = '<div class="no-history">Sem pagamentos neste mês.</div>'
+    } else {
+      entries.sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
+        const div = document.createElement('div')
+        div.className = 'history-item'
+        div.innerHTML = `<span class="history-date" style="text-transform:capitalize">${k}</span><span style="margin-left:auto;color:rgba(120,200,150,0.95)">${brl(v)}</span>`
+        box.appendChild(div)
+      })
+    }
   } catch (_) {}
+  loadPrices()
 }
 
 async function loadPatientFinance(id) {

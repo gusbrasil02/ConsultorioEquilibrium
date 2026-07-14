@@ -19,7 +19,8 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
    1. `supabase-setup.sql`            — tabelas base (sessions, answers, anatomy_events)
    2. `supabase-additions.sql`        — pacientes e agendamentos
    3. `supabase-session-migration.sql`— controle de fluxo e anotações de sessão
-   4. `supabase-v2-migration.sql`     — **login, financeiro, prontuário estruturado e calibração** (novo)
+   4. `supabase-v2-migration.sql`     — login, financeiro, prontuário estruturado e calibração
+   5. `supabase-v3-migration.sql`     — **livro-caixa único e agenda recorrente** (novo)
 3. Vá em **Project Settings → API**
 4. Copie a **Project URL** → `SUPABASE_URL`
 5. Copie a chave **service_role** → `SUPABASE_SERVICE_KEY`
@@ -139,6 +140,26 @@ Paciente chega → identifica o agendamento → QR Code (ou formulário na TV)
 → revisa/edita → "Exibir na TV" publica para o paciente
 → ou Corpo Acupuntura 3D com os pontos selecionados
 ```
+
+---
+
+## Como o financeiro funciona (importante)
+
+A tabela **`payments` é o livro-caixa único** — é dela que o relatório mensal lê. Você **não lança nada à mão**: o valor que você coloca no agendamento ou no fechamento da consulta vira lançamento automaticamente.
+
+| O que você faz | O que acontece no caixa |
+|---|---|
+| Agendamento com valor | Cria lançamento **pendente** (a receber) |
+| Fechar consulta como **Pago** | Lançamento vira **pago**, com a forma de pagamento |
+| Fechar consulta como **Pendente** | Fica como **a receber** |
+| Fechar consulta **no pacote** | **Não gera cobrança** — debita 1 sessão do pacote ativo |
+| Fechar consulta como **Isento** | Remove qualquer cobrança daquele atendimento |
+
+`payments.paid_at` é a **data de referência (competência)** do lançamento — é por ela que o relatório agrupa o mês.
+
+**Preços padrão:** cadastre uma vez em **Financeiro → Tabela de preços padrão**. O valor passa a vir preenchido ao agendar e ao fechar a consulta (sempre editável caso a caso).
+
+**Fechar a consulta** é o momento em que tudo se conecta: prontuário + cobrança + agendamento dos retornos (semanal / 2x por semana / quinzenal), pulando horários já ocupados.
 
 ---
 

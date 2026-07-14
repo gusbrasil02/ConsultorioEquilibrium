@@ -49,7 +49,12 @@ import {
   createPackage,
   updatePackage,
   consumePackageSession,
-  getMonthlyReport
+  getMonthlyReport,
+  getActivePackage,
+  getAppointment,
+  syncAppointmentPayment,
+  syncAppointmentPackage,
+  hasConflict
 } from './database.js'
 import { generateAnatomyExplanation } from './ai.js'
 import {
@@ -304,22 +309,139 @@ app.post('/api/sessions/:id/begin', requireAuth, async (req, res) => {
   }
 })
 
-// Finaliza sessão (aceita prontuário estruturado — item 7)
+// Contexto para o modal "Fechar a consulta": pacote ativo, preço sugerido, etc.
+app.get('/api/sessions/:id/closeout', requireAuth, async (req, res) => {
+  try {
+    const session = await getSession(req.params.id)
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
+
+    const appointment = session.appointment_id ? await getAppointment(session.appointment_id) : null
+    const activePackage = session.patient_id ? await getActivePackage(session.patient_id) : null
+    const prices = (await getSetting('default_prices')) || {}
+
+    const type = appointment?.type || null
+    const suggested = appointment?.price ?? (type && prices[type] != null ? prices[type] : null)
+
+    res.json({
+      patient_id: session.patient_id || null,
+      patient_name: session.patient_name,
+      appointment,
+      type,
+      suggested_amount: suggested,
+      active_package: activePackage,
+      default_prices: prices
+    })
+  } catch (error) {
+    console.error('Erro no closeout:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Soma dias respeitando a frequência escolhida
+function nextDate(dateStr, frequency, index) {
+  const d = new Date(dateStr + 'T12:00:00Z')
+  if (frequency === 'quinzenal')      d.setUTCDate(d.getUTCDate() + 14 * index)
+  else if (frequency === '2x')        d.setUTCDate(d.getUTCDate() + Math.round(3.5 * index))
+  else /* semanal */                  d.setUTCDate(d.getUTCDate() + 7 * index)
+  return d.toISOString().slice(0, 10)
+}
+
+// Finaliza sessão: prontuário + cobrança + retorno recorrente
 app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
   try {
     const {
       session_notes, session_observations,
-      session_complaint, session_conduct, session_evolution, session_plan
+      session_complaint, session_conduct, session_evolution, session_plan,
+      billing, recurrence
     } = req.body
+
     const session = await getSession(req.params.id)
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
+
+    // 1. Prontuário
     await finishSession(req.params.id, {
       session_notes, session_observations,
       session_complaint, session_conduct, session_evolution, session_plan
     })
-    if (session?.appointment_id) {
+
+    const result = { success: true, created: [], skipped: [] }
+
+    // 2. Cobrança — sempre desemboca no livro-caixa (`payments`)
+    if (billing && billing.mode) {
+      const amount = billing.amount == null || billing.amount === '' ? null : Number(billing.amount)
+      try {
+        if (session.appointment_id) {
+          // Grava no agendamento e deixa o sync refletir no caixa/pacote
+          await updateAppointment(session.appointment_id, {
+            status: 'concluido',
+            price: amount,
+            payment_status: billing.mode,
+            payment_method: billing.method || null
+          })
+          const appt = await getAppointment(session.appointment_id)
+          await syncAppointmentPackage(appt)
+          const fresh = await getAppointment(session.appointment_id)
+          await syncAppointmentPayment(fresh)
+        } else {
+          // Sessão avulsa (sem agendamento): lança direto
+          if (billing.mode === 'pacote') {
+            await consumePackageSession(session.patient_id)
+          } else if ((billing.mode === 'pago' || billing.mode === 'pendente') && amount > 0) {
+            await createPayment({
+              patient_id: session.patient_id,
+              session_id: session.id,
+              amount,
+              method: billing.method || null,
+              status: billing.mode,
+              paid_at: new Date().toISOString().slice(0, 10)
+            })
+          }
+        }
+      } catch (e) {
+        console.error('Erro na cobrança do fechamento:', e.message)
+      }
+    } else if (session.appointment_id) {
       await updateAppointment(session.appointment_id, { status: 'concluido' }).catch(() => {})
     }
-    res.json({ success: true })
+
+    // 3. Retorno recorrente
+    if (recurrence?.enabled && recurrence.start_date && recurrence.time) {
+      const count     = Math.min(Math.max(parseInt(recurrence.count) || 1, 1), 52)
+      const frequency = recurrence.frequency || 'semanal'
+      const duration  = parseInt(recurrence.duration_minutes) || 60
+      const type      = recurrence.type || 'Retorno'
+      const seriesId  = uuidv4()
+
+      let created = 0
+      // Tenta até 3x o número de sessões para pular conflitos sem loop infinito
+      for (let i = 0; created < count && i < count * 3; i++) {
+        const date = nextDate(recurrence.start_date, frequency, i)
+        try {
+          if (await hasConflict(date, recurrence.time, duration)) {
+            result.skipped.push(date)
+            continue
+          }
+          const appt = await createAppointment({
+            patient_id: session.patient_id || null,
+            patient_name: session.patient_name,
+            appointment_date: date,
+            appointment_time: recurrence.time,
+            type,
+            duration_minutes: duration,
+            notes: recurrence.notes || null,
+            price: recurrence.price == null || recurrence.price === '' ? null : Number(recurrence.price)
+          })
+          if (seriesId) await updateAppointment(appt.id, { series_id: seriesId }).catch(() => {})
+          await syncAppointmentPayment(appt).catch(() => {})
+          result.created.push(date)
+          created++
+        } catch (e) {
+          console.error('Erro ao criar retorno:', e.message)
+        }
+      }
+    }
+
+    res.json(result)
   } catch (error) {
     console.error('Erro ao finalizar sessão:', error.message)
     res.status(500).json({ error: 'Erro interno' })
@@ -491,16 +613,25 @@ app.post('/api/appointments', requireAuth, async (req, res) => {
       patient_id, patient_name: patient_name.trim(),
       appointment_date, appointment_time, type, duration_minutes, notes, price
     })
+    // Valor do agendamento vira lançamento no caixa (a receber)
+    await syncAppointmentPayment(appointment).catch(() => {})
     res.status(201).json(appointment)
   } catch (error) {
+    console.error('Erro ao criar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao criar agendamento' })
   }
 })
 
 app.put('/api/appointments/:id', requireAuth, async (req, res) => {
   try {
-    res.json(await updateAppointment(req.params.id, req.body))
+    const appointment = await updateAppointment(req.params.id, req.body)
+    // Mantém caixa e pacote em dia com o que foi salvo no agendamento
+    await syncAppointmentPackage(appointment).catch(() => {})
+    const fresh = await getAppointment(req.params.id)
+    await syncAppointmentPayment(fresh || appointment).catch(() => {})
+    res.json(fresh || appointment)
   } catch (error) {
+    console.error('Erro ao atualizar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao atualizar agendamento' })
   }
 })
@@ -547,6 +678,30 @@ app.post('/api/patients/:id/consume-package', requireAuth, async (req, res) => {
     res.json(pkg)
   } catch (error) {
     res.status(500).json({ error: 'Erro interno ao consumir pacote' })
+  }
+})
+
+// Tabela de preços padrão por tipo de atendimento
+app.get('/api/settings/prices', requireAuth, async (req, res) => {
+  try {
+    res.json((await getSetting('default_prices')) || {})
+  } catch (error) {
+    res.json({})
+  }
+})
+
+app.put('/api/settings/prices', requireAuth, async (req, res) => {
+  try {
+    const prices = {}
+    for (const [k, v] of Object.entries(req.body || {})) {
+      const n = Number(v)
+      if (k && !isNaN(n) && n >= 0) prices[k] = n
+    }
+    await setSetting('default_prices', prices)
+    res.json(prices)
+  } catch (error) {
+    console.error('Erro ao salvar preços:', error.message)
+    res.status(500).json({ error: 'Erro interno ao salvar preços' })
   }
 })
 

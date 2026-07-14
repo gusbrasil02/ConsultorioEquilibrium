@@ -668,6 +668,98 @@ async function consumePackageSession(patient_id) {
   return updatePackage(pkg.id, { used_sessions: used, active })
 }
 
+// Pacote ativo do paciente que ainda tem saldo
+async function getActivePackage(patient_id) {
+  if (!patient_id) return null
+  const { data } = await supabase
+    .from('patient_packages')
+    .select('*')
+    .eq('patient_id', patient_id)
+    .eq('active', true)
+    .order('created_at', { ascending: true })
+  return (data || []).find(p => (p.used_sessions || 0) < p.total_sessions) || null
+}
+
+// Devolve uma sessão ao pacote (quando um agendamento deixa de ser "no pacote")
+async function restorePackageSession(package_id) {
+  const { data: pkg } = await supabase
+    .from('patient_packages').select('*').eq('id', package_id).single()
+  if (!pkg) return null
+  const used = Math.max(0, (pkg.used_sessions || 0) - 1)
+  return updatePackage(package_id, { used_sessions: used, active: used < pkg.total_sessions })
+}
+
+async function getAppointment(id) {
+  const { data, error } = await supabase.from('appointments').select('*').eq('id', id).single()
+  if (error) return null
+  return data
+}
+
+// ─── Livro-caixa: o agendamento vira lançamento em `payments` ────────────────
+// `payments` é a ÚNICA fonte de verdade do financeiro. Toda vez que um
+// agendamento ganha/muda valor ou status de pagamento, refletimos aqui.
+async function syncAppointmentPayment(appt) {
+  if (!appt?.id) return
+  const status = appt.payment_status || 'pendente'
+  const price  = appt.price == null || appt.price === '' ? null : Number(appt.price)
+
+  const { data: existing } = await supabase
+    .from('payments').select('id').eq('appointment_id', appt.id).maybeSingle()
+
+  // Só gera lançamento quando há dinheiro envolvido (isento/pacote não geram)
+  const chargeable = (status === 'pago' || status === 'pendente') && price > 0
+
+  if (chargeable) {
+    const row = {
+      patient_id:     appt.patient_id || null,
+      appointment_id: appt.id,
+      amount:         price,
+      method:         appt.payment_method || null,
+      status,
+      // paid_at = data de referência (competência) do lançamento
+      paid_at:        appt.appointment_date || null
+    }
+    if (existing) await supabase.from('payments').update(row).eq('id', existing.id)
+    else          await supabase.from('payments').insert(row)
+  } else if (existing) {
+    await supabase.from('payments').delete().eq('id', existing.id)
+  }
+}
+
+// Consome/estorna pacote conforme o agendamento é marcado como "no pacote"
+async function syncAppointmentPackage(appt) {
+  if (!appt?.id) return null
+  const status = appt.payment_status
+
+  if (status === 'pacote' && !appt.package_id) {
+    const pkg = await consumePackageSession(appt.patient_id)
+    if (pkg) await supabase.from('appointments').update({ package_id: pkg.id }).eq('id', appt.id)
+    return pkg
+  }
+  if (status !== 'pacote' && appt.package_id) {
+    await restorePackageSession(appt.package_id)
+    await supabase.from('appointments').update({ package_id: null }).eq('id', appt.id)
+  }
+  return null
+}
+
+// Verifica se um horário já está ocupado (usado pela agenda recorrente)
+async function hasConflict(dateStr, timeStr, durationMin) {
+  const appts = await getAppointmentsByDate(dateStr)
+  const toMin = t => {
+    const [h, m] = String(t).slice(0, 5).split(':').map(Number)
+    return h * 60 + m
+  }
+  const s = toMin(timeStr)
+  const e = s + (Number(durationMin) || 60)
+  return (appts || []).some(a => {
+    if (a.status === 'cancelado') return false
+    const as = toMin(a.appointment_time)
+    const ae = as + (Number(a.duration_minutes) || 60)
+    return s < ae && as < e   // sobreposição
+  })
+}
+
 // Relatório mensal — receita e contagem de pagamentos no mês (YYYY-MM)
 async function getMonthlyReport(month) {
   const start = `${month}-01`
@@ -742,5 +834,12 @@ export {
   createPackage,
   updatePackage,
   consumePackageSession,
-  getMonthlyReport
+  getMonthlyReport,
+  // Livro-caixa / pacotes / agenda recorrente
+  getActivePackage,
+  restorePackageSession,
+  getAppointment,
+  syncAppointmentPayment,
+  syncAppointmentPackage,
+  hasConflict
 }
