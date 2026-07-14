@@ -163,6 +163,26 @@ A tabela **`payments` é o livro-caixa único** — é dela que o relatório men
 
 ---
 
+## Pix no formulário do paciente
+
+Configure em **Financeiro → Chave Pix** (chave, nome do recebedor e cidade). O sistema gera o **BR Code** (padrão EMV do Banco Central) localmente — **sem gateway, sem taxa, sem intermediário**. O dinheiro cai direto na sua conta.
+
+Com o Pix ativo, o formulário do celular ganha uma última pergunta — *"Como você prefere pagar a consulta?"* — que só aparece **se houver valor a cobrar** (não aparece se for pacote ou isento):
+
+| Paciente escolhe | O que acontece |
+|---|---|
+| **Pix** | Mostra QR Code + botão **copia e cola** + a chave. Pode tocar em **"Já paguei"** |
+| **Dinheiro / Cartão** | Combina pagar na recepção |
+| **Estou com dificuldade** | Avisa a profissional para combinar pessoalmente |
+
+Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no fechamento da consulta** (se declarou Pix pago → sugere "Pago"; se pediu ajuda → sugere "Pendente").
+
+> ⚠️ **Limitação do Pix estático:** ele **não avisa o sistema** quando o dinheiro cai (isso exigiria um gateway com webhook). O paciente declara que pagou, você confere no app do banco e confirma com **1 clique** em *Financeiro → Lançamentos → "Marcar pago"*.
+>
+> **Faça um teste de R$ 0,01** antes de usar de verdade.
+
+---
+
 ## Novidades desta versão
 
 - **Login** por contas individuais protegendo o painel e os dados dos pacientes (LGPD).

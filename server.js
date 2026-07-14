@@ -64,6 +64,7 @@ import {
   hasConflict
 } from './database.js'
 import { generateAnatomyExplanation } from './ai.js'
+import { buildPixPayload } from './pix.js'
 import {
   hashPassword,
   verifyPassword,
@@ -705,6 +706,96 @@ app.post('/api/patients/:id/consume-package', requireAuth, async (req, res) => {
     res.json(pkg)
   } catch (error) {
     res.status(500).json({ error: 'Erro interno ao consumir pacote' })
+  }
+})
+
+// ─── Pix estático ─────────────────────────────────────────────────────────────
+
+app.get('/api/settings/pix', requireAuth, async (req, res) => {
+  try {
+    res.json((await getSetting('pix_config')) || { enabled: false })
+  } catch (error) {
+    res.json({ enabled: false })
+  }
+})
+
+app.put('/api/settings/pix', requireAuth, async (req, res) => {
+  try {
+    const { key, key_type, name, city, enabled } = req.body || {}
+    const cfg = {
+      key: String(key || '').trim(),
+      key_type: key_type || 'aleatoria',
+      name: String(name || '').trim(),
+      city: String(city || '').trim(),
+      enabled: !!enabled && !!String(key || '').trim()
+    }
+    // Valida gerando um código de teste — falha aqui é melhor que no celular do paciente
+    if (cfg.enabled) {
+      try {
+        buildPixPayload({ key: cfg.key, name: cfg.name, city: cfg.city, amount: 1, txid: 'TESTE' })
+      } catch (e) {
+        return res.status(400).json({ error: 'Não foi possível gerar o código Pix: ' + e.message })
+      }
+    }
+    await setSetting('pix_config', cfg)
+    res.json(cfg)
+  } catch (error) {
+    console.error('Erro ao salvar Pix:', error.message)
+    res.status(500).json({ error: 'Erro interno ao salvar configuração do Pix' })
+  }
+})
+
+// Cobrança + Pix de uma sessão (público — o celular do paciente consulta pelo
+// id da sessão, que é um UUID não adivinhável)
+app.get('/api/sessions/:id/pix', async (req, res) => {
+  try {
+    const session = await getSession(req.params.id)
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
+
+    const appointment = session.appointment_id ? await getAppointment(session.appointment_id) : null
+    const prices = (await getSetting('default_prices')) || {}
+    const cfg    = (await getSetting('pix_config')) || { enabled: false }
+
+    // Coberto por pacote ou isento → não cobra nada no formulário
+    const covered = appointment?.payment_status === 'pacote' ? 'pacote'
+                  : appointment?.payment_status === 'isento' ? 'isento'
+                  : appointment?.payment_status === 'pago'   ? 'pago'
+                  : null
+
+    const amount = appointment?.price != null
+      ? Number(appointment.price)
+      : (appointment?.type && prices[appointment.type] != null ? Number(prices[appointment.type]) : null)
+
+    const charge = {
+      required: !covered && amount > 0,
+      amount: amount ?? null,
+      covered
+    }
+
+    const out = { charge, pix: { enabled: false } }
+
+    if (charge.required && cfg.enabled && cfg.key) {
+      const txid = String(session.id).replace(/[^A-Za-z0-9]/g, '').slice(0, 25)
+      const brcode = buildPixPayload({
+        key: cfg.key, name: cfg.name, city: cfg.city, amount, txid
+      })
+      const qr = await QRCode.toDataURL(brcode, {
+        width: 360, margin: 1, color: { dark: '#0b2d1e', light: '#ffffff' }
+      })
+      out.pix = {
+        enabled: true,
+        brcode,
+        qr_code_base64: qr,
+        key: cfg.key,
+        key_type: cfg.key_type,
+        name: cfg.name
+      }
+    }
+
+    res.json(out)
+  } catch (error) {
+    console.error('Erro ao gerar Pix da sessão:', error.message)
+    res.status(500).json({ error: 'Erro interno ao gerar Pix' })
   }
 })
 

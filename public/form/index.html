@@ -20,7 +20,58 @@
   body.q2 { background: linear-gradient(160deg, #1a0a0a 0%, #3d1515 55%, #2a0a1e 100%); }
   body.q3 { background: linear-gradient(160deg, #0f2027 0%, #203a43 55%, #2c5364 100%); }
   body.q4 { background: linear-gradient(160deg, #1a1040 0%, #2d1b5e 55%, #1a2850 100%); }
+  body.q5 { background: linear-gradient(160deg, #05231a 0%, #0d3f2e 55%, #0a2f3f 100%); }
   body.done-state { background: linear-gradient(160deg, #0a1a0a 0%, #1a3a1a 55%, #0f2a1a 100%); }
+
+  /* ── Pagamento / Pix ── */
+  .pay-amount-top {
+    text-align: center; margin-bottom: 1.5rem;
+  }
+  .pay-amount-top .lbl {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.14em;
+    color: rgba(255,255,255,0.4);
+  }
+  .pay-amount-top .val {
+    font-family: 'Playfair Display', serif; font-size: 2.2rem; font-weight: 300;
+    color: #fff; margin-top: 0.2rem;
+  }
+  .pay-panel {
+    background: #fff; border-radius: 20px; padding: 1.3rem 1.1rem;
+    margin-top: 1.2rem; text-align: center;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+    animation: pop-in 0.35s cubic-bezier(0.175,0.885,0.32,1.275) both;
+  }
+  .pay-panel img { width: min(220px, 58vw); height: auto; border-radius: 10px; }
+  .pay-panel .hint { font-size: 0.85rem; color: #4a5b6b; margin-top: 0.6rem; line-height: 1.5; }
+  .pay-copy-btn {
+    width: 100%; padding: 0.9rem; margin-top: 0.9rem;
+    border: none; border-radius: 60px;
+    background: #0b6b4a; color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 500;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .pay-copy-btn:active { background: #085038; }
+  .pay-copy-btn.copied { background: #12a06f; }
+  .pay-key {
+    margin-top: 0.9rem; padding-top: 0.9rem;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    font-size: 0.8rem; color: #55677a; line-height: 1.6; word-break: break-all;
+  }
+  .pay-key b { color: #16324a; }
+  .pay-done-btn {
+    width: 100%; padding: 0.9rem; margin-top: 1rem;
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 60px;
+    background: rgba(255,255,255,0.14); color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 0.95rem; cursor: pointer;
+  }
+  .pay-done-btn.done {
+    background: rgba(76,175,134,0.95); border-color: transparent; font-weight: 500;
+  }
+  .pay-help {
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 14px; padding: 1rem; margin-top: 1.2rem;
+    font-size: 0.92rem; line-height: 1.55; color: rgba(255,255,255,0.9);
+  }
 
   /* ── Progresso ── */
   .progress-bar {
@@ -398,21 +449,44 @@
   const params = new URLSearchParams(location.search)
   sessionId = params.get('session')
 
-  if (!sessionId) {
-    document.querySelector('.question-text').textContent = 'Link inválido. Por favor, escaneie o QR Code novamente.'
-    document.getElementById('nav-area').style.display = 'none'
-  } else {
-    // Busca nome do paciente
-    fetch(`/api/sessions/${sessionId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
+  let payInfo = null   // { charge: {...}, pix: {...} }
+
+  async function init() {
+    if (!sessionId) {
+      document.querySelector('.question-text').textContent = 'Link inválido. Por favor, escaneie o QR Code novamente.'
+      document.getElementById('nav-area').style.display = 'none'
+      return
+    }
+
+    // Nome do paciente
+    try {
+      const r = await fetch(`/api/sessions/${sessionId}`)
+      if (r.ok) {
+        const data = await r.json()
         if (data) patientName = data.patient_name
-        else document.getElementById('done-patient-name').textContent = ''
-      })
-      .catch(() => {})
+      }
+    } catch (_) {}
+
+    // Cobrança da sessão — só pergunta pagamento se houver valor a cobrar
+    try {
+      const r = await fetch(`/api/sessions/${sessionId}/pix`)
+      if (r.ok) {
+        payInfo = await r.json()
+        if (payInfo?.charge?.required) {
+          questions.push({
+            key: 'payment_method',
+            text: 'Como você prefere pagar a consulta?',
+            theme: 'q5',
+            type: 'payment'
+          })
+        }
+      }
+    } catch (_) {}
 
     renderQuestion(0)
   }
+
+  init()
 
   function renderQuestion(index) {
     const q = questions[index]
@@ -466,6 +540,128 @@
       area.appendChild(labels)
     } else if (q.type === 'bodymap') {
       renderBodyMap(q, area)
+    } else if (q.type === 'payment') {
+      renderPayment(q, area)
+    }
+  }
+
+  // ── Pagamento da consulta (Pix estático) ────────────────────────────────────
+  const PAY_OPTIONS = ['Pix', 'Dinheiro', 'Cartão', 'Estou com dificuldade']
+
+  function renderPayment(q, area) {
+    const valor = payInfo?.charge?.amount
+    const valorFmt = valor != null
+      ? Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : ''
+
+    area.innerHTML = `
+      ${valor != null ? `
+        <div class="pay-amount-top">
+          <div class="lbl">Valor da consulta</div>
+          <div class="val">${valorFmt}</div>
+        </div>` : ''}
+      <div class="options" id="pay-options"></div>
+      <div id="pay-extra"></div>
+    `
+
+    const box = area.querySelector('#pay-options')
+    PAY_OPTIONS.forEach(opt => {
+      // Só oferece Pix se a profissional configurou a chave
+      if (opt === 'Pix' && !payInfo?.pix?.enabled) return
+      const btn = document.createElement('button')
+      btn.className = 'option-btn' + (answers[q.key] === opt ? ' selected' : '')
+      btn.textContent = opt
+      btn.onclick = () => {
+        box.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+        btn.classList.add('selected')
+        answers[q.key] = opt
+        if (opt !== 'Pix') delete answers['pix_declared']
+        renderPayExtra(opt)
+        enableNext()
+      }
+      box.appendChild(btn)
+    })
+
+    if (answers[q.key]) renderPayExtra(answers[q.key])
+  }
+
+  function renderPayExtra(opt) {
+    const extra = document.getElementById('pay-extra')
+    if (!extra) return
+
+    if (opt === 'Pix' && payInfo?.pix?.enabled) {
+      const pix = payInfo.pix
+      const jaPagou = answers['pix_declared'] === 'sim'
+      extra.innerHTML = `
+        <div class="pay-panel">
+          <img src="${pix.qr_code_base64}" alt="QR Code Pix">
+          <div class="hint">Abra o app do seu banco, escolha <b>Pix &rsaquo; Ler QR Code</b> e aponte para o código acima.</div>
+          <button class="pay-copy-btn" id="btn-copy-pix">📋 Copiar código Pix (copia e cola)</button>
+          <div class="pay-key">
+            Ou pague pela chave:<br>
+            <b>${pix.key}</b>
+            ${pix.name ? `<br><span style="opacity:0.75">${pix.name}</span>` : ''}
+          </div>
+        </div>
+        <button class="pay-done-btn ${jaPagou ? 'done' : ''}" id="btn-ja-paguei">
+          ${jaPagou ? '✓ Pagamento informado' : 'Já paguei'}
+        </button>
+      `
+      document.getElementById('btn-copy-pix').onclick = () => copyPix(pix.brcode)
+      document.getElementById('btn-ja-paguei').onclick = (e) => {
+        answers['pix_declared'] = 'sim'
+        e.target.classList.add('done')
+        e.target.textContent = '✓ Pagamento informado'
+      }
+      return
+    }
+
+    if (opt === 'Estou com dificuldade') {
+      extra.innerHTML = `
+        <div class="pay-help">
+          Sem problema. 🙂<br>
+          A profissional foi avisada e vai combinar o pagamento com você pessoalmente.
+        </div>`
+      return
+    }
+
+    if (opt === 'Dinheiro' || opt === 'Cartão') {
+      extra.innerHTML = `
+        <div class="pay-help">
+          Combinado! Você paga na recepção com a profissional.
+        </div>`
+      return
+    }
+
+    extra.innerHTML = ''
+  }
+
+  // Copia o "copia e cola" — usa a API moderna e cai para o método antigo se falhar
+  async function copyPix(code) {
+    const btn = document.getElementById('btn-copy-pix')
+    let ok = false
+    try {
+      await navigator.clipboard.writeText(code)
+      ok = true
+    } catch (_) {
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = code
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        ok = document.execCommand('copy')
+        document.body.removeChild(ta)
+      } catch (_) {}
+    }
+    if (btn) {
+      btn.classList.toggle('copied', ok)
+      btn.textContent = ok ? '✓ Código copiado!' : 'Não foi possível copiar — use o QR'
+      setTimeout(() => {
+        btn.classList.remove('copied')
+        btn.textContent = '📋 Copiar código Pix (copia e cola)'
+      }, 2600)
     }
   }
 
