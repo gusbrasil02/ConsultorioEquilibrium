@@ -77,6 +77,28 @@ async function createPixPayment({
   }
 }
 
+// Testa se o token é válido de verdade (não só se existe): pede a conta ao MP.
+// Retorna { ok, account?, error? } — usado pelo botão "Testar conexão" no painel.
+async function ping() {
+  if (!isConfigured()) return { ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no servidor.' }
+  try {
+    const res = await fetch(`${MP_API}/users/me`, {
+      headers: { 'Authorization': `Bearer ${accessToken()}` }
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { ok: false, error: data?.message || `Token recusado pelo Mercado Pago (erro ${res.status}).` }
+    }
+    return {
+      ok: true,
+      account: data?.nickname || data?.email || String(data?.id || ''),
+      live: !String(accessToken()).startsWith('TEST-')
+    }
+  } catch (e) {
+    return { ok: false, error: 'Não foi possível falar com o Mercado Pago: ' + e.message }
+  }
+}
+
 // Consulta o pagamento no MP (usado pelo webhook, que só manda o id)
 async function getPayment(id) {
   if (!isConfigured()) throw new Error('MERCADOPAGO_ACCESS_TOKEN não configurado')
@@ -126,4 +148,4 @@ function verifyWebhookSignature({ xSignature, xRequestId, dataId }) {
   }
 }
 
-export { isConfigured, createPixPayment, getPayment, verifyWebhookSignature }
+export { isConfigured, ping, createPixPayment, getPayment, verifyWebhookSignature }

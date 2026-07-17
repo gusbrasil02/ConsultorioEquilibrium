@@ -742,6 +742,16 @@ app.get('/api/settings/pix', requireAuth, async (req, res) => {
   }
 })
 
+// Testa a conexão real com o Mercado Pago (valida o token, não só se existe)
+app.get('/api/settings/pix/test', requireAuth, async (req, res) => {
+  try {
+    const result = await mp.ping()
+    res.json(result)
+  } catch (error) {
+    res.json({ ok: false, error: error.message })
+  }
+})
+
 app.put('/api/settings/pix', requireAuth, async (req, res) => {
   try {
     const { provider } = req.body || {}

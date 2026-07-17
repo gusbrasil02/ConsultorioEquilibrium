@@ -567,8 +567,8 @@
     }
   }
 
-  // ── Pagamento da consulta (Pix estático) ────────────────────────────────────
-  const PAY_OPTIONS = ['Pix', 'Dinheiro', 'Cartão', 'Estou com dificuldade']
+  // ── Pagamento da consulta (Pix via Mercado Pago) ────────────────────────────
+  const PAY_OPTIONS = ['Pix', 'Dinheiro']
 
   function renderPayment(q, area) {
     const valor = payInfo?.charge?.amount
@@ -657,16 +657,7 @@
       return
     }
 
-    if (opt === 'Estou com dificuldade') {
-      extra.innerHTML = `
-        <div class="pay-help">
-          Sem problema. 🙂<br>
-          A profissional foi avisada e vai combinar o pagamento com você pessoalmente.
-        </div>`
-      return
-    }
-
-    if (opt === 'Dinheiro' || opt === 'Cartão') {
+    if (opt === 'Dinheiro') {
       extra.innerHTML = `
         <div class="pay-help">
           Combinado! Você paga na recepção com a profissional.

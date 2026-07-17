@@ -1396,6 +1396,8 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
     <!-- Mercado Pago -->
     <div id="pix-mp-block" style="display:none">
       <div class="pkg-badge" id="mp-status"></div>
+      <button class="btn-cancel" type="button" id="mp-test-btn" onclick="testMercadoPago()" style="width:100%;margin-bottom:0.9rem">🔌 Testar conexão com o Mercado Pago</button>
+      <div class="pkg-badge" id="mp-test-result" style="display:none"></div>
       <div class="form-group">
         <label class="form-label">URL do webhook (cole no painel do Mercado Pago)</label>
         <input type="text" class="form-control" id="mp-webhook-url" readonly onclick="this.select()">
@@ -3462,6 +3464,35 @@ function onPixProviderChange() {
       box.style.borderColor = 'rgba(220,150,60,0.4)'
       box.style.color       = '#f0c090'
     }
+  }
+}
+
+async function testMercadoPago() {
+  const btn = document.getElementById('mp-test-btn')
+  const box = document.getElementById('mp-test-result')
+  btn.disabled = true
+  const txtOrig = btn.textContent
+  btn.textContent = 'Testando...'
+  box.style.display = 'none'
+  try {
+    const r = await fetch('/api/settings/pix/test')
+    const d = await r.json()
+    box.style.display = 'block'
+    if (d.ok) {
+      box.innerHTML = `✅ <b>Conexão OK!</b> Conta: ${d.account || '—'}` +
+        (d.live === false ? '<br>⚠️ Token de <b>TESTE</b> — troque pelo de produção (APP_USR-) para cobrar de verdade.' : '')
+      box.style.background = 'rgba(60,180,120,0.16)'; box.style.borderColor = 'rgba(60,180,120,0.45)'; box.style.color = '#9fe0c0'
+    } else {
+      box.innerHTML = `❌ <b>Falhou:</b> ${d.error || 'erro desconhecido'}`
+      box.style.background = 'rgba(220,80,80,0.16)'; box.style.borderColor = 'rgba(220,80,80,0.45)'; box.style.color = '#f0a0a0'
+    }
+  } catch (e) {
+    box.style.display = 'block'
+    box.innerHTML = `❌ <b>Falhou:</b> ${e.message}`
+    box.style.background = 'rgba(220,80,80,0.16)'; box.style.borderColor = 'rgba(220,80,80,0.45)'; box.style.color = '#f0a0a0'
+  } finally {
+    btn.disabled = false
+    btn.textContent = txtOrig
   }
 }
 
