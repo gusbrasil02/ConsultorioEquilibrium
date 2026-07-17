@@ -91,6 +91,9 @@ function tokenMode() {
 function tokenDiag() {
   const raw = process.env.MERCADOPAGO_ACCESS_TOKEN || ''
   const t = raw.trim()
+  // Access Token só tem letras, números e hífen. Qualquer outra coisa (espaço,
+  // aspas, acento, caractere invisível de copiar/colar) corrompe o cabeçalho.
+  const badChars = [...t].filter(c => !/[A-Za-z0-9_-]/.test(c))
   return {
     set: !!t,
     length: t.length,
@@ -99,7 +102,10 @@ function tokenDiag() {
     had_whitespace: raw !== t,                               // espaços/enter nas pontas
     has_quotes: /["'`]/.test(raw),                           // aspas coladas no valor
     has_bearer_word: /bearer/i.test(raw),                    // colaram "Bearer " junto
-    has_inner_space: /\s/.test(t)                            // espaço/quebra no meio
+    has_inner_space: /\s/.test(t),                           // espaço/quebra no meio
+    bad_char_count: badChars.length,                         // caracteres fora de [A-Za-z0-9-]
+    // Mostra os códigos dos caracteres estranhos (ex.: U+200B) sem vazar o token
+    bad_char_codes: [...new Set(badChars.map(c => 'U+' + c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')))].slice(0, 6)
   }
 }
 

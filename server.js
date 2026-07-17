@@ -212,6 +212,7 @@ app.get('/api/sessions/latest/pending-notification', requireAuth, async (req, re
   try {
     const session = await getPendingNotification()
     if (!session) return res.status(404).json({ error: 'Nenhuma notificação pendente' })
+    session.payment = await sessionPayment(session)
     res.json(session)
   } catch (error) {
     console.error('Erro ao buscar notificação:', error.message)
@@ -236,6 +237,7 @@ app.get('/api/sessions/active', requireAuth, async (req, res) => {
   try {
     const session = await getActiveSession()
     if (!session) return res.status(404).json({ error: 'Sem sessão ativa' })
+    session.payment = await sessionPayment(session)
     res.json(session)
   } catch (error) {
     console.error('Erro ao buscar sessão ativa:', error.message)
@@ -797,6 +799,26 @@ function pixProvider(cfg) {
 }
 
 // Descobre quanto cobrar por uma sessão
+// Status de pagamento de uma sessão — anexado onde a sessão aparece para a Dra.
+async function sessionPayment(session) {
+  if (!session) return { status: 'none' }
+  try {
+    const pay = session.appointment_id
+      ? await getPaymentByAppointment(session.appointment_id)
+      : await getPaymentBySession(session.id)
+    if (!pay) return { status: 'none' }
+    return {
+      status: pay.status,                                          // 'pago' | 'pendente'
+      method: pay.method || null,
+      amount: pay.amount,
+      provider: pay.provider || null,
+      confirmed: pay.status === 'pago' && !!pay.provider_payment_id // confirmado pelo provedor
+    }
+  } catch (_) {
+    return { status: 'none' }
+  }
+}
+
 async function sessionCharge(session) {
   const appointment = session.appointment_id ? await getAppointment(session.appointment_id) : null
   const prices = (await getSetting('default_prices')) || {}
@@ -1157,6 +1179,10 @@ async function pollOnce() {
     if (sseClients.doctor.size > 0) {
       const pending = await getPendingNotification()
       const active = await getActiveSession()
+      // Anexa o status de pagamento — quando o webhook do Pix confirma, o JSON
+      // muda e o painel atualiza sozinho (notificação, barra de sessão, etc.)
+      if (pending) pending.payment = await sessionPayment(pending)
+      if (active)  active.payment  = await sessionPayment(active)
       const payload = { type: 'doctor', pending: pending || null, active: active || null }
       const json = JSON.stringify(payload)
       if (json !== lastJson.doctor) { lastJson.doctor = json; broadcast('doctor', payload) }
