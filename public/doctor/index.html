@@ -3478,10 +3478,14 @@ async function testMercadoPago() {
     const r = await fetch('/api/settings/pix/test')
     const d = await r.json()
     box.style.display = 'block'
-    if (d.ok) {
-      box.innerHTML = `✅ <b>Conexão OK!</b> Conta: ${d.account || '—'}` +
+    if (d.ok && d.qr_ok) {
+      box.innerHTML = `✅ <b>Tudo certo!</b> Token válido e QR Pix gerado com sucesso.<br>Conta: ${d.account || '—'}` +
         (d.live === false ? '<br>⚠️ Token de <b>TESTE</b> — troque pelo de produção (APP_USR-) para cobrar de verdade.' : '')
       box.style.background = 'rgba(60,180,120,0.16)'; box.style.borderColor = 'rgba(60,180,120,0.45)'; box.style.color = '#9fe0c0'
+    } else if (d.ok && !d.qr_ok) {
+      box.innerHTML = `⚠️ <b>Token válido, mas o QR não foi gerado:</b><br>${d.qr_error || 'erro desconhecido'}` +
+        `<br><br>Isso costuma acontecer com valor de consulta muito baixo (ex.: R$ 0,01). Tente um valor maior.`
+      box.style.background = 'rgba(220,150,60,0.14)'; box.style.borderColor = 'rgba(220,150,60,0.4)'; box.style.color = '#f0c090'
     } else {
       box.innerHTML = `❌ <b>Falhou:</b> ${d.error || 'erro desconhecido'}`
       box.style.background = 'rgba(220,80,80,0.16)'; box.style.borderColor = 'rgba(220,80,80,0.45)'; box.style.color = '#f0a0a0'

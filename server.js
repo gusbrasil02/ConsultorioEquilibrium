@@ -742,10 +742,28 @@ app.get('/api/settings/pix', requireAuth, async (req, res) => {
   }
 })
 
-// Testa a conexão real com o Mercado Pago (valida o token, não só se existe)
+// Testa a conexão real com o Mercado Pago: valida o token E tenta gerar um QR Pix
 app.get('/api/settings/pix/test', requireAuth, async (req, res) => {
   try {
     const result = await mp.ping()
+    if (!result.ok) return res.json(result)
+
+    // Ponta a ponta: cria uma cobrança de teste e confere se veio o QR
+    try {
+      const host = (process.env.BASE_URL || 'https://consultorio.local').replace(/^https?:\/\//, '').split('/')[0]
+      const cobranca = await mp.createPixPayment({
+        amount: 1,
+        description: 'Teste de conexao',
+        payerEmail: `teste@${host}`,
+        externalReference: 'teste-conexao',
+        expiresInMinutes: 5
+      })
+      result.qr_ok = !!cobranca.qr_code
+      if (!cobranca.qr_code) result.qr_error = 'O Mercado Pago aceitou o token mas não devolveu o QR.'
+    } catch (e) {
+      result.qr_ok = false
+      result.qr_error = e.message
+    }
     res.json(result)
   } catch (error) {
     res.json({ ok: false, error: error.message })
