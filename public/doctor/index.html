@@ -3479,7 +3479,7 @@ async function testMercadoPago() {
     const d = await r.json()
     box.style.display = 'block'
     if (d.ok && d.qr_ok) {
-      box.innerHTML = `✅ <b>Tudo certo!</b> Token válido e QR Pix gerado com sucesso.<br>Conta: ${d.account || '—'}` +
+      box.innerHTML = `✅ <b>Tudo certo!</b> Token válido e QR Pix gerado com sucesso.` +
         (d.live === false ? '<br>⚠️ Token de <b>TESTE</b> — troque pelo de produção (APP_USR-) para cobrar de verdade.' : '')
       box.style.background = 'rgba(60,180,120,0.16)'; box.style.borderColor = 'rgba(60,180,120,0.45)'; box.style.color = '#9fe0c0'
     } else if (d.ok && !d.qr_ok) {

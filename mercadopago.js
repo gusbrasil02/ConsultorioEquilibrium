@@ -77,26 +77,13 @@ async function createPixPayment({
   }
 }
 
-// Testa se o token é válido de verdade (não só se existe): pede a conta ao MP.
-// Retorna { ok, account?, error? } — usado pelo botão "Testar conexão" no painel.
-async function ping() {
-  if (!isConfigured()) return { ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no servidor.' }
-  try {
-    const res = await fetch(`${MP_API}/users/me`, {
-      headers: { 'Authorization': `Bearer ${accessToken()}` }
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      return { ok: false, error: data?.message || `Token recusado pelo Mercado Pago (erro ${res.status}).` }
-    }
-    return {
-      ok: true,
-      account: data?.nickname || data?.email || String(data?.id || ''),
-      live: !String(accessToken()).startsWith('TEST-')
-    }
-  } catch (e) {
-    return { ok: false, error: 'Não foi possível falar com o Mercado Pago: ' + e.message }
-  }
+// 'live' (token de produção APP_USR-), 'test' (TEST-) ou null (sem token).
+// Não fazemos GET /users/me: ele exige permissões que o token de pagamento não
+// tem e devolve "policy UNAUTHORIZED" mesmo com token válido para cobrar.
+function tokenMode() {
+  const t = accessToken()
+  if (!t) return null
+  return t.startsWith('TEST-') ? 'test' : 'live'
 }
 
 // Consulta o pagamento no MP (usado pelo webhook, que só manda o id)
@@ -148,4 +135,4 @@ function verifyWebhookSignature({ xSignature, xRequestId, dataId }) {
   }
 }
 
-export { isConfigured, ping, createPixPayment, getPayment, verifyWebhookSignature }
+export { isConfigured, tokenMode, createPixPayment, getPayment, verifyWebhookSignature }

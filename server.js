@@ -742,13 +742,15 @@ app.get('/api/settings/pix', requireAuth, async (req, res) => {
   }
 })
 
-// Testa a conexão real com o Mercado Pago: valida o token E tenta gerar um QR Pix
+// Testa a conexão com o Mercado Pago tentando gerar um QR Pix real — que é
+// exatamente o que o totem/formulário fazem. (Não usamos /users/me: ele exige
+// permissões que o token de pagamento não tem e falha mesmo com token válido.)
 app.get('/api/settings/pix/test', requireAuth, async (req, res) => {
   try {
-    const result = await mp.ping()
-    if (!result.ok) return res.json(result)
-
-    // Ponta a ponta: cria uma cobrança de teste e confere se veio o QR
+    if (!mp.isConfigured()) {
+      return res.json({ ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no servidor (Coolify).' })
+    }
+    const live = mp.tokenMode() === 'live'
     try {
       const host = (process.env.BASE_URL || 'https://consultorio.local').replace(/^https?:\/\//, '').split('/')[0]
       const cobranca = await mp.createPixPayment({
@@ -758,13 +760,11 @@ app.get('/api/settings/pix/test', requireAuth, async (req, res) => {
         externalReference: 'teste-conexao',
         expiresInMinutes: 5
       })
-      result.qr_ok = !!cobranca.qr_code
-      if (!cobranca.qr_code) result.qr_error = 'O Mercado Pago aceitou o token mas não devolveu o QR.'
+      if (cobranca.qr_code) return res.json({ ok: true, qr_ok: true, live })
+      return res.json({ ok: true, qr_ok: false, live, qr_error: 'O Mercado Pago aceitou o token mas não devolveu o QR.' })
     } catch (e) {
-      result.qr_ok = false
-      result.qr_error = e.message
+      return res.json({ ok: false, error: e.message })
     }
-    res.json(result)
   } catch (error) {
     res.json({ ok: false, error: error.message })
   }
