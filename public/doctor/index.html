@@ -1390,7 +1390,6 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
       <select class="form-control" id="pix-provider" onchange="onPixProviderChange()">
         <option value="none">Não oferecer pagamento no formulário</option>
         <option value="mercadopago">Mercado Pago — Pix confirmado automaticamente</option>
-        <option value="estatico">Pix estático — chave própria (confirmação manual)</option>
       </select>
     </div>
 
@@ -1405,36 +1404,6 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
         O token de acesso e a assinatura secreta ficam nas variáveis de ambiente do servidor
         (<b>MERCADOPAGO_ACCESS_TOKEN</b> e <b>MERCADOPAGO_WEBHOOK_SECRET</b>) — nunca no banco
         nem no navegador.
-      </div>
-    </div>
-
-    <!-- Pix estático -->
-    <div id="pix-static-block" style="display:none">
-      <div class="form-group">
-        <label class="form-label">Tipo de chave</label>
-        <select class="form-control" id="pix-key-type">
-          <option value="cpf">CPF</option>
-          <option value="cnpj">CNPJ</option>
-          <option value="email">E-mail</option>
-          <option value="telefone">Telefone</option>
-          <option value="aleatoria">Chave aleatória</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Chave Pix *</label>
-        <input type="text" class="form-control" id="pix-key" placeholder="Sua chave Pix" autocomplete="off">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Nome do recebedor * (máx. 25)</label>
-        <input type="text" class="form-control" id="pix-name" maxlength="25" placeholder="Como aparece na sua conta">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Cidade * (máx. 15)</label>
-        <input type="text" class="form-control" id="pix-city" maxlength="15" placeholder="Ex: Sao Paulo">
-      </div>
-      <div class="pkg-badge" style="background:rgba(220,150,60,0.14);border-color:rgba(220,150,60,0.4);color:#f0c090">
-        ⚠️ O Pix estático <b>não avisa o sistema</b> quando o dinheiro cai. Você confirma com
-        1 clique na lista de lançamentos depois de conferir no banco.
       </div>
     </div>
 
@@ -3450,7 +3419,7 @@ function closePricesModal() {
   document.getElementById('prices-modal').classList.remove('visible')
 }
 
-// ── Configuração do pagamento (Mercado Pago / Pix estático) ───────────────────
+// ── Configuração do pagamento (Mercado Pago) ──────────────────────────────────
 let pixCfg = {}
 
 async function openPixModal() {
@@ -3458,11 +3427,7 @@ async function openPixModal() {
     const r = await fetch('/api/settings/pix')
     if (r.status === 401) { location.href = '/login'; return }
     pixCfg = r.ok ? await r.json() : {}
-    document.getElementById('pix-provider').value  = pixCfg.provider || 'none'
-    document.getElementById('pix-key-type').value  = pixCfg.key_type || 'aleatoria'
-    document.getElementById('pix-key').value       = pixCfg.key  || ''
-    document.getElementById('pix-name').value      = pixCfg.name || ''
-    document.getElementById('pix-city').value      = pixCfg.city || ''
+    document.getElementById('pix-provider').value   = pixCfg.provider || 'none'
     document.getElementById('mp-webhook-url').value = pixCfg.webhook_url || ''
     onPixProviderChange()
   } catch (_) {}
@@ -3474,8 +3439,7 @@ function closePixModal() {
 
 function onPixProviderChange() {
   const p = document.getElementById('pix-provider').value
-  document.getElementById('pix-mp-block').style.display     = p === 'mercadopago' ? 'block' : 'none'
-  document.getElementById('pix-static-block').style.display = p === 'estatico'    ? 'block' : 'none'
+  document.getElementById('pix-mp-block').style.display = p === 'mercadopago' ? 'block' : 'none'
 
   if (p === 'mercadopago') {
     const box = document.getElementById('mp-status')
@@ -3503,21 +3467,10 @@ function onPixProviderChange() {
 
 async function savePixConfig() {
   const provider = document.getElementById('pix-provider').value
-  const key  = document.getElementById('pix-key').value.trim()
-  const name = document.getElementById('pix-name').value.trim()
-  const city = document.getElementById('pix-city').value.trim()
-
-  if (provider === 'estatico' && (!key || !name || !city)) {
-    alert('Para o Pix estático, preencha chave, nome do recebedor e cidade.')
-    return
-  }
   try {
     const r = await fetch('/api/settings/pix', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider, key, name, city,
-        key_type: document.getElementById('pix-key-type').value
-      })
+      body: JSON.stringify({ provider })
     })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error || 'Falha ao salvar')

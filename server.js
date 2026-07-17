@@ -67,7 +67,6 @@ import {
   hasConflict
 } from './database.js'
 import { generateAnatomyExplanation } from './ai.js'
-import { buildPixPayload } from './pix.js'
 import * as mp from './mercadopago.js'
 import {
   hashPassword,
@@ -745,26 +744,8 @@ app.get('/api/settings/pix', requireAuth, async (req, res) => {
 
 app.put('/api/settings/pix', requireAuth, async (req, res) => {
   try {
-    const { key, key_type, name, city, provider } = req.body || {}
-    const prov = ['none', 'estatico', 'mercadopago'].includes(provider) ? provider : 'none'
-
-    const cfg = {
-      provider: prov,
-      key: String(key || '').trim(),
-      key_type: key_type || 'aleatoria',
-      name: String(name || '').trim(),
-      city: String(city || '').trim(),
-      enabled: prov !== 'none'   // mantém compatível com a versão anterior
-    }
-
-    if (prov === 'estatico') {
-      if (!cfg.key) return res.status(400).json({ error: 'Informe a chave Pix.' })
-      try {
-        buildPixPayload({ key: cfg.key, name: cfg.name, city: cfg.city, amount: 1, txid: 'TESTE' })
-      } catch (e) {
-        return res.status(400).json({ error: 'Não foi possível gerar o código Pix: ' + e.message })
-      }
-    }
+    const { provider } = req.body || {}
+    const prov = provider === 'mercadopago' ? 'mercadopago' : 'none'
 
     if (prov === 'mercadopago' && !mp.isConfigured()) {
       return res.status(400).json({
@@ -772,6 +753,7 @@ app.put('/api/settings/pix', requireAuth, async (req, res) => {
       })
     }
 
+    const cfg = { provider: prov, enabled: prov !== 'none' }
     await setSetting('pix_config', cfg)
     res.json(cfg)
   } catch (error) {
@@ -780,10 +762,9 @@ app.put('/api/settings/pix', requireAuth, async (req, res) => {
   }
 })
 
-// Compatibilidade: config antiga só tinha `enabled` (Pix estático)
+// Só oferecemos Pix via Mercado Pago. Configs antigas (Pix estático) viram "none".
 function pixProvider(cfg) {
-  if (cfg?.provider) return cfg.provider
-  return cfg?.enabled ? 'estatico' : 'none'
+  return cfg?.provider === 'mercadopago' ? 'mercadopago' : 'none'
 }
 
 // Descobre quanto cobrar por uma sessão
@@ -898,31 +879,9 @@ app.get('/api/sessions/:id/pix', async (req, res) => {
             expires_at: pay.expires_at
           }
         }
-        return res.json(out)
       } catch (e) {
         console.error('Erro no Mercado Pago:', e.message)
-        // Cai para o Pix estático se estiver configurado — melhor que ficar sem
-      }
-    }
-
-    // ── Pix estático (chave própria, confirmação manual) ──
-    if ((provider === 'estatico' || provider === 'mercadopago') && cfg.key) {
-      const txid = String(session.id).replace(/[^A-Za-z0-9]/g, '').slice(0, 25)
-      const brcode = buildPixPayload({
-        key: cfg.key, name: cfg.name, city: cfg.city, amount: charge.amount, txid
-      })
-      const qr = await QRCode.toDataURL(brcode, {
-        width: 360, margin: 1, color: { dark: '#0b2d1e', light: '#ffffff' }
-      })
-      out.pix = {
-        enabled: true,
-        provider: 'estatico',
-        auto_confirm: false,
-        brcode,
-        qr_code_base64: qr,
-        key: cfg.key,
-        key_type: cfg.key_type,
-        name: cfg.name
+        // Sem fallback: se o MP falhar, o formulário simplesmente não mostra o Pix
       }
     }
 
