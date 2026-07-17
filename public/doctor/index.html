@@ -3467,6 +3467,30 @@ function onPixProviderChange() {
   }
 }
 
+// Traduz o diagnóstico do token em dicas do que corrigir no Coolify
+function pixDiagHtml(diag) {
+  if (!diag) return ''
+  const problemas = []
+  if (!diag.set)             problemas.push('a variável está vazia no servidor')
+  else {
+    if (!diag.valid_prefix)  problemas.push(`não parece um Access Token (começa com "${diag.prefix || '?'}"; o certo é <b>APP_USR-</b> ou TEST-)`)
+    if (diag.has_quotes)     problemas.push('tem <b>aspas</b> no valor — remova as aspas')
+    if (diag.has_bearer_word)problemas.push('tem a palavra <b>Bearer</b> junto — cole só o token')
+    if (diag.had_whitespace) problemas.push('tem espaço/enter nas pontas')
+    if (diag.has_inner_space)problemas.push('tem espaço ou quebra de linha no meio')
+  }
+  const info = `<br><span style="opacity:0.75">Token: ${diag.set ? `${diag.length} caracteres, começa com "${diag.prefix}"` : 'não definido'}</span>`
+  if (problemas.length) return info + '<br><b>Provável causa:</b><br>• ' + problemas.join('<br>• ')
+  // Formato ok, mas o MP recusou → token errado/incompleto/desatualizado
+  if (diag.set && diag.valid_prefix) {
+    return info + '<br><b>O formato está ok, mas o Mercado Pago recusou o token.</b> Verifique no painel do MP:' +
+      '<br>• É o <b>Access Token</b> de produção? (Não confunda com a <b>Public Key</b> — as duas começam com APP_USR-)' +
+      '<br>• O token foi colado <b>inteiro</b>? (costuma ter 60+ caracteres)' +
+      '<br>• Você <b>regenerou</b> o token? Se sim, atualize no Coolify e faça o redeploy.'
+  }
+  return info
+}
+
 async function testMercadoPago() {
   const btn = document.getElementById('mp-test-btn')
   const box = document.getElementById('mp-test-result')
@@ -3487,7 +3511,7 @@ async function testMercadoPago() {
         `<br><br>Isso costuma acontecer com valor de consulta muito baixo (ex.: R$ 0,01). Tente um valor maior.`
       box.style.background = 'rgba(220,150,60,0.14)'; box.style.borderColor = 'rgba(220,150,60,0.4)'; box.style.color = '#f0c090'
     } else {
-      box.innerHTML = `❌ <b>Falhou:</b> ${d.error || 'erro desconhecido'}`
+      box.innerHTML = `❌ <b>Falhou:</b> ${d.error || 'erro desconhecido'}${pixDiagHtml(d.diag)}`
       box.style.background = 'rgba(220,80,80,0.16)'; box.style.borderColor = 'rgba(220,80,80,0.45)'; box.style.color = '#f0a0a0'
     }
   } catch (e) {

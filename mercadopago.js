@@ -86,6 +86,23 @@ function tokenMode() {
   return t.startsWith('TEST-') ? 'test' : 'live'
 }
 
+// Diagnóstico SEGURO do token (não revela o segredo): só formato/higiene.
+// Serve para descobrir por que o MP recusa — aspas, "Bearer", espaços etc.
+function tokenDiag() {
+  const raw = process.env.MERCADOPAGO_ACCESS_TOKEN || ''
+  const t = raw.trim()
+  return {
+    set: !!t,
+    length: t.length,
+    prefix: t.slice(0, 8),                                   // "APP_USR-" ou "TEST-..."
+    valid_prefix: t.startsWith('APP_USR-') || t.startsWith('TEST-'),
+    had_whitespace: raw !== t,                               // espaços/enter nas pontas
+    has_quotes: /["'`]/.test(raw),                           // aspas coladas no valor
+    has_bearer_word: /bearer/i.test(raw),                    // colaram "Bearer " junto
+    has_inner_space: /\s/.test(t)                            // espaço/quebra no meio
+  }
+}
+
 // Consulta o pagamento no MP (usado pelo webhook, que só manda o id)
 async function getPayment(id) {
   if (!isConfigured()) throw new Error('MERCADOPAGO_ACCESS_TOKEN não configurado')
@@ -135,4 +152,4 @@ function verifyWebhookSignature({ xSignature, xRequestId, dataId }) {
   }
 }
 
-export { isConfigured, tokenMode, createPixPayment, getPayment, verifyWebhookSignature }
+export { isConfigured, tokenMode, tokenDiag, createPixPayment, getPayment, verifyWebhookSignature }

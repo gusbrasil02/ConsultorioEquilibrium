@@ -747,8 +747,9 @@ app.get('/api/settings/pix', requireAuth, async (req, res) => {
 // permissões que o token de pagamento não tem e falha mesmo com token válido.)
 app.get('/api/settings/pix/test', requireAuth, async (req, res) => {
   try {
+    const diag = mp.tokenDiag()
     if (!mp.isConfigured()) {
-      return res.json({ ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no servidor (Coolify).' })
+      return res.json({ ok: false, error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no servidor (Coolify).', diag })
     }
     const live = mp.tokenMode() === 'live'
     try {
@@ -761,9 +762,9 @@ app.get('/api/settings/pix/test', requireAuth, async (req, res) => {
         expiresInMinutes: 5
       })
       if (cobranca.qr_code) return res.json({ ok: true, qr_ok: true, live })
-      return res.json({ ok: true, qr_ok: false, live, qr_error: 'O Mercado Pago aceitou o token mas não devolveu o QR.' })
+      return res.json({ ok: true, qr_ok: false, live, qr_error: 'O Mercado Pago aceitou o token mas não devolveu o QR.', diag })
     } catch (e) {
-      return res.json({ ok: false, error: e.message })
+      return res.json({ ok: false, error: e.message, diag })
     }
   } catch (error) {
     res.json({ ok: false, error: error.message })
