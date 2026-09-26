@@ -20,7 +20,8 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
    2. `supabase-additions.sql`        — pacientes e agendamentos
    3. `supabase-session-migration.sql`— controle de fluxo e anotações de sessão
    4. `supabase-v2-migration.sql`     — login, financeiro, prontuário estruturado e calibração
-   5. `supabase-v3-migration.sql`     — **livro-caixa único e agenda recorrente** (novo)
+   5. `supabase-v3-migration.sql`     — livro-caixa único e agenda recorrente
+   6. `supabase-v4-migration.sql`     — Pix via Mercado Pago (id do pagamento, QR, vencimento)
 3. Vá em **Project Settings → API**
 4. Copie a **Project URL** → `SUPABASE_URL`
 5. Copie a chave **service_role** → `SUPABASE_SERVICE_KEY`
@@ -132,6 +133,8 @@ Paciente chega → identifica o agendamento → QR Code (ou formulário na TV)
 [PAINEL DA PROFISSIONAL]
 → notificação de chegada aparece automaticamente (com resumo e local da dor)
 → "Aguardar" ou "Pode entrar"
+→ se já houver alguém em atendimento, quem chega entra na barra "Na recepção"
+  (a sessão aberta não é substituída); ao fechar a consulta, o próximo abre sozinho
 → dashboard: métricas, alertas, histórico
 → ao finalizar: prontuário estruturado (queixa, conduta, evolução, plano)
 
@@ -221,6 +224,25 @@ Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no
 
 ---
 
+## Atlas de Acupuntura 3D
+
+Aberto pelo botão **⊕** no topo do painel (consulta livre) ou por **⊕ Atlas de Acupuntura** durante uma sessão.
+
+- **197 pontos** nos 14 meridianos + pontos extras (Yintang, Taiyang, Anmian, Xiyan, Zigong…), cada um com localização clássica, indicações tradicionais e categoria (Yuan, Luo, He, Mu, Shu…).
+- Pontos **exatamente sobre a pele** do modelo, dos dois lados do corpo (`ST36` = lado direito, `ST36-E` = esquerdo), e meridianos desenhados como trajetos colados à superfície.
+- **Busca** por código, nome ou indicação (ex.: "insônia", "joelho") e **protocolos prontos** (dor lombar, cervical, ansiedade, insônia, TPM, Quatro Portões…).
+- Selecionar clicando no corpo (a seleção é por proximidade na tela — não precisa acertar a bolinha) ou na lista; lados D/E independentes; **"Última sessão"** repete os pontos do atendimento anterior do paciente.
+- **Exibir na TV**: a tela do paciente aproxima a câmera nos pontos, mostra o fluxo de energia nos meridianos e explica cada ponto em linguagem simples (sem avisos clínicos como contraindicações).
+- Os pontos usados ficam registrados no **histórico de sessões** do paciente.
+
+### Como os pontos são gerados
+
+As posições não são digitadas à mão: `tools/acupoints/specs.mjs` descreve cada ponto anatomicamente (segmento do membro, distância em *cun*, lado) e `npm run build:acupoints` calcula a posição na pele a partir do próprio `human-body.glb`, gerando `public/js/acu-data.js`. Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build.
+
+A página `/calibrate` continua disponível para ajuste fino manual; uma calibração salva ali **tem prioridade** sobre a posição automática ("Restaurar posição automática" desfaz). Ela é gravada em `app_settings.acu_calibration_v2`; a calibração da versão anterior (`acu_calibration`), feita sobre as referências antigas e com erros (ex.: IG11 e IG15 trocados), foi preservada no banco mas não é mais aplicada.
+
+---
+
 ## Novidades desta versão
 
 - **Login** por contas individuais protegendo o painel e os dados dos pacientes (LGPD).
@@ -248,11 +270,19 @@ Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no
 ├── supabase-v2-migration.sql    # login, financeiro, prontuário, calibração
 ├── Dockerfile / docker-compose.yml
 ├── deploy.ps1                   # atalho: commit + push (Coolify publica)
+├── tools/acupoints/             # gerador dos pontos de acupuntura (npm run build:acupoints)
+│   ├── specs.mjs                #   meridianos, pontos, protocolos (edite aqui)
+│   ├── rig.mjs                  #   referências anatômicas do modelo 3D
+│   ├── mesh.mjs                 #   leitura do GLB + projeção na pele
+│   └── build.mjs                #   gera public/js/acu-data.js
 └── public/
     ├── login/index.html         # tela de acesso / criação da 1ª conta
     ├── totem/index.html
     ├── form/index.html
     ├── doctor/index.html
-    ├── shared/index.html
-    └── calibrate/index.html
+    ├── shared/index.html        # TV da sala de atendimento
+    ├── calibrate/index.html     # ajuste fino manual dos pontos
+    └── js/
+        ├── acupuncture-viewer.js  # visualizador 3D (painel e TV)
+        └── acu-data.js            # GERADO — pontos e trajetos dos meridianos
 ```

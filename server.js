@@ -64,7 +64,12 @@ import {
   deleteAppointmentSeries,
   syncAppointmentPayment,
   syncAppointmentPackage,
-  hasConflict
+  hasConflict,
+  getOpenSessionForAppointment,
+  getLastAcupuncture,
+  getQueue,
+  getTvSession,
+  todayBR
 } from './database.js'
 import { generateAnatomyExplanation } from './ai.js'
 import * as mp from './mercadopago.js'
@@ -82,7 +87,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 3000
 
+// Atrás do Traefik (Coolify): o IP real do cliente vem em X-Forwarded-For
+app.set('trust proxy', 1)
 app.use(express.json())
+
+// ─── Utilidades ──────────────────────────────────────────────────────────────
+
+// Nome exibido em telas públicas (totem): "Maria Souza Lima" → "Maria L."
+// O nome completo não precisa circular num canal aberto para a pessoa se reconhecer.
+function displayName(full) {
+  const parts = String(full || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length <= 1) return parts[0] || ''
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
+}
+const firstName = full => String(full || '').trim().split(/\s+/)[0] || ''
+
+// Limite simples de tentativas de login (anti força-bruta), em memória
+const loginAttempts = new Map()   // chave → { n, until }
+const LOGIN_MAX = 8, LOGIN_WINDOW = 15 * 60 * 1000
+function loginBlocked(key) {
+  const a = loginAttempts.get(key)
+  if (!a) return false
+  if (Date.now() > a.until) { loginAttempts.delete(key); return false }
+  return a.n >= LOGIN_MAX
+}
+function loginFailed(key) {
+  const a = loginAttempts.get(key)
+  if (!a || Date.now() > a.until) loginAttempts.set(key, { n: 1, until: Date.now() + LOGIN_WINDOW })
+  else a.n++
+}
 
 // ─── Autenticação (item 4) ────────────────────────────────────────────────────
 
@@ -119,10 +152,16 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body
     if (!email?.trim() || !password) return res.status(400).json({ error: 'Informe e-mail e senha' })
+    const key = `${req.ip}|${String(email).toLowerCase().trim()}`
+    if (loginBlocked(key)) {
+      return res.status(429).json({ error: 'Muitas tentativas. Aguarde 15 minutos e tente de novo.' })
+    }
     const user = await getUserByEmail(email)
     if (!user || !verifyPassword(password, user.password_hash)) {
+      loginFailed(key)
       return res.status(401).json({ error: 'E-mail ou senha inválidos' })
     }
+    loginAttempts.delete(key)
     issueSessionCookie(res, user)
     res.json({ success: true, user: { name: user.name, email: user.email } })
   } catch (error) {
@@ -152,22 +191,38 @@ app.use(express.static(path.join(__dirname, 'public')))
 // Inicia nova sessão e gera QR Code (público — acionado pelo totem)
 app.post('/api/sessions/start', async (req, res) => {
   try {
-    const { patient_name, appointment_id, patient_id } = req.body
-    if (!patient_name?.trim()) {
+    const { appointment_id } = req.body
+    let patient_name = String(req.body.patient_name || '').trim().slice(0, 120)
+    let patient_id = req.body.patient_id || null
+
+    // Com agendamento, o nome e o vínculo vêm do banco — o totem só conhece o
+    // nome abreviado, e não confiamos em dados de uma tela pública.
+    let appointment = null
+    if (appointment_id) {
+      appointment = await getAppointment(appointment_id)
+      if (!appointment) return res.status(404).json({ error: 'Agendamento não encontrado' })
+      patient_name = appointment.patient_name
+      patient_id = appointment.patient_id || null
+    }
+    if (!patient_name) {
       return res.status(400).json({ error: 'Nome do paciente obrigatório' })
     }
 
-    const id = uuidv4()
-    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    // Já existe sessão aberta deste agendamento (QR gerado e não respondido)?
+    // Reaproveita — evita sessões órfãs a cada toque no totem.
+    const open = appointment ? await getOpenSessionForAppointment(appointment.id) : null
+    const id = open?.id || uuidv4()
     const form_url = `${process.env.BASE_URL}/form?session=${id}`
 
-    await createSession({
-      id,
-      patient_name: patient_name.trim(),
-      expires_at,
-      appointment_id: appointment_id || null,
-      patient_id: patient_id || null
-    })
+    if (!open) {
+      await createSession({
+        id,
+        patient_name,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        appointment_id: appointment?.id || null,
+        patient_id
+      })
+    }
 
     const qr_code_base64 = await QRCode.toDataURL(form_url, {
       width: 400,
@@ -182,23 +237,35 @@ app.post('/api/sessions/start', async (req, res) => {
   }
 })
 
+// Perguntas aceitas do formulário (o endpoint é público: nada além disso entra no banco)
+const ANSWER_KEYS = ['sleep', 'pain', 'pain_regions', 'stress', 'reason', 'payment_method', 'pix_declared']
+
 // Salva respostas e marca sessão como completada (público — formulário do paciente)
 app.post('/api/sessions/:id/answers', async (req, res) => {
   try {
     const { id } = req.params
     const { answers } = req.body
 
-    if (!answers || typeof answers !== 'object') {
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
       return res.status(400).json({ error: 'Respostas inválidas' })
+    }
+    const clean = {}
+    for (const k of ANSWER_KEYS) {
+      if (answers[k] != null && answers[k] !== '') clean[k] = String(answers[k]).slice(0, 300)
     }
 
     const session = await getSession(id)
     if (!session) {
       return res.status(404).json({ error: 'Sessão não encontrada ou expirada' })
     }
+    // Atendimento já em andamento/encerrado: não reabre a chegada do paciente
+    if (['in_session', 'finished'].includes(session.status)) {
+      return res.status(409).json({ error: 'Este atendimento já foi iniciado.' })
+    }
 
-    await saveAnswers(id, answers)
+    await saveAnswers(id, clean)
     await completeSession(id)
+    pollSoon()
 
     res.json({ success: true })
   } catch (error) {
@@ -220,8 +287,9 @@ app.get('/api/sessions/latest/pending-notification', requireAuth, async (req, re
   }
 })
 
-// Última sessão já confirmada (tela do paciente) — público
-app.get('/api/sessions/latest/acknowledged', async (req, res) => {
+// Última sessão já confirmada — protegido (devolve respostas de saúde do paciente;
+// a TV usa /api/tv/state, que não expõe nada disso)
+app.get('/api/sessions/latest/acknowledged', requireAuth, async (req, res) => {
   try {
     const session = await getLatestAcknowledged()
     if (!session) return res.status(404).json({ error: 'Nenhuma sessão confirmada' })
@@ -245,12 +313,28 @@ app.get('/api/sessions/active', requireAuth, async (req, res) => {
   }
 })
 
-// Busca dados de uma sessão por ID (público — formulário lê a própria sessão)
+// Estado da TV da sala de atendimento — público, sem dados do paciente
+app.get('/api/tv/state', async (req, res) => {
+  try {
+    res.json(await tvState())
+  } catch (error) {
+    res.json({ session_id: null, anatomy: null })
+  }
+})
+
+// Busca uma sessão por ID. Logada: dados completos (painel). Sem login (celular do
+// paciente): só o necessário para o formulário — sem respostas nem dados de saúde.
 app.get('/api/sessions/:id', async (req, res) => {
   try {
     const session = await getSession(req.params.id)
     if (!session) return res.status(404).json({ error: 'Sessão não encontrada ou expirada' })
-    res.json(session)
+    if (getUserFromRequest(req)) return res.json(session)
+    res.json({
+      id: session.id,
+      patient_name: firstName(session.patient_name),
+      status: session.status,
+      completed: !!session.completed_at
+    })
   } catch (error) {
     console.error('Erro ao buscar sessão:', error.message)
     res.status(500).json({ error: 'Erro interno' })
@@ -277,46 +361,50 @@ app.get('/api/sessions/:id/history', requireAuth, async (req, res) => {
 
 // ─── Controle de fluxo de sessão (protegido) ─────────────────────────────────
 
+// Estado do totem (tela pública da recepção) — nome abreviado
+async function publicTotemState() {
+  const st = await getTotemState()
+  if (st?.patient_name) st.patient_name = displayName(st.patient_name)
+  return st
+}
+
 app.get('/api/totem/state', async (req, res) => {
   try {
-    res.json(await getTotemState())
+    res.json(await publicTotemState())
   } catch (error) {
     console.error('Erro ao buscar estado do totem:', error.message)
     res.status(500).json({ state: 'idle' })
   }
 })
 
-app.post('/api/sessions/:id/acknowledge', requireAuth, async (req, res) => {
-  try {
-    await acknowledgeSession(req.params.id)
-    res.json({ success: true })
-  } catch (error) {
-    res.status(500).json({ error: 'Erro interno' })
-  }
-})
+// Transições de status feitas pela profissional
+const TRANSITIONS = {
+  acknowledge: acknowledgeSession,
+  wait: setSessionWait,
+  'can-enter': setSessionCanEnter,
+  begin: startSession
+}
+for (const [action, fn] of Object.entries(TRANSITIONS)) {
+  app.post(`/api/sessions/:id/${action}`, requireAuth, async (req, res) => {
+    try {
+      await fn(req.params.id)
+      pollSoon()   // totem, TV e outras abas do painel veem na hora
+      res.json({ success: true })
+    } catch (error) {
+      console.error(`Erro em ${action}:`, error.message)
+      res.status(500).json({ error: 'Erro interno' })
+    }
+  })
+}
 
-app.post('/api/sessions/:id/wait', requireAuth, async (req, res) => {
+// Pontos de acupuntura da última sessão do paciente ("repetir pontos")
+app.get('/api/sessions/:id/last-acupuncture', requireAuth, async (req, res) => {
   try {
-    await setSessionWait(req.params.id)
-    res.json({ success: true })
-  } catch (error) {
-    res.status(500).json({ error: 'Erro interno' })
-  }
-})
-
-app.post('/api/sessions/:id/can-enter', requireAuth, async (req, res) => {
-  try {
-    await setSessionCanEnter(req.params.id)
-    res.json({ success: true })
-  } catch (error) {
-    res.status(500).json({ error: 'Erro interno' })
-  }
-})
-
-app.post('/api/sessions/:id/begin', requireAuth, async (req, res) => {
-  try {
-    await startSession(req.params.id)
-    res.json({ success: true })
+    const session = await getSession(req.params.id)
+    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
+    const last = await getLastAcupuncture(session.patient_name, session.patient_id, session.id)
+    if (!last) return res.status(404).json({ error: 'Nenhum registro anterior' })
+    res.json(last)
   } catch (error) {
     res.status(500).json({ error: 'Erro interno' })
   }
@@ -383,11 +471,17 @@ app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
     const session = await getSession(req.params.id)
     if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
 
+    // Fechamento repetido (duplo clique, rede reenviando): não cobra nem agenda de novo
+    if (session.status === 'finished') {
+      return res.json({ success: true, already: true, created: [], skipped: [] })
+    }
+
     // 1. Prontuário
     await finishSession(req.params.id, {
       session_notes, session_observations,
       session_complaint, session_conduct, session_evolution, session_plan
     })
+    pollSoon()
 
     const result = { success: true, created: [], skipped: [] }
 
@@ -408,18 +502,23 @@ app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
           const fresh = await getAppointment(session.appointment_id)
           await syncAppointmentPayment(fresh)
         } else {
-          // Sessão avulsa (sem agendamento): lança direto
-          if (billing.mode === 'pacote') {
+          // Sessão avulsa (sem agendamento): o lançamento é ligado à sessão.
+          // Atualiza o que já existir em vez de criar outro (evita receita em dobro).
+          const existing = await getPaymentBySession(session.id)
+          const confirmedByProvider = existing?.status === 'pago' && existing.provider_payment_id
+          const money = (billing.mode === 'pago' || billing.mode === 'pendente') && amount > 0
+
+          if (billing.mode === 'pacote' && session.patient_id) {
             await consumePackageSession(session.patient_id)
-          } else if ((billing.mode === 'pago' || billing.mode === 'pendente') && amount > 0) {
-            await createPayment({
-              patient_id: session.patient_id,
-              session_id: session.id,
-              amount,
-              method: billing.method || null,
-              status: billing.mode,
-              paid_at: new Date().toISOString().slice(0, 10)
-            })
+          }
+          if (confirmedByProvider) {
+            // dinheiro já entrou de verdade — não mexe
+          } else if (money) {
+            const row = { amount, method: billing.method || null, status: billing.mode, paid_at: todayBR() }
+            if (existing) await updatePayment(existing.id, row)
+            else await createPayment({ ...row, patient_id: session.patient_id, session_id: session.id })
+          } else if (existing) {
+            await deletePayment(existing.id)
           }
         }
       } catch (e) {
@@ -454,9 +553,9 @@ app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
             type,
             duration_minutes: duration,
             notes: recurrence.notes || null,
-            price: recurrence.price == null || recurrence.price === '' ? null : Number(recurrence.price)
+            price: recurrence.price == null || recurrence.price === '' ? null : Number(recurrence.price),
+            series_id: count > 1 ? seriesId : null
           })
-          if (seriesId) await updateAppointment(appt.id, { series_id: seriesId }).catch(() => {})
           await syncAppointmentPayment(appt).catch(() => {})
           result.created.push(date)
           created++
@@ -485,7 +584,9 @@ app.post('/api/anatomy/explain', requireAuth, async (req, res) => {
     const session = await getSession(session_id)
     if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
 
-    const explanation = await generateAnatomyExplanation(region, problem, session.patient_name)
+    // Para a IA basta o primeiro nome — não há por que enviar o nome completo
+    const explanation = await generateAnatomyExplanation(
+      String(region).slice(0, 80), String(problem).slice(0, 1000), firstName(session.patient_name))
     res.json({ explanation })
   } catch (error) {
     console.error('Erro ao gerar explicação anatômica:', error.message)
@@ -500,7 +601,14 @@ app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
     if (!session_id || !region) {
       return res.status(400).json({ error: 'session_id e region são obrigatórios' })
     }
-    await saveAnatomyEvent({ session_id, region, problem: problem || '', ai_explanation: explanation || '' })
+    if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
+    await saveAnatomyEvent({
+      session_id,
+      region: String(region).slice(0, 80),
+      problem: String(problem || '').slice(0, 1000),
+      ai_explanation: String(explanation || '').slice(0, 5000)
+    })
+    pollSoon()
     res.json({ ok: true })
   } catch (error) {
     console.error('Erro ao publicar explicação:', error.message)
@@ -522,16 +630,23 @@ app.get('/api/anatomy/latest/:session_id', async (req, res) => {
 // Pontos de acupuntura para exibir na TV — protegido
 app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
   try {
-    const { session_id, points } = req.body
+    const { session_id } = req.body
     if (!session_id) return res.status(400).json({ error: 'session_id obrigatório' })
+    // Lista de ids de pontos ("LU7", "LU7-E", "Yintang"...) — nada além disso
+    const points = (Array.isArray(req.body.points) ? req.body.points : [])
+      .filter(p => typeof p === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(p))
+      .slice(0, 120)
+    if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
     await saveAnatomyEvent({
       session_id,
       region: '__acupuncture__',
-      problem: JSON.stringify(points || []),
+      problem: JSON.stringify(points),
       ai_explanation: ''
     })
+    pollSoon()
     res.json({ ok: true })
   } catch (error) {
+    console.error('Erro ao publicar acupuntura:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -606,9 +721,21 @@ app.get('/api/patients/:id', requireAuth, async (req, res) => {
   }
 })
 
+// Só campos editáveis — o corpo da requisição nunca vai direto para o banco
+function pick(body, keys) {
+  const out = {}
+  for (const k of keys) if (body?.[k] !== undefined) out[k] = body[k]
+  return out
+}
+
 app.put('/api/patients/:id', requireAuth, async (req, res) => {
   try {
-    res.json(await updatePatient(req.params.id, req.body))
+    const updates = pick(req.body, ['name', 'phone', 'email', 'birth_date', 'condition', 'notes'])
+    if (updates.name !== undefined && !String(updates.name).trim()) {
+      return res.status(400).json({ error: 'Nome do paciente obrigatório' })
+    }
+    if (updates.birth_date === '') updates.birth_date = null
+    res.json(await updatePatient(req.params.id, updates))
   } catch (error) {
     res.status(500).json({ error: 'Erro interno ao atualizar paciente' })
   }
@@ -634,6 +761,7 @@ app.post('/api/appointments', requireAuth, async (req, res) => {
     if (!appointment_date) return res.status(400).json({ error: 'Data obrigatória' })
     if (!appointment_time) return res.status(400).json({ error: 'Horário obrigatório' })
     if (!type) return res.status(400).json({ error: 'Tipo obrigatório' })
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(appointment_date)) return res.status(400).json({ error: 'Data inválida' })
     const appointment = await createAppointment({
       patient_id, patient_name: patient_name.trim(),
       appointment_date, appointment_time, type, duration_minutes, notes, price
@@ -647,9 +775,21 @@ app.post('/api/appointments', requireAuth, async (req, res) => {
   }
 })
 
+const APPT_FIELDS = ['patient_id', 'patient_name', 'appointment_date', 'appointment_time', 'type',
+  'duration_minutes', 'notes', 'status', 'price', 'payment_status', 'payment_method']
+const APPT_STATUS = ['agendado', 'confirmado', 'atendimento', 'concluido', 'cancelado', 'falta']
+const PAY_STATUS = ['pendente', 'pago', 'isento', 'pacote']
+
 app.put('/api/appointments/:id', requireAuth, async (req, res) => {
   try {
-    const appointment = await updateAppointment(req.params.id, req.body)
+    const updates = pick(req.body, APPT_FIELDS)
+    if (updates.status && !APPT_STATUS.includes(updates.status)) return res.status(400).json({ error: 'Status inválido' })
+    if (updates.payment_status && !PAY_STATUS.includes(updates.payment_status)) return res.status(400).json({ error: 'Situação de pagamento inválida' })
+    if (updates.price === '' || (updates.price != null && isNaN(Number(updates.price)))) updates.price = null
+    if (updates.patient_name !== undefined && !String(updates.patient_name).trim()) {
+      return res.status(400).json({ error: 'Nome do paciente obrigatório' })
+    }
+    const appointment = await updateAppointment(req.params.id, updates)
     // Mantém caixa e pacote em dia com o que foi salvo no agendamento
     await syncAppointmentPackage(appointment).catch(() => {})
     const fresh = await getAppointment(req.params.id)
@@ -686,10 +826,15 @@ app.delete('/api/appointments/:id', requireAuth, async (req, res) => {
 app.post('/api/payments', requireAuth, async (req, res) => {
   try {
     const { amount } = req.body
-    if (amount === undefined || amount === null || isNaN(Number(amount))) {
+    if (amount === undefined || amount === null || amount === '' || isNaN(Number(amount)) || Number(amount) < 0) {
       return res.status(400).json({ error: 'Valor do pagamento obrigatório' })
     }
-    res.status(201).json(await createPayment(req.body))
+    const status = req.body.status === 'pendente' ? 'pendente' : 'pago'
+    res.status(201).json(await createPayment({
+      ...pick(req.body, ['patient_id', 'method', 'paid_at', 'notes']),
+      amount: Number(amount),
+      status
+    }))
   } catch (error) {
     console.error('Erro ao registrar pagamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao registrar pagamento' })
@@ -709,7 +854,7 @@ app.post('/api/packages', requireAuth, async (req, res) => {
 
 app.put('/api/packages/:id', requireAuth, async (req, res) => {
   try {
-    res.json(await updatePackage(req.params.id, req.body))
+    res.json(await updatePackage(req.params.id, pick(req.body, ['total_sessions', 'used_sessions', 'amount_paid', 'notes', 'active'])))
   } catch (error) {
     res.status(500).json({ error: 'Erro interno ao atualizar pacote' })
   }
@@ -895,7 +1040,7 @@ async function ensureMercadoPagoCharge(session, appointment, amount) {
     patient_id: session.patient_id || null,
     appointment_id: appointment?.id || null,
     session_id: session.id,
-    paid_at: appointment?.appointment_date || new Date().toISOString().slice(0, 10)
+    paid_at: appointment?.appointment_date || todayBR()
   })
 }
 
@@ -991,7 +1136,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
     if (pagamento.status === 'approved') {
       const dataPag = pagamento.date_approved
         ? String(pagamento.date_approved).slice(0, 10)
-        : new Date().toISOString().slice(0, 10)
+        : todayBR()
 
       await updatePayment(nosso.id, { status: 'pago', method: 'pix', paid_at: dataPag })
 
@@ -1001,6 +1146,7 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
           payment_method: 'pix'
         }).catch(() => {})
       }
+      pollSoon()   // painel, totem e celular veem o pagamento na hora
       console.log(`✅ Pix confirmado pelo Mercado Pago (pagamento ${pagamento.id}).`)
     }
   } catch (error) {
@@ -1034,7 +1180,7 @@ app.put('/api/settings/prices', requireAuth, async (req, res) => {
 
 app.get('/api/reports/monthly', requireAuth, async (req, res) => {
   try {
-    const month = req.query.month || new Date().toISOString().slice(0, 7)
+    const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : todayBR().slice(0, 7)
     res.json(await getMonthlyReport(month))
   } catch (error) {
     console.error('Erro no relatório mensal:', error.message)
@@ -1118,10 +1264,15 @@ app.delete('/api/payments/:id', requireAuth, async (req, res) => {
 })
 
 // ─── Calibração de acupuntura no banco (item 3) ───────────────────────────────
+// Chave v2: as posições automáticas agora são geradas a partir do modelo 3D
+// (tools/acupoints). A calibração antiga ('acu_calibration') foi feita sobre as
+// referências erradas do modelo anterior (ex.: LI11 e LI15 trocados) — fica
+// preservada no banco, mas não é mais aplicada.
+const CALIBRATION_KEY = 'acu_calibration_v2'
 
 app.get('/api/calibrate', async (req, res) => {
   try {
-    res.json((await getSetting('acu_calibration')) || {})
+    res.json((await getSetting(CALIBRATION_KEY)) || {})
   } catch (error) {
     res.json({})
   }
@@ -1129,11 +1280,20 @@ app.get('/api/calibrate', async (req, res) => {
 
 app.post('/api/calibrate/save', requireAuth, async (req, res) => {
   try {
-    await setSetting('acu_calibration', req.body || {})
-    res.json({ ok: true })
+    // Formato: { "LU7": {x, y, z}, "LU7-E": {x, y, z}, ... } — só números
+    const clean = {}
+    for (const [id, c] of Object.entries(req.body || {})) {
+      if (!/^[A-Za-z0-9-]{1,20}$/.test(id) || !c) continue
+      const x = Number(c.x), y = Number(c.y), z = Number(c.z)
+      if ([x, y, z].every(Number.isFinite) && Math.abs(x) < 2 && y > -0.5 && y < 2.5 && Math.abs(z) < 2) {
+        clean[id] = { x, y, z }
+      }
+    }
+    await setSetting(CALIBRATION_KEY, clean)
+    res.json({ ok: true, count: Object.keys(clean).length })
   } catch (error) {
     console.error('Erro ao salvar calibração:', error.message)
-    res.status(500).json({ error: error.message })
+    res.status(500).json({ error: 'Erro ao salvar calibração' })
   }
 })
 
@@ -1143,6 +1303,7 @@ const sseClients = { public: new Set(), doctor: new Set() }
 let lastJson = { public: '', doctor: '' }
 let lastSnapshot = { public: null, doctor: null }
 let pollTimer = null
+let polling = false, pollAgain = false, soonTimer = null
 
 function sseWrite(res, data) {
   try { res.write(`data: ${JSON.stringify(data)}\n\n`) } catch (_) {}
@@ -1160,35 +1321,50 @@ function stopPollingIfIdle() {
     clearInterval(pollTimer); pollTimer = null
   }
 }
+// Chamado após qualquer ação que muda o estado: todas as telas atualizam em
+// ~150 ms em vez de esperar o próximo ciclo do poller.
+function pollSoon() {
+  if (soonTimer || (!sseClients.public.size && !sseClients.doctor.size)) return
+  soonTimer = setTimeout(() => { soonTimer = null; pollOnce() }, 150)
+}
+
+// O que a TV da sala de atendimento mostra: a sessão em andamento e o último
+// conteúdo publicado nela. Sem nome nem dados do paciente (canal público).
+async function tvState() {
+  const tv = await getTvSession()
+  if (!tv) return { session_id: null, anatomy: null }
+  const ev = await getLatestAnatomyEvent(tv.id)
+  const anatomy = ev
+    ? { id: ev.id, region: ev.region, problem: ev.problem, ai_explanation: ev.ai_explanation, created_at: ev.created_at }
+    : null
+  return { session_id: tv.id, anatomy }
+}
 
 async function pollOnce() {
+  // Evita consultas sobrepostas quando o banco demora
+  if (polling) { pollAgain = true; return }
+  polling = true
   try {
     if (sseClients.public.size > 0) {
-      const totem = await getTotemState()
-      const ack = await getLatestAcknowledged()
-      let anatomy = null
-      if (ack) anatomy = await getLatestAnatomyEvent(ack.id)
-      const payload = {
-        type: 'public',
-        totem,
-        shared: ack ? { session_id: ack.id, patient_name: ack.patient_name, anatomy } : { session_id: null, anatomy: null }
-      }
+      const payload = { type: 'public', totem: await publicTotemState(), shared: await tvState() }
       const json = JSON.stringify(payload)
       if (json !== lastJson.public) { lastJson.public = json; broadcast('public', payload) }
     }
     if (sseClients.doctor.size > 0) {
-      const pending = await getPendingNotification()
-      const active = await getActiveSession()
+      const [pending, active, queue] = await Promise.all([getPendingNotification(), getActiveSession(), getQueue()])
       // Anexa o status de pagamento — quando o webhook do Pix confirma, o JSON
       // muda e o painel atualiza sozinho (notificação, barra de sessão, etc.)
       if (pending) pending.payment = await sessionPayment(pending)
       if (active)  active.payment  = await sessionPayment(active)
-      const payload = { type: 'doctor', pending: pending || null, active: active || null }
+      const payload = { type: 'doctor', pending: pending || null, active: active || null, queue }
       const json = JSON.stringify(payload)
       if (json !== lastJson.doctor) { lastJson.doctor = json; broadcast('doctor', payload) }
     }
   } catch (error) {
     console.error('Erro no poller SSE:', error.message)
+  } finally {
+    polling = false
+    if (pollAgain) { pollAgain = false; pollSoon() }
   }
 }
 
@@ -1213,7 +1389,7 @@ function openSSE(channel, req, res) {
   })
 }
 
-// Público — totem e tela do paciente
+// Público — totem e tela do paciente (sem dados de saúde)
 app.get('/api/stream/public', (req, res) => openSSE('public', req, res))
 // Painel da Dra. — inclui dados sensíveis (respostas), então exige login
 app.get('/api/stream/doctor', requireAuth, (req, res) => openSSE('doctor', req, res))

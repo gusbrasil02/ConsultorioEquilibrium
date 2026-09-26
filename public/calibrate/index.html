@@ -311,6 +311,9 @@
       <button class="nav-btn" id="btn-back">← Anterior</button>
       <button class="nav-btn" id="btn-skip">Pular →</button>
     </div>
+    <div style="padding:0 16px 10px;border-bottom:1px solid #1a1e38">
+      <button class="nav-btn" id="btn-reset-point" style="width:100%" title="Descarta a calibração manual deste ponto e usa a posição automática">↺ Restaurar posição automática</button>
+    </div>
 
     <div id="meridian-list-wrap">
       <div id="meridian-list"></div>
@@ -339,7 +342,7 @@
 <script type="module">
 import { CalibrateViewer, ALL_POINTS, ACU_MERIDIANS } from '/js/calibrate-viewer.js'
 
-const STORAGE_KEY = 'acu_calibrated_v1'
+const STORAGE_KEY = 'acu_calibrated_v2'   // v2: posições geradas do modelo 3D
 let viewer = null
 
 // ── Inicializa viewer ─────────────────────────────────────────────────────────
@@ -347,13 +350,23 @@ let viewer = null
 viewer = new CalibrateViewer(
   document.getElementById('canvas-container'),
   {
-    onReady() {
+    async onReady() {
       document.getElementById('loading-overlay').classList.add('hidden')
 
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        try { viewer.loadSaved(JSON.parse(saved)) } catch {}
+      // Fonte da verdade é o servidor (vale para todos os aparelhos). O
+      // rascunho local só é usado se o servidor não tiver nada salvo.
+      let server = {}
+      try {
+        const r = await fetch('/api/calibrate', { cache: 'no-cache' })
+        if (r.ok) server = await r.json()
+      } catch {}
+      let data = server
+      const draft = localStorage.getItem(STORAGE_KEY)
+      if (!Object.keys(server || {}).length && draft) {
+        try { data = JSON.parse(draft) } catch {}
       }
+      viewer.loadSaved(data || {})
+      localStorage.setItem(STORAGE_KEY, viewer.exportJSON())
 
       buildFilterChips()
       buildMeridianList()
@@ -585,14 +598,27 @@ document.getElementById('btn-save-server').addEventListener('click', async () =>
       headers: { 'Content-Type': 'application/json' },
       body: viewer.exportJSON()
     })
+    if (res.status === 401) {
+      showMsg('⚠ Faça login no painel para salvar')
+      setTimeout(() => { location.href = '/login' }, 1500)
+      return
+    }
     showMsg(res.ok ? '💾 Salvo no servidor' : '⚠ Erro ao salvar no servidor')
   } catch {
     showMsg('⚠ Sem conexão com o servidor')
   }
 })
 
+document.getElementById('btn-reset-point').addEventListener('click', () => {
+  if (viewer.resetCurrent()) {
+    localStorage.setItem(STORAGE_KEY, viewer.exportJSON())
+    refreshUIChips(); refreshUI()
+    showMsg('Posição automática restaurada — clique em "Salvar no servidor" para aplicar')
+  } else showMsg('Este ponto já está na posição automática')
+})
+
 document.getElementById('btn-clear').addEventListener('click', () => {
-  if (!confirm('Apagar todo o progresso? Esta ação não pode ser desfeita.')) return
+  if (!confirm('Descartar TODAS as calibrações manuais e voltar às posições automáticas?\n(Depois clique em "Salvar no servidor" para aplicar.)')) return
   localStorage.removeItem(STORAGE_KEY)
   viewer.loadSaved({})
   refreshUIChips()

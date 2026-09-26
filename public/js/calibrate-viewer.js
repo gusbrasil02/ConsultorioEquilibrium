@@ -1,18 +1,21 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js'
-import { ACU_MERIDIANS } from '/js/acupuncture-viewer.js'
+import { ACU_MERIDIANS } from '/js/acu-data.js'
 
 export { ACU_MERIDIANS }
 
-// Lista plana de todos os pontos (um lado apenas — bilateral é espelhado automaticamente)
+// Lista plana de todos os pontos. A calibração é feita no lado DIREITO do
+// paciente; pontos bilaterais são espelhados automaticamente no esquerdo.
+// x/y/z = posição automática (gerada a partir do modelo 3D).
 export const ALL_POINTS = ACU_MERIDIANS.flatMap(m =>
   m.points.map(p => ({
     ...p,
+    x: p.p[0], y: p.p[1], z: p.p[2],
     meridianId:   m.id,
     meridianName: m.name,
     color:        m.color,
-    bilateral:    m.bilateral,
+    bilateral:    !!p.pl,
   }))
 )
 
@@ -223,21 +226,13 @@ export class CalibrateViewer {
       this._meridianLines[meridian.id].push(line)
     }
 
-    // Pega posições atuais dos pontos (calibradas ou estimadas)
-    const positions = meridian.points
-      .map(p => {
-        const idx = ALL_POINTS.findIndex(ap => ap.id === p.id)
-        return idx >= 0 ? this.pointMeshes[idx].position.clone() : null
-      })
-      .filter(Boolean)
-
-    buildLine(positions)
-
-    // Lado espelhado (bilateral)
-    if (meridian.bilateral) {
-      const mirrored = positions.map(v => new THREE.Vector3(-v.x, v.y, v.z))
-      buildLine(mirrored)
-    }
+    // Trajeto real do meridiano (lado direito), colado à pele — só referência
+    ;(meridian.paths || []).forEach(path => {
+      const arr = path.r || []
+      const pts = []
+      for (let i = 0; i < arr.length; i += 3) pts.push(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2]))
+      buildLine(pts)
+    })
   }
 
   // Reconstrói linha do meridiano que contém o ponto com este id
@@ -350,12 +345,17 @@ export class CalibrateViewer {
   // ── Carrega progresso salvo ───────────────────────────────────────────────────
 
   loadSaved(data) {
-    this.calibrated = { ...data }
+    // Só ids de pontos que existem (calibrações antigas podem ter ids removidos)
+    const valid = new Set(ALL_POINTS.map(p => p.id))
+    this.calibrated = {}
+    Object.entries(data || {}).forEach(([id, c]) => { if (valid.has(id)) this.calibrated[id] = c })
 
-    // Reposiciona esferas já calibradas e reconstrói todas as linhas
+    // Reposiciona as esferas (calibradas ou automáticas) e reconstrói as linhas
     this.pointMeshes.forEach((mesh, i) => {
-      const c = this.calibrated[ALL_POINTS[i].id]
+      const pt = ALL_POINTS[i]
+      const c = this.calibrated[pt.id]
       if (c) mesh.position.set(c.x, c.y, c.z)
+      else mesh.position.set(pt.x, pt.y, pt.z)
     })
 
     ACU_MERIDIANS.forEach(m => this._rebuildMeridianLine(m))
@@ -370,6 +370,17 @@ export class CalibrateViewer {
   }
 
   // ── Exportação ───────────────────────────────────────────────────────────────
+
+  // Volta o ponto atual para a posição automática (remove a calibração manual)
+  resetCurrent() {
+    const pt = ALL_POINTS[this.currentIndex]
+    if (!pt || !this.calibrated[pt.id]) return false
+    delete this.calibrated[pt.id]
+    this.pointMeshes[this.currentIndex].position.set(pt.x, pt.y, pt.z)
+    this._rebuildLineForPoint(pt.id)
+    this._refreshColors()
+    return true
+  }
 
   getCalibrated()      { return { ...this.calibrated } }
   getCalibratedCount() { return Object.keys(this.calibrated).length }

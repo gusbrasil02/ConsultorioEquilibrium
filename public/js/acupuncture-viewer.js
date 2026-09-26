@@ -1,685 +1,746 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import { ACU_MERIDIANS, ACU_PROTOCOLS } from '/js/acu-data.js'
 
-// ── Dados dos 14 meridianos principais ──────────────────────────────────────
-// Coordenadas são pontos de REFERÊNCIA usados como origem para o snap de
-// superfície via raycasting — não precisam ser exatos, apenas do lado certo.
+// ─── Dados ────────────────────────────────────────────────────────────────────
+// As posições vêm de /js/acu-data.js, gerado por tools/acupoints/build.mjs a
+// partir do próprio modelo 3D: cada ponto já está exatamente na pele, e os
+// meridianos são trajetos colados à superfície. Aqui só desenhamos.
 //
-// Sistema normalizado: Y=0 pés | Y≈1.76 cabeça
-//                      X neg = direita do paciente | Z pos = frente do corpo
-// bilateral:true → espelha automaticamente (id + '-E')
+// Ids: "ST36" = lado DIREITO do paciente, "ST36-E" = lado esquerdo.
 
-const ACU_MERIDIANS = [
-  {
-    id:'LU', name:'Pulmão', color:'#5BA4E5', bilateral:true,
-    // Braço ~45° do vertical: ombro (-0.22,1.38) → cada 0.10m ao longo do braço = Δx≈-0.071, Δy≈-0.071
-    points:[
-      {id:'LU1',  name:'Zhongfu',     pt:'Mansão Central',              x:-0.18, y:1.33, z:0.14},  // 1º espaço intercostal, tórax anterior
-      {id:'LU2',  name:'Yunmen',      pt:'Portão da Nuvem',             x:-0.22, y:1.40, z:0.09},  // fossa infraclavicular
-      {id:'LU3',  name:'Tianfu',      pt:'Palácio Celestial',           x:-0.31, y:1.29, z:0.06},  // face anterior do braço, 3 cun abaixo axila
-      {id:'LU5',  name:'Chize',       pt:'Lago do Salgueiro',           x:-0.43, y:1.17, z:0.07},  // prega cubital, lateral
-      {id:'LU7',  name:'Lieque',      pt:'Brecha da Sequência',         x:-0.57, y:1.03, z:0.07},  // 1,5 cun acima prega do punho, radial
-      {id:'LU9',  name:'Taiyuan',     pt:'Grande Abismo',               x:-0.62, y:0.98, z:0.08},  // prega do punho, artéria radial
-      {id:'LU11', name:'Shaoshang',   pt:'Menor Mercador',              x:-0.71, y:0.89, z:0.07},  // ponta do polegar, canto ungueal radial
-    ]
-  },
-  {
-    id:'LI', name:'Intestino Grosso', color:'#D4C4A0', bilateral:true,
-    points:[
-      {id:'LI1',  name:'Shangyang',   pt:'Yang Mercantil',              x:-0.47, y:0.63, z:0.04},
-      {id:'LI4',  name:'Hegu',        pt:'Vale Unido',                  x:-0.45, y:0.69, z:0.02},
-      {id:'LI10', name:'Shousanli',   pt:'Três Milhas do Braço',        x:-0.39, y:1.03, z:0.01},
-      {id:'LI11', name:'Quchi',       pt:'Lagoa Tortuosa',              x:-0.37, y:1.09, z:0.01},
-      {id:'LI15', name:'Jianyu',      pt:'Osso do Ombro',               x:-0.27, y:1.39, z:0.01},
-      {id:'LI18', name:'Futu',        pt:'Apoio de Réptil',             x:-0.09, y:1.48, z:0.09},
-      {id:'LI20', name:'Yingxiang',   pt:'Acolher Fragrância',          x:-0.02, y:1.57, z:0.13},
-    ]
-  },
-  {
-    id:'ST', name:'Estômago', color:'#F0C040', bilateral:true,
-    points:[
-      {id:'ST1',  name:'Chengqi',     pt:'Receber Lágrimas',            x:-0.04, y:1.63, z:0.13},
-      {id:'ST4',  name:'Dicang',      pt:'Celeiro Terrestre',           x:-0.06, y:1.54, z:0.13},
-      {id:'ST7',  name:'Xiaguan',     pt:'Articulação Inferior',        x:-0.12, y:1.61, z:0.07},
-      {id:'ST8',  name:'Touwei',      pt:'Cabeça Amarrada',             x:-0.14, y:1.70, z:0.06},
-      {id:'ST12', name:'Quepen',      pt:'Barragem Vazia',              x:-0.10, y:1.40, z:0.11},
-      {id:'ST18', name:'Rugen',       pt:'Raiz do Mamilo',              x:-0.14, y:1.22, z:0.14},
-      {id:'ST25', name:'Tianshu',     pt:'Pivô Celestial',              x:-0.12, y:1.02, z:0.14},
-      {id:'ST30', name:'Qichong',     pt:'Impulso do Qi',               x:-0.08, y:0.88, z:0.11},
-      {id:'ST35', name:'Dubi',        pt:'Focinho do Boi',              x:-0.14, y:0.40, z:0.10},
-      {id:'ST36', name:'Zusanli',     pt:'Três Milhas do Pé',           x:-0.13, y:0.34, z:0.09},
-      {id:'ST40', name:'Fenglong',    pt:'Luxuriante',                  x:-0.14, y:0.22, z:0.09},
-      {id:'ST41', name:'Jiexi',       pt:'Ribeira da Junta',            x:-0.11, y:0.10, z:0.10},
-      {id:'ST44', name:'Neiting',     pt:'Portal Interior',             x:-0.10, y:0.02, z:0.12},
-    ]
-  },
-  {
-    id:'SP', name:'Baço-Pâncreas', color:'#E8B040', bilateral:true,
-    points:[
-      {id:'SP1',  name:'Yinbai',      pt:'Branco Oculto',               x:-0.09, y:0.02, z:0.10},
-      {id:'SP4',  name:'Gongsun',     pt:'Neto do Duque',               x:-0.09, y:0.05, z:0.09},
-      {id:'SP6',  name:'Sanyinjiao',  pt:'Reunião dos Três Yin',        x:-0.10, y:0.14, z:0.04},
-      {id:'SP9',  name:'Yinlingquan', pt:'Fonte do Monte Yin',          x:-0.10, y:0.38, z:0.04},
-      {id:'SP10', name:'Xuehai',      pt:'Mar do Sangue',               x:-0.11, y:0.48, z:0.05},
-      {id:'SP15', name:'Daheng',      pt:'Grande Horizontal',           x:-0.14, y:1.02, z:0.12},
-      {id:'SP21', name:'Dabao',       pt:'Grande Envoltório',           x:-0.18, y:1.18, z:0.09},
-    ]
-  },
-  {
-    id:'HT', name:'Coração', color:'#E04040', bilateral:true,
-    points:[
-      {id:'HT1',  name:'Jiquan',      pt:'Fonte do Cume',               x:-0.22, y:1.36, z:0.04},
-      {id:'HT3',  name:'Shaohai',     pt:'Pequeno Mar',                 x:-0.37, y:1.09, z:0.04},
-      {id:'HT5',  name:'Tongli',      pt:'Comunicação Interior',        x:-0.42, y:0.87, z:0.02},
-      {id:'HT7',  name:'Shenmen',     pt:'Portão do Espírito',          x:-0.44, y:0.79, z:0.02},
-      {id:'HT9',  name:'Shaochong',   pt:'Menor Impulso',               x:-0.47, y:0.63, z:0.01},
-    ]
-  },
-  {
-    id:'SI', name:'Intestino Delgado', color:'#D08080', bilateral:true,
-    points:[
-      {id:'SI1',  name:'Shaoze',      pt:'Pequeno Pântano',             x:-0.47, y:0.63, z:-0.01},
-      {id:'SI3',  name:'Houxi',       pt:'Posterior do Riacho',         x:-0.46, y:0.66, z:-0.02},
-      {id:'SI8',  name:'Xiaohai',     pt:'Pequeno Mar',                 x:-0.37, y:1.09, z:-0.01},
-      {id:'SI9',  name:'Jianzhen',    pt:'Verdade do Ombro',            x:-0.24, y:1.26, z:-0.05},
-      {id:'SI11', name:'Tianzong',    pt:'Ancestral Celestial',         x:-0.16, y:1.22, z:-0.12},
-      {id:'SI19', name:'Tinggong',    pt:'Palácio da Audição',          x:-0.12, y:1.60, z:0.08},
-    ]
-  },
-  {
-    id:'BL', name:'Bexiga', color:'#4080D0', bilateral:true,
-    points:[
-      {id:'BL1',  name:'Jingming',    pt:'Brilho dos Olhos',            x:-0.03, y:1.64, z:0.12},
-      {id:'BL10', name:'Tianzhu',     pt:'Pilar Celestial',             x:-0.04, y:1.55, z:-0.08},
-      {id:'BL13', name:'Feishu',      pt:'Shu do Pulmão',               x:-0.05, y:1.29, z:-0.12},
-      {id:'BL15', name:'Xinshu',      pt:'Shu do Coração',              x:-0.05, y:1.23, z:-0.12},
-      {id:'BL17', name:'Geshu',       pt:'Shu do Diafragma',            x:-0.05, y:1.17, z:-0.12},
-      {id:'BL18', name:'Ganshu',      pt:'Shu do Fígado',               x:-0.05, y:1.14, z:-0.12},
-      {id:'BL20', name:'Pishu',       pt:'Shu do Baço',                 x:-0.05, y:1.08, z:-0.12},
-      {id:'BL21', name:'Weishu',      pt:'Shu do Estômago',             x:-0.05, y:1.05, z:-0.12},
-      {id:'BL23', name:'Shenshu',     pt:'Shu do Rim',                  x:-0.05, y:0.97, z:-0.12},
-      {id:'BL25', name:'Dachangshu',  pt:'Shu do I. Grosso',            x:-0.05, y:0.91, z:-0.12},
-      {id:'BL40', name:'Weizhong',    pt:'Centro do Apoio',             x:-0.12, y:0.41, z:-0.05},
-      {id:'BL57', name:'Chengshan',   pt:'Apoio da Montanha',           x:-0.12, y:0.21, z:-0.05},
-      {id:'BL60', name:'Kunlun',      pt:'Montanha Kunlun',             x:-0.13, y:0.10, z:-0.04},
-      {id:'BL67', name:'Zhiyin',      pt:'Extremo do Yin',              x:-0.15, y:0.02, z:0.02},
-    ]
-  },
-  {
-    id:'KI', name:'Rim', color:'#3060A0', bilateral:true,
-    points:[
-      {id:'KI1',  name:'Yongquan',    pt:'Fonte Borbulhante',           x:-0.09, y:0.02, z:0.06},
-      {id:'KI3',  name:'Taixi',       pt:'Grande Riacho',               x:-0.10, y:0.09, z:-0.03},
-      {id:'KI6',  name:'Zhaohai',     pt:'Mar Brilhante',               x:-0.09, y:0.06, z:0.03},
-      {id:'KI7',  name:'Fuliu',       pt:'Retorno do Fluxo',            x:-0.09, y:0.15, z:-0.03},
-      {id:'KI10', name:'Yingu',       pt:'Vale do Yin',                 x:-0.11, y:0.41, z:0.02},
-      {id:'KI27', name:'Shufu',       pt:'Mansão do Contorno',          x:-0.06, y:1.39, z:0.12},
-    ]
-  },
-  {
-    id:'PC', name:'Pericárdio', color:'#C04030', bilateral:true,
-    points:[
-      {id:'PC1',  name:'Tianchi',     pt:'Lago Celestial',              x:-0.16, y:1.30, z:0.14},
-      {id:'PC3',  name:'Quze',        pt:'Curva do Pântano',            x:-0.37, y:1.09, z:0.06},
-      {id:'PC6',  name:'Neiguan',     pt:'Barreira Interior',           x:-0.43, y:0.83, z:0.05},
-      {id:'PC7',  name:'Daling',      pt:'Grande Monte',                x:-0.44, y:0.79, z:0.04},
-      {id:'PC9',  name:'Zhongchong',  pt:'Impulso Central',             x:-0.47, y:0.63, z:0.04},
-    ]
-  },
-  {
-    id:'TE', name:'Triplo Aquecedor', color:'#F09040', bilateral:true,
-    points:[
-      {id:'TE1',  name:'Guanchong',   pt:'Impulso do Portão',           x:-0.47, y:0.63, z:0.00},
-      {id:'TE5',  name:'Waiguan',     pt:'Barreira Exterior',           x:-0.43, y:0.83, z:-0.01},
-      {id:'TE10', name:'Tianjing',    pt:'Poço Celestial',              x:-0.37, y:1.09, z:-0.02},
-      {id:'TE14', name:'Jianliao',    pt:'Fenda do Ombro',              x:-0.26, y:1.39, z:-0.02},
-      {id:'TE17', name:'Yifeng',      pt:'Proteção do Vento',           x:-0.13, y:1.58, z:0.04},
-      {id:'TE23', name:'Sizhukong',   pt:'Bambu Seco',                  x:-0.12, y:1.66, z:0.10},
-    ]
-  },
-  {
-    id:'GB', name:'Vesícula Biliar', color:'#70B040', bilateral:true,
-    points:[
-      {id:'GB1',  name:'Tongziliao',  pt:'Sulco da Pupila',             x:-0.11, y:1.63, z:0.11},
-      {id:'GB8',  name:'Shuaigu',     pt:'Vale da Liderança',           x:-0.16, y:1.71, z:0.04},
-      {id:'GB14', name:'Yangbai',     pt:'Brancura do Yang',            x:-0.06, y:1.68, z:0.11},
-      {id:'GB20', name:'Fengchi',     pt:'Lagoa do Vento',              x:-0.08, y:1.55, z:-0.07},
-      {id:'GB21', name:'Jianjing',    pt:'Poço do Ombro',               x:-0.18, y:1.40, z:0.01},
-      {id:'GB25', name:'Jingmen',     pt:'Portão das Capitais',         x:-0.18, y:0.94, z:0.07},
-      {id:'GB30', name:'Huantiao',    pt:'Círculo que Salta',           x:-0.20, y:0.84, z:-0.04},
-      {id:'GB34', name:'Yanglingquan',pt:'Fonte do Monte Yang',         x:-0.16, y:0.38, z:0.07},
-      {id:'GB39', name:'Xuanzhong',   pt:'Sino Suspenso',               x:-0.14, y:0.17, z:0.02},
-      {id:'GB40', name:'Qiuxu',       pt:'Lugar das Ruínas',            x:-0.14, y:0.10, z:0.05},
-      {id:'GB44', name:'Zuqiaoyin',   pt:'Abertura do Yin do Pé',       x:-0.15, y:0.02, z:0.04},
-    ]
-  },
-  {
-    id:'LR', name:'Fígado', color:'#408040', bilateral:true,
-    points:[
-      {id:'LR1',  name:'Dadun',       pt:'Grande Sinceridade',          x:-0.09, y:0.02, z:0.12},
-      {id:'LR2',  name:'Xingjian',    pt:'Intervalo de Caminhada',      x:-0.09, y:0.03, z:0.11},
-      {id:'LR3',  name:'Taichong',    pt:'Grande Impulso',              x:-0.09, y:0.05, z:0.10},
-      {id:'LR5',  name:'Ligou',       pt:'Ranhura do Mirtilo',          x:-0.09, y:0.18, z:0.04},
-      {id:'LR8',  name:'Ququan',      pt:'Fonte do Joelho',             x:-0.11, y:0.40, z:0.03},
-      {id:'LR13', name:'Zhangmen',    pt:'Portão do Capítulo',          x:-0.18, y:1.05, z:0.10},
-      {id:'LR14', name:'Qimen',       pt:'Portão da Esperança',         x:-0.14, y:1.28, z:0.14},
-    ]
-  },
-  {
-    id:'CV', name:'Vaso Concepção', color:'#E0C050', bilateral:false,
-    points:[
-      {id:'CV1',  name:'Huiyin',      pt:'Reunião do Yin',              x:0, y:0.87, z:0.06},
-      {id:'CV4',  name:'Guanyuan',    pt:'Portão Vital',                x:0, y:0.97, z:0.14},
-      {id:'CV6',  name:'Qihai',       pt:'Mar do Qi',                   x:0, y:1.01, z:0.14},
-      {id:'CV8',  name:'Shenque',     pt:'Palácio do Espírito (umbigo)',x:0, y:1.03, z:0.14},
-      {id:'CV12', name:'Zhongwan',    pt:'Parte Central do Estômago',   x:0, y:1.13, z:0.14},
-      {id:'CV17', name:'Danzhong',    pt:'Centro do Peito',             x:0, y:1.30, z:0.15},
-      {id:'CV22', name:'Tiantu',      pt:'Eminência Celestial',         x:0, y:1.44, z:0.12},
-      {id:'CV24', name:'Chengjiang',  pt:'Receber Fluido',              x:0, y:1.52, z:0.13},
-    ]
-  },
-  {
-    id:'GV', name:'Vaso Governador', color:'#C09020', bilateral:false,
-    points:[
-      {id:'GV1',  name:'Changqiang',  pt:'Força Longa',                 x:0, y:0.84, z:-0.06},
-      {id:'GV4',  name:'Mingmen',     pt:'Portão da Vida',              x:0, y:0.97, z:-0.12},
-      {id:'GV9',  name:'Zhiyang',     pt:'Atingir Yang',                x:0, y:1.19, z:-0.13},
-      {id:'GV14', name:'Dazhui',      pt:'Grande Vértebra',             x:0, y:1.38, z:-0.10},
-      {id:'GV16', name:'Fengfu',      pt:'Palácio do Vento',            x:0, y:1.51, z:-0.07},
-      {id:'GV20', name:'Baihui',      pt:'Cem Reuniões',                x:0, y:1.74, z:0.00},
-      {id:'GV24', name:'Shenting',    pt:'Pátio do Espírito',           x:0, y:1.69, z:0.09},
-      {id:'GV26', name:'Renzhong',    pt:'Philtrum',                    x:0, y:1.55, z:0.13},
-    ]
-  },
-]
+const baseId = id => String(id).replace(/-E$/, '')
+const isLeftId = id => /-E$/.test(String(id))
 
-// ── Classe principal do visualizador ─────────────────────────────────────────
+const POINT_INDEX = new Map()
+ACU_MERIDIANS.forEach(m => m.points.forEach(p => POINT_INDEX.set(p.id, { ...p, meridian: m })))
+
+// Informações de um ponto (aceita id com ou sem "-E")
+function findPoint(id) {
+  const p = POINT_INDEX.get(baseId(id))
+  if (!p) return null
+  return { ...p, fullId: id, side: p.pl ? (isLeftId(id) ? 'E' : 'D') : null }
+}
+// Ids dos dois lados de um ponto (ou só um, se for da linha média)
+function sideIds(base) {
+  const p = POINT_INDEX.get(baseId(base))
+  if (!p) return []
+  return p.pl ? [p.id, p.id + '-E'] : [p.id]
+}
+
+// ─── Estilos do overlay (rótulos, tooltip, carregamento) ─────────────────────
+const STYLE_ID = 'acu-viewer-style'
+function injectStyle() {
+  if (document.getElementById(STYLE_ID)) return
+  const s = document.createElement('style')
+  s.id = STYLE_ID
+  s.textContent = `
+  .acu-host { position: relative; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 38%, #1d1838 0%, #0b0b17 55%, #05050a 100%); }
+  .acu-host canvas { display: block; outline: none; touch-action: none; }
+  .acu-overlay { position: absolute; inset: 0; pointer-events: none; font-family: 'DM Sans', system-ui, sans-serif; }
+  .acu-lbl { position: absolute; left: 0; top: 0; white-space: nowrap; padding: 2px 7px;
+    border-radius: 7px; background: rgba(8,8,18,0.78); border: 1px solid var(--c, #fff);
+    color: #fff; font-size: 11px; line-height: 1.35; will-change: transform;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35); transition: opacity .2s; }
+  .acu-lbl b { font-weight: 600; }
+  .acu-lbl span { opacity: .7; margin-left: 4px; }
+  .acu-host.tv .acu-lbl { font-size: 13px; padding: 3px 9px; }
+  .acu-tip { position: absolute; left: 0; top: 0; min-width: 170px; max-width: 260px; padding: 8px 11px;
+    border-radius: 10px; background: rgba(10,10,22,0.92); border: 1px solid rgba(255,255,255,0.14);
+    color: #fff; font-size: 12px; line-height: 1.45; box-shadow: 0 8px 26px rgba(0,0,0,0.45);
+    opacity: 0; transition: opacity .12s; }
+  .acu-tip.show { opacity: 1; }
+  .acu-tip .t1 { font-weight: 600; font-size: 13px; }
+  .acu-tip .t2 { opacity: .65; font-style: italic; }
+  .acu-tip .t3 { margin-top: 3px; font-size: 11px; opacity: .8; }
+  .acu-tip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .acu-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.45); font-size: 13px; letter-spacing: .06em; }
+  `
+  document.head.appendChild(s)
+}
+
+// Textura circular suave (halos e partículas de fluxo)
+function glowTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64)
+  grd.addColorStop(0, 'rgba(255,255,255,1)')
+  grd.addColorStop(0.25, 'rgba(255,255,255,0.75)')
+  grd.addColorStop(0.6, 'rgba(255,255,255,0.18)')
+  grd.addColorStop(1, 'rgba(255,255,255,0)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 128, 128)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+const BODY_CENTER = new THREE.Vector3(0, 0.92, 0)
+
+// ─── Visualizador ─────────────────────────────────────────────────────────────
 
 class AcupunctureViewer {
+  /**
+   * options:
+   *   isDoctor           → permite selecionar pontos (painel)
+   *   tv                 → modo TV: rótulos maiores, câmera "respira" sobre os pontos
+   *   autoRotate         → gira sozinho quando não há pontos selecionados
+   *   labels             → rótulos dos pontos selecionados (padrão: true)
+   *   onSelectionChange  → (ids, infoDoPontoClicado) => void
+   *   onHover            → (info | null) => void
+   *   onReady            → () => void
+   */
   constructor(container, options = {}) {
-    this.container         = container
-    this.isDoctor          = options.isDoctor  ?? false
-    this.autoRotate        = options.autoRotate ?? false
+    this.container = container
+    this.isDoctor = options.isDoctor ?? false
+    this.tv = options.tv ?? false
+    this.autoRotate = options.autoRotate ?? false
+    this.labelsOn = options.labels ?? true
     this.onSelectionChange = options.onSelectionChange ?? null
-    this.selectedPoints    = new Set()
-    this.pointMeshes       = []
-    this._meridianGroups   = {}
-    this._bodyMeshes       = []
-    this._disposed         = false
-    this._animId           = null
+    this.onHover = options.onHover ?? null
+    this.onReady = options.onReady ?? null
+
+    this.selected = new Set()
+    this.hidden = new Set()           // meridianos ocultos pelo usuário
+    this.onlyActive = false           // mostrar só os meridianos dos pontos selecionados
+    this.highlighted = null           // meridiano em destaque (hover na lista)
+    this.hovered = null
+    this.ready = false
+    this._disposed = false
+    this._tween = null
+    this._clock = new THREE.Clock()
+    this._flows = []
+    this._halos = new Map()
+    this._labels = new Map()
+
+    injectStyle()
     this._init()
   }
 
+  // ── Montagem ───────────────────────────────────────────────────────────────
   _init() {
-    const W = this.container.clientWidth  || 600
-    const H = this.container.clientHeight || 500
+    const host = this.container
+    host.classList.add('acu-host')
+    if (this.tv) host.classList.add('tv')
+    const W = host.clientWidth || 600, H = host.clientHeight || 500
 
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x080810)
-    this.scene.fog = new THREE.FogExp2(0x080810, 0.16)
+    this.camera = new THREE.PerspectiveCamera(34, W / H, 0.01, 60)
+    this.camera.position.set(0, 1.0, 3.4)
 
-    this.camera = new THREE.PerspectiveCamera(40, W / H, 0.01, 50)
-    this.camera.position.set(0, 0.92, 3.4)
-    this.camera.lookAt(0, 0.88, 0)
-
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    this.renderer.setClearColor(0x000000, 0)
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     this.renderer.setSize(W, H)
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.toneMapping         = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure  = 1.15
-    this.renderer.useLegacyLights      = false
-    this.container.appendChild(this.renderer.domElement)
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 0.92
+    this.renderer.useLegacyLights = false
+    host.appendChild(this.renderer.domElement)
 
-    this._setupLighting()
-    this._createSkinMaterial()
-    this._loadBody()
-    this._setupMeridians()
+    // Iluminação de estúdio (reflexos suaves na pele) + luzes de recorte
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    pmrem.dispose()
+    this.scene.add(new THREE.HemisphereLight(0xfff1e6, 0x302040, 0.65))
+    const key = new THREE.DirectionalLight(0xfff4ea, 2.0); key.position.set(1.6, 3, 3.2); this.scene.add(key)
+    const rim = new THREE.DirectionalLight(0x9fb8ff, 1.3); rim.position.set(-2.4, 2.2, -3); this.scene.add(rim)
+    const rim2 = new THREE.DirectionalLight(0xffc49a, 0.8); rim2.position.set(2.6, 1.2, -2.6); this.scene.add(rim2)
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.target.set(0, 0.88, 0)
-    this.controls.minDistance      = 0.8
-    this.controls.maxDistance      = 9.0
-    this.controls.autoRotate       = this.autoRotate
-    this.controls.autoRotateSpeed  = 0.55
-    this.controls.enableDamping    = true
-    this.controls.dampingFactor    = 0.08
-    this.controls.update()
+    this._addFloor()
 
+    // Overlay DOM
+    this.overlay = document.createElement('div')
+    this.overlay.className = 'acu-overlay'
+    host.appendChild(this.overlay)
+    this.loadingEl = document.createElement('div')
+    this.loadingEl.className = 'acu-loading'
+    this.loadingEl.textContent = 'Carregando modelo 3D…'
+    this.overlay.appendChild(this.loadingEl)
     if (this.isDoctor) {
-      this._raycaster = new THREE.Raycaster()
-      this._mouse = new THREE.Vector2()
-      this.renderer.domElement.addEventListener('click', this._onClick.bind(this))
+      this.tipEl = document.createElement('div')
+      this.tipEl.className = 'acu-tip'
+      this.overlay.appendChild(this.tipEl)
     }
 
-    this._onResizeBound = this._onResize.bind(this)
-    window.addEventListener('resize', this._onResizeBound)
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+    this.controls.target.copy(BODY_CENTER)
+    this.controls.minDistance = 0.3
+    this.controls.maxDistance = 6
+    this.controls.enableDamping = true
+    this.controls.dampingFactor = 0.08
+    this.controls.autoRotateSpeed = 0.6
+    this.controls.enablePan = this.isDoctor
+    this.controls.update()
+    // Usuário mexeu na câmera → cancela animações/rotação automáticas
+    this.controls.addEventListener('start', () => { this._tween = null; this._userMoved = true })
+
+    this._glow = glowTexture()
+    this._buildPoints()
+    this._buildMeridians()
+    this._loadBody()
+    this._loadCalibration()
+
+    if (this.isDoctor) this._bindPointer()
+
+    this._ro = new ResizeObserver(() => this._onResize())
+    this._ro.observe(host)
     this._animate()
   }
 
-  // ── Iluminação ───────────────────────────────────────────────────────────
-
-  _setupLighting() {
-    this.scene.add(new THREE.HemisphereLight(0xffe4c8, 0x7a4010, 0.55))
-
-    const key = new THREE.DirectionalLight(0xfff5e8, 1.10)
-    key.position.set(1.8, 3.2, 3.8)
-    this.scene.add(key)
-
-    const fill = new THREE.DirectionalLight(0xb8d0ff, 0.38)
-    fill.position.set(-2.6, 1.4, 2.4)
-    this.scene.add(fill)
-
-    // Dois rim lights traseiros para costas bem iluminadas
-    const rim1 = new THREE.DirectionalLight(0xffd0a0, 0.65)
-    rim1.position.set(0, 2.0, -4.0)
-    this.scene.add(rim1)
-
-    const rim2 = new THREE.DirectionalLight(0xff8050, 0.30)
-    rim2.position.set(-1.5, 1.0, -3.5)
-    this.scene.add(rim2)
-
-    const bot = new THREE.DirectionalLight(0x6a3010, 0.20)
-    bot.position.set(0, -3.0, 1.0)
-    this.scene.add(bot)
+  _addFloor() {
+    const c = document.createElement('canvas')
+    c.width = c.height = 256
+    const g = c.getContext('2d')
+    const grd = g.createRadialGradient(128, 128, 0, 128, 128, 128)
+    grd.addColorStop(0, 'rgba(140,120,255,0.35)')
+    grd.addColorStop(0.5, 'rgba(90,70,200,0.10)')
+    grd.addColorStop(1, 'rgba(0,0,0,0)')
+    g.fillStyle = grd
+    g.fillRect(0, 0, 256, 256)
+    const tex = new THREE.CanvasTexture(c)
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(0.9, 48),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+    )
+    floor.rotation.x = -Math.PI / 2
+    floor.position.y = 0.001
+    this.scene.add(floor)
   }
 
-  // ── Material de pele ─────────────────────────────────────────────────────
-
-  _createSkinTexture() {
-    const size = 512
-    const canvas = document.createElement('canvas')
-    canvas.width = canvas.height = size
-    const ctx = canvas.getContext('2d')
-
-    ctx.fillStyle = '#c47a50'
-    ctx.fillRect(0, 0, size, size)
-
-    const grd = ctx.createRadialGradient(size*0.45, size*0.35, 0, size*0.5, size*0.5, size*0.78)
-    grd.addColorStop(0,    'rgba(255,210,168,0.50)')
-    grd.addColorStop(0.55, 'rgba(200,138, 95,0.18)')
-    grd.addColorStop(1,    'rgba(130, 60, 22,0.35)')
-    ctx.fillStyle = grd
-    ctx.fillRect(0, 0, size, size)
-
-    for (let i = 0; i < 9000; i++) {
-      const x = Math.random() * size, y = Math.random() * size
-      const r = Math.random() * 1.3 + 0.12
-      const a = (Math.random() * 0.07 + 0.02).toFixed(3)
-      ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
-      ctx.fillStyle = Math.random() > 0.5
-        ? `rgba(255,${(160+Math.random()*65)|0},${(105+Math.random()*55)|0},${a})`
-        : `rgba(${(85+Math.random()*55)|0},${(38+Math.random()*28)|0},${(12+Math.random()*18)|0},${a})`
-      ctx.fill()
-    }
-
-    const tex = new THREE.CanvasTexture(canvas)
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
-    tex.repeat.set(2, 3)
-    return tex
-  }
-
-  _createSkinMaterial() {
-    this.skinMat = new THREE.MeshPhysicalMaterial({
-      map:                this._createSkinTexture(),
-      color:              0xf8caa8,
-      roughness:          0.72,
-      metalness:          0.00,
-      sheen:              0.30,
-      sheenRoughness:     0.80,
-      sheenColor:         new THREE.Color(0xff8866),
-      clearcoat:          0.06,
-      clearcoatRoughness: 0.70,
-    })
-  }
-
-  // ── Carrega modelo GLB ────────────────────────────────────────────────────
-
+  // ── Corpo ──────────────────────────────────────────────────────────────────
   async _loadBody() {
     try {
-      const loader = new GLTFLoader()
-      const gltf   = await new Promise((resolve, reject) =>
-        loader.load('/models/human-body.glb', resolve, undefined, reject)
-      )
-
+      const gltf = await new Promise((resolve, reject) =>
+        new GLTFLoader().load('/models/human-body.glb', resolve, undefined, reject))
       const model = gltf.scene
 
-      // Normaliza: pés Y=0, cabeça Y=1.76, centrado em X e Z
-      const box    = new THREE.Box3().setFromObject(model)
-      const size   = box.getSize(new THREE.Vector3())
+      // Mesma normalização usada pelo gerador de pontos: pés em Y=0, altura 1,76
+      const box = new THREE.Box3().setFromObject(model)
+      const size = box.getSize(new THREE.Vector3())
       const center = box.getCenter(new THREE.Vector3())
-      const scale  = 1.76 / size.y
-
+      const scale = 1.76 / size.y
       model.scale.setScalar(scale)
       model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale)
 
-      model.traverse(child => {
-        if (child.isMesh) {
-          child.material = this.skinMat
-          child.geometry.computeVertexNormals()
-        }
+      this.skin = new THREE.MeshPhysicalMaterial({
+        color: 0xc98f72, roughness: 0.6, metalness: 0,
+        sheen: 0.5, sheenRoughness: 0.55, sheenColor: new THREE.Color(0xffc2a6),
+        clearcoat: 0.08, clearcoatRoughness: 0.6, envMapIntensity: 0.4
       })
-
-      this.bodyGroup = model
+      this._bodyMeshes = []
+      model.traverse(o => {
+        if (!o.isMesh) return
+        o.material = this.skin
+        if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals()
+        this._bodyMeshes.push(o)
+      })
       this.scene.add(model)
       model.updateMatrixWorld(true)
-
-      // Coleta malhas para raycasting
-      model.traverse(c => { if (c.isMesh) this._bodyMeshes.push(c) })
-
-      // Snap de pontos e reconstrução de linhas na superfície
-      this._snapPointsToSurface()
-
-      // Sobrepõe coordenadas calibradas manualmente (se existirem)
-      await this._applyCalibrated()
-
-      this._rebuildMeridianLines()
-
+      this.body = model
     } catch (err) {
-      console.error('[AcupunctureViewer] Erro ao carregar GLB:', err)
+      console.error('[AcupunctureViewer] Erro ao carregar o modelo:', err)
+      this.loadingEl.textContent = 'Não foi possível carregar o modelo 3D.'
+      return
     }
+    this.loadingEl.remove()
+    this.ready = true
+    this.onReady?.()
   }
 
-  // Carrega calibração do banco (/api/calibrate) e aplica posições exatas.
-  // Cai para o arquivo estático antigo caso a API não responda.
-  async _applyCalibrated() {
-    try {
-      let data = null
-      try {
-        const r = await fetch('/api/calibrate', { cache: 'no-cache' })
-        if (r.ok) data = await r.json()
-      } catch (_) {}
-      if (!data || Object.keys(data).length === 0) {
-        const res = await fetch('/js/acu-points-calibrated.json', { cache: 'no-cache' })
-        if (!res.ok) return
-        data = await res.json()
-      }
-
-      this.pointMeshes.forEach(mesh => {
-        const id     = mesh.userData.id
-        const baseId = id.endsWith('-E') ? id.slice(0, -2) : id
-        const cal    = data[baseId]
-        if (!cal) return
-
-        if (id.endsWith('-E')) {
-          mesh.position.set(-cal.x, cal.y, cal.z)
-        } else {
-          mesh.position.set(cal.x, cal.y, cal.z)
-        }
+  // ── Pontos (uma InstancedMesh para todos) ────────────────────────────────
+  _buildPoints() {
+    this.points = []   // { id, base, meridian, pos, nrm, orig }
+    ACU_MERIDIANS.forEach(m => m.points.forEach(p => {
+      const add = (id, a) => this.points.push({
+        id, base: p.id, meridian: m, info: p,
+        pos: new THREE.Vector3(a[0], a[1], a[2]),
+        orig: new THREE.Vector3(a[0], a[1], a[2]),
+        nrm: new THREE.Vector3(a[3], a[4], a[5]).normalize()
       })
-    } catch {
-      // Arquivo não existe ainda — usa posições do snap
+      add(p.id, p.p)
+      if (p.pl) add(p.id + '-E', p.pl)
+    }))
+    this.pointById = new Map(this.points.map((pt, i) => [pt.id, i]))
+
+    const geo = new THREE.SphereGeometry(0.0046, 14, 10)
+    const mat = new THREE.MeshBasicMaterial({ toneMapped: false })
+    this.pointMesh = new THREE.InstancedMesh(geo, mat, this.points.length)
+    this.pointMesh.frustumCulled = false
+    this.points.forEach((pt, i) => this.pointMesh.setColorAt(i, new THREE.Color(pt.meridian.color)))
+    this.scene.add(this.pointMesh)
+
+    // Disco escuro achatado sobre a pele, sob cada ponto: contorno que dá
+    // contraste na pele clara sem virar uma "bolha" preta quando visto de lado
+    const ringGeo = new THREE.CircleGeometry(0.0061, 24)
+    this.ringMesh = new THREE.InstancedMesh(ringGeo, new THREE.MeshBasicMaterial({
+      color: 0x120a1a, transparent: true, opacity: 0.7, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+    }), this.points.length)
+    this.ringMesh.frustumCulled = false
+    this.scene.add(this.ringMesh)
+
+    this._refreshPoints()
+  }
+
+  _pointVisible(pt) {
+    if (this.hidden.has(pt.meridian.id)) return false
+    if (this.onlyActive && this.selected.size && !this._activeMeridians().has(pt.meridian.id)) return false
+    return true
+  }
+
+  _refreshPoints() {
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3()
+    const white = new THREE.Color(1, 1, 1), back = new THREE.Vector3(), rq = new THREE.Quaternion()
+    const Z = new THREE.Vector3(0, 0, 1)
+    this.points.forEach((pt, i) => {
+      const vis = this._pointVisible(pt)
+      const sel = this.selected.has(pt.id)
+      const hov = this.hovered === pt.id
+      const dim = this.highlighted && this.highlighted !== pt.meridian.id && !sel
+      const k = !vis ? 0 : sel ? 1.85 : hov ? 1.6 : dim ? 0.75 : 1
+      s.setScalar(k)
+      m4.compose(pt.pos, q, s)
+      this.pointMesh.setMatrixAt(i, m4)
+      // O disco fica deitado sobre a pele (orientado pela normal do ponto)
+      back.copy(pt.pos).addScaledVector(pt.nrm, -0.0028)
+      rq.setFromUnitVectors(Z, pt.nrm)
+      m4.compose(back, rq, s)
+      this.ringMesh.setMatrixAt(i, m4)
+      const c = new THREE.Color(pt.meridian.color)
+      if (sel || hov) c.lerp(white, 0.35)
+      else if (dim) c.multiplyScalar(0.45)
+      this.pointMesh.setColorAt(i, c)
+    })
+    this.pointMesh.instanceMatrix.needsUpdate = true
+    this.ringMesh.instanceMatrix.needsUpdate = true
+    if (this.pointMesh.instanceColor) this.pointMesh.instanceColor.needsUpdate = true
+  }
+
+  // ── Meridianos (tubos sobre a pele) ───────────────────────────────────────
+  _buildMeridians() {
+    this.meridians = {}
+    ACU_MERIDIANS.forEach(m => {
+      const group = new THREE.Group()
+      const mat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(m.color), transparent: true, opacity: 0.5,
+        toneMapped: false, depthWrite: false
+      })
+      mat.opacity = 0.62
+      this.meridians[m.id] = { group, mat, curves: [], raw: [] }
+      m.paths.forEach(path => {
+        for (const side of ['r', 'l']) if (path[side]) this.meridians[m.id].raw.push({ side, arr: path[side] })
+      })
+      this.scene.add(group)
+      this._rebuildMeridian(m.id)
+    })
+  }
+
+  // (Re)constrói os tubos de um meridiano, deformando o trajeto onde houver
+  // pontos calibrados manualmente (o trajeto acompanha o ponto movido).
+  _rebuildMeridian(mid) {
+    const M = this.meridians[mid]
+    M.group.children.forEach(c => c.geometry.dispose())
+    M.group.clear()
+    M.curves = []
+    const moved = this.points.filter(pt => pt.meridian.id === mid && pt.pos.distanceToSquared(pt.orig) > 1e-8)
+
+    for (const { side, arr } of M.raw) {
+      const pts = []
+      for (let i = 0; i < arr.length; i += 3) {
+        const v = new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2])
+        if (moved.length) {
+          const acc = new THREE.Vector3(); let W = 0
+          for (const pt of moved) {
+            if ((side === 'l') !== isLeftId(pt.id) && pt.info.pl) continue
+            const d = v.distanceTo(pt.orig)
+            const w = Math.max(0, 1 - d / 0.07) ** 2
+            if (w > 0) { acc.addScaledVector(new THREE.Vector3().subVectors(pt.pos, pt.orig), w); W += w }
+          }
+          if (W > 0) v.addScaledVector(acc, Math.min(1, W) / W)
+        }
+        pts.push(v)
+      }
+      if (pts.length < 2) continue
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal')
+      const seg = Math.min(600, Math.max(8, pts.length * 3))
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, 0.0019, 6, false), M.mat)
+      tube.renderOrder = 1
+      M.group.add(tube)
+      M.curves.push({ curve, length: curve.getLength(), side })
     }
   }
 
-  // ── Snap de um único ponto à superfície (disparo de fora para dentro) ────────
-  //
-  // Estratégia: dispara raios de 2 m FORA do corpo em direção ao interior.
-  // Isso garante que o primeiro hit seja sempre a superfície correta independente
-  // da pose do modelo (A-pose, T-pose, etc.) — sem precisar de maxDelta.
-  //
-  // Direções tentadas em ordem de prioridade:
-  //   1) Eixo central → referência        (cobre tronco, cabeça, pernas)
-  //   2) ±Z face                          (só para pontos próximos ao eixo, len≤0.18)
-  //   3) ±X lateral puro                  (braços — qualquer pose)
-  //   4) Diagonal lateral±Z               (face ant./post. do braço)
+  _activeMeridians() {
+    const set = new Set()
+    this.selected.forEach(id => { const i = this.pointById.get(id); if (i != null) set.add(this.points[i].meridian.id) })
+    return set
+  }
 
-  _snapSinglePoint(ref, meshes) {
-    if (!meshes.length) return null
+  _refreshMeridians() {
+    const active = this._activeMeridians()
+    Object.entries(this.meridians).forEach(([id, M]) => {
+      let visible = !this.hidden.has(id)
+      if (this.onlyActive && this.selected.size && !active.has(id)) visible = false
+      M.group.visible = visible
+      let op = 0.62
+      if (this.highlighted) op = this.highlighted === id ? 1 : 0.12
+      else if (this.selected.size) op = active.has(id) ? 0.95 : 0.2
+      M.mat.opacity = op
+    })
+    this._rebuildFlows()
+  }
 
-    const rc  = new THREE.Raycaster()
-    rc.far    = 6.0
+  // Partículas de "energia" percorrendo os meridianos ativos
+  _rebuildFlows() {
+    this._flows.forEach(f => { this.scene.remove(f.obj); f.obj.geometry.dispose(); f.obj.material.dispose() })
+    this._flows = []
+    const ids = this.highlighted ? new Set([this.highlighted]) : this._activeMeridians()
+    ids.forEach(id => {
+      const M = this.meridians[id]
+      if (!M || !M.group.visible) return
+      M.curves.forEach(({ curve, length }) => {
+        const n = Math.max(3, Math.min(14, Math.round(length / 0.09)))
+        const geo = new THREE.BufferGeometry()
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
+        const mat = new THREE.PointsMaterial({
+          map: this._glow, color: new THREE.Color(M.mat.color).lerp(new THREE.Color(1, 1, 1), 0.3),
+          size: this.tv ? 0.03 : 0.022, sizeAttenuation: true, transparent: true,
+          depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+        })
+        const obj = new THREE.Points(geo, mat)
+        obj.frustumCulled = false
+        this.scene.add(obj)
+        this._flows.push({ obj, curve, n, speed: 0.12 / Math.max(length, 0.2), phase: Math.random() })
+      })
+    })
+  }
 
-    const toRef = ref.clone().sub(new THREE.Vector3(0, ref.y, 0))
-    const len   = toRef.length()
-    const sx    = ref.x >= 0 ? 1 : -1  // sinal lateral
-
-    const outDirs = []
-
-    // 1. Direção do eixo central → referência (principal)
-    if (len > 0.025) outDirs.push(toRef.clone().normalize())
-
-    // 2. ±Z apenas para pontos próximos ao eixo (tronco/cabeça/pernas)
-    if (len <= 0.18)
-      outDirs.push(new THREE.Vector3(0, 0, ref.z >= 0 ? 1 : -1))
-
-    // 3. Lateral puro — essencial para braços em qualquer pose
-    if (Math.abs(ref.x) > 0.15)
-      outDirs.push(new THREE.Vector3(sx, 0, 0))
-
-    // 4. Diagonais lateral+Z para face anterior/posterior do braço
-    if (len > 0.20 && Math.abs(ref.x) > 0.20) {
-      outDirs.push(new THREE.Vector3(sx * 0.707, 0,  0.707))
-      outDirs.push(new THREE.Vector3(sx * 0.707, 0, -0.707))
-    }
-
-    for (const outDir of outDirs) {
-      // Dispara sempre de 2 m fora, centrado na altura Y do ponto de referência
-      const origin = new THREE.Vector3(0, ref.y, 0).addScaledVector(outDir, 2.0)
-      rc.set(origin, outDir.clone().negate())
-      const hits = rc.intersectObjects(meshes, false)
-      if (hits.length > 0) {
-        const h = hits[0]
-        const n = h.face.normal.clone()
-          .transformDirection(h.object.matrixWorld)
-          .normalize()
-        return h.point.clone().addScaledVector(n, 0.011)
+  // Halos pulsantes + rótulos dos pontos selecionados
+  _refreshSelectionFx() {
+    for (const [id, h] of this._halos) if (!this.selected.has(id)) { this.scene.remove(h); h.material.dispose(); this._halos.delete(id) }
+    for (const [id, el] of this._labels) if (!this.selected.has(id)) { el.remove(); this._labels.delete(id) }
+    this.selected.forEach(id => {
+      const i = this.pointById.get(id)
+      if (i == null) return
+      const pt = this.points[i]
+      if (!this._halos.has(id)) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: this._glow, color: new THREE.Color(pt.meridian.color), transparent: true,
+          depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+        }))
+        sp.position.copy(pt.pos).addScaledVector(pt.nrm, 0.003)
+        sp.scale.setScalar(0.045)
+        this.scene.add(sp)
+        this._halos.set(id, sp)
       }
-    }
+      if (this.labelsOn && !this._labels.has(id)) {
+        const el = document.createElement('div')
+        el.className = 'acu-lbl'
+        el.style.setProperty('--c', pt.meridian.color)
+        const side = pt.info.pl ? (isLeftId(id) ? ' E' : ' D') : ''
+        const nome = pt.info.name === pt.base ? pt.info.pt : pt.info.name   // extras: id já é o nome
+        el.innerHTML = `<b>${pt.base}</b><span>${nome}${side}</span>`
+        this.overlay.appendChild(el)
+        this._labels.set(id, el)
+      }
+    })
+    if (!this.labelsOn) { this._labels.forEach(el => el.remove()); this._labels.clear() }
+  }
 
+  _refreshAll() {
+    this._refreshPoints()
+    this._refreshMeridians()
+    this._refreshSelectionFx()
+  }
+
+  // ── Calibração manual (sobrepõe as posições automáticas) ─────────────────
+  async _loadCalibration() {
+    let cal = null
+    try {
+      const r = await fetch('/api/calibrate', { cache: 'no-cache' })
+      if (r.ok) cal = await r.json()
+    } catch (_) {}
+    if (cal && Object.keys(cal).length) this.applyCalibration(cal)
+  }
+
+  // cal = { "LU7": {x,y,z}, "LU7-E": {x,y,z} }. Um id sem "-E" num ponto bilateral
+  // vale para os dois lados (espelhado), a menos que o lado esquerdo tenha o seu.
+  applyCalibration(cal) {
+    const touched = new Set()
+    this.points.forEach(pt => {
+      let c = cal[pt.id], mirrored = false
+      if (!c && isLeftId(pt.id)) { c = cal[pt.base]; mirrored = true }
+      if (!c) { if (!pt.pos.equals(pt.orig)) { pt.pos.copy(pt.orig); touched.add(pt.meridian.id) } return }
+      let x = Number(c.x)
+      if (pt.info.pl) {
+        // Normaliza o lado: direito sempre em X negativo, esquerdo em X positivo
+        x = Math.abs(x) * (isLeftId(pt.id) ? 1 : -1)
+      } else if (mirrored) x = -x
+      pt.pos.set(x, Number(c.y), Number(c.z))
+      touched.add(pt.meridian.id)
+    })
+    touched.forEach(id => this._rebuildMeridian(id))
+    this._halos.forEach((sp, id) => {
+      const pt = this.points[this.pointById.get(id)]
+      sp.position.copy(pt.pos).addScaledVector(pt.nrm, 0.003)
+    })
+    this._refreshAll()
+  }
+
+  // ── Seleção pelo mouse/toque (painel) ─────────────────────────────────────
+  _bindPointer() {
+    const el = this.renderer.domElement
+    let down = null
+    el.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() } })
+    el.addEventListener('pointerup', e => {
+      if (!down) return
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y)
+      const quick = performance.now() - down.t < 700
+      down = null
+      if (moved > 6 || !quick) return   // foi arrasto para girar, não clique
+      const id = this._pick(e.clientX, e.clientY, e.pointerType === 'touch' ? 26 : 16)
+      if (id) this._toggleByUser(id)
+    })
+    el.addEventListener('pointermove', e => {
+      if (e.buttons) return
+      this._hoverXY = { x: e.clientX, y: e.clientY, touch: e.pointerType === 'touch' }
+      if (!this._hoverRaf) this._hoverRaf = requestAnimationFrame(() => { this._hoverRaf = null; this._doHover() })
+    })
+    el.addEventListener('pointerleave', () => { this._hoverXY = null; this._setHover(null) })
+  }
+
+  _doHover() {
+    if (!this._hoverXY || this._hoverXY.touch) return
+    const id = this._pick(this._hoverXY.x, this._hoverXY.y, 14)
+    this._setHover(id)
+    if (id && this.tipEl) {
+      const rect = this.renderer.domElement.getBoundingClientRect()
+      let x = this._hoverXY.x - rect.left + 16, y = this._hoverXY.y - rect.top + 14
+      if (x > rect.width - 270) x -= 300
+      if (y > rect.height - 120) y -= 130
+      this.tipEl.style.transform = `translate(${x}px, ${y}px)`
+    }
+  }
+
+  _setHover(id) {
+    if (this.hovered === id) return
+    this.hovered = id
+    this.renderer.domElement.style.cursor = id ? 'pointer' : ''
+    this._refreshPoints()
+    const info = id ? findPoint(id) : null
+    if (this.tipEl) {
+      if (info) {
+        const side = info.side ? ` · lado ${info.side === 'E' ? 'esquerdo' : 'direito'}` : ''
+        this.tipEl.innerHTML =
+          `<div class="t1"><span class="dot" style="background:${info.meridian.color}"></span>${info.id} · ${info.name}</div>` +
+          `<div class="t2">${info.pt}</div>` +
+          `<div class="t3">${info.meridian.name}${side}</div>`
+        this.tipEl.classList.add('show')
+      } else this.tipEl.classList.remove('show')
+    }
+    this.onHover?.(info)
+  }
+
+  // Ponto visível mais próximo do cursor, em pixels (os pontos são pequenos
+  // demais para acertar só pelo raio 3D). Descarta pontos de costas para a
+  // câmera e os escondidos atrás de outra parte do corpo.
+  _pick(clientX, clientY, radiusPx) {
+    const rect = this.renderer.domElement.getBoundingClientRect()
+    const mx = clientX - rect.left, my = clientY - rect.top
+    const cam = this.camera.position
+    const v = new THREE.Vector3(), toCam = new THREE.Vector3()
+    const cands = []
+    this.points.forEach(pt => {
+      if (!this._pointVisible(pt)) return
+      toCam.subVectors(cam, pt.pos)
+      if (pt.nrm.dot(toCam) < -0.02 * toCam.length()) return
+      v.copy(pt.pos).project(this.camera)
+      if (v.z > 1) return
+      const sx = (v.x + 1) / 2 * rect.width, sy = (1 - v.y) / 2 * rect.height
+      const d = Math.hypot(sx - mx, sy - my)
+      if (d <= radiusPx) cands.push({ id: pt.id, d, pt })
+    })
+    cands.sort((a, b) => a.d - b.d)
+    if (!this._bodyMeshes) return cands[0]?.id || null
+    const rc = new THREE.Raycaster()
+    for (const c of cands.slice(0, 4)) {
+      const dir = new THREE.Vector3().subVectors(c.pt.pos, cam)
+      const dist = dir.length()
+      rc.set(cam, dir.normalize())
+      rc.far = dist
+      const hit = rc.intersectObjects(this._bodyMeshes, false)[0]
+      if (!hit || hit.distance > dist - 0.012) return c.id
+    }
     return null
   }
 
-  // ── Snap de todos os pontos ───────────────────────────────────────────────
-
-  _snapPointsToSurface() {
-    this.pointMeshes.forEach(mesh => {
-      const snapped = this._snapSinglePoint(mesh.position, this._bodyMeshes)
-      if (snapped) mesh.position.copy(snapped)
-    })
+  _toggleByUser(id) {
+    if (this.selected.has(id)) this.selected.delete(id)
+    else this.selected.add(id)
+    this._refreshAll()
+    this.onSelectionChange?.([...this.selected], findPoint(id))
   }
 
-  // ── Linha que segue a superfície entre dois pontos snappados ─────────────
-  //
-  // Divide o segmento em `steps` partes e snappa cada ponto intermediário
-  // à superfície usando uma dica de direção baseada nos endpoints (zHint).
-  // Isso faz a linha "colar" na superfície mesmo em curvas.
-
-  _surfacePath(p1, p2, steps = 12) {
-    const pts = [p1.clone()]
-
-    for (let i = 1; i < steps; i++) {
-      const t      = i / steps
-      const lerped = p1.clone().lerp(p2, t)
-      const zHint  = p1.z * (1 - t) + p2.z * t
-
-      const toRef = lerped.clone().sub(new THREE.Vector3(0, lerped.y, 0))
-      const len   = toRef.length()
-      const sx    = lerped.x >= 0 ? 1 : -1
-
-      const outDirs = []
-      if (len > 0.025) outDirs.push(toRef.clone().normalize())
-      if (len <= 0.18) outDirs.push(new THREE.Vector3(0, 0, zHint >= 0 ? 1 : -1))
-      if (Math.abs(lerped.x) > 0.15) outDirs.push(new THREE.Vector3(sx, 0, 0))
-      if (len > 0.20 && Math.abs(lerped.x) > 0.20) {
-        outDirs.push(new THREE.Vector3(sx * 0.707, 0,  0.707))
-        outDirs.push(new THREE.Vector3(sx * 0.707, 0, -0.707))
-      }
-
-      const rc = new THREE.Raycaster()
-      rc.far = 6.0
-      let snapped = null
-
-      for (const outDir of outDirs) {
-        const origin = new THREE.Vector3(0, lerped.y, 0).addScaledVector(outDir, 2.0)
-        rc.set(origin, outDir.clone().negate())
-        const hits = rc.intersectObjects(this._bodyMeshes, false)
-        if (hits.length > 0) {
-          const h = hits[0]
-          const n = h.face.normal.clone()
-            .transformDirection(h.object.matrixWorld)
-            .normalize()
-          snapped = h.point.clone().addScaledVector(n, 0.012)
-          break
-        }
-      }
-
-      pts.push(snapped ?? lerped)
+  // ── Câmera ─────────────────────────────────────────────────────────────────
+  _animateTo(pos, target, ms = 950) {
+    this._tween = {
+      p0: this.camera.position.clone(), p1: pos.clone(),
+      t0: this.controls.target.clone(), t1: target.clone(),
+      start: performance.now(), ms
     }
-
-    pts.push(p2.clone())
-    return pts
+    this._userMoved = false
   }
 
-  // ── Reconstrói linhas dos meridianos seguindo a superfície ────────────────
-
-  _rebuildMeridianLines() {
-    ACU_MERIDIANS.forEach(meridian => {
-      const grp = this._meridianGroups[meridian.id]
-      if (!grp) return
-
-      // Remove linhas provisórias
-      const old = grp.children.filter(c => c.isLine)
-      old.forEach(c => { grp.remove(c); c.geometry.dispose() })
-
-      const color = new THREE.Color(meridian.color)
-      const mat   = new THREE.LineBasicMaterial({
-        color, transparent: true, opacity: 0.70, linewidth: 1
-      })
-
-      const buildLine = (ids) => {
-        const ptMeshes = ids
-          .map(id => this.pointMeshes.find(m => m.userData.id === id))
-          .filter(Boolean)
-
-        if (ptMeshes.length < 2) return
-
-        const allPts = []
-        for (let i = 0; i < ptMeshes.length - 1; i++) {
-          const seg = this._surfacePath(
-            ptMeshes[i].position,
-            ptMeshes[i + 1].position
-          )
-          if (i === 0) allPts.push(...seg)
-          else         allPts.push(...seg.slice(1))  // evita duplicar ponto de junção
-        }
-
-        const geo = new THREE.BufferGeometry().setFromPoints(allPts)
-        grp.add(new THREE.Line(geo, mat.clone()))
-      }
-
-      // Lado direito do paciente (ids originais)
-      buildLine(meridian.points.map(p => p.id))
-
-      // Lado esquerdo (ids espelhados)
-      if (meridian.bilateral)
-        buildLine(meridian.points.map(p => p.id + '-E'))
-    })
+  setView(name) {
+    const T = BODY_CENTER.clone()
+    const d = 3.4
+    const pos = {
+      front: new THREE.Vector3(0, 1.0, d),
+      back: new THREE.Vector3(0, 1.0, -d),
+      left: new THREE.Vector3(d, 1.0, 0),      // lado esquerdo do paciente
+      right: new THREE.Vector3(-d, 1.0, 0),    // lado direito do paciente
+      reset: new THREE.Vector3(0, 1.0, d)
+    }[name] || new THREE.Vector3(0, 1.0, d)
+    this._swayBase = null
+    this._animateTo(pos, T)
   }
 
-  // ── Meridianos e pontos ───────────────────────────────────────────────────
-
-  _setupMeridians() {
-    ACU_MERIDIANS.forEach(meridian => {
-      const grp = new THREE.Group()
-      this._meridianGroups[meridian.id] = grp
-      this.scene.add(grp)
-
-      const color = new THREE.Color(meridian.color)
-
-      // Linhas provisórias (substituídas pelo _rebuildMeridianLines após snap)
-      const addProvisionalLine = (pts) => {
-        if (pts.length < 2) return
-        const curve = new THREE.CatmullRomCurve3(pts)
-        const geo   = new THREE.BufferGeometry().setFromPoints(curve.getPoints(pts.length * 8))
-        const mat   = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 })
-        grp.add(new THREE.Line(geo, mat))
-      }
-
-      const pts = meridian.points.map(p => new THREE.Vector3(p.x, p.y, p.z))
-      addProvisionalLine(pts)
-      if (meridian.bilateral)
-        addProvisionalLine(pts.map(p => new THREE.Vector3(-p.x, p.y, p.z)))
-
-      // Esferas dos pontos
-      const ptMat = new THREE.MeshStandardMaterial({
-        color, emissive: color, emissiveIntensity: 0.30,
-        roughness: 0.28, metalness: 0.12,
-      })
-      const ptGeo = new THREE.SphereGeometry(0.007, 10, 8)
-
-      const addPoint = (x, y, z, id, name, pt, mirrored) => {
-        const mesh = new THREE.Mesh(ptGeo, ptMat.clone())
-        mesh.position.set(x, y, z)
-        mesh.userData = { id, name, namePT: pt, meridian: meridian.id,
-          meridianName: meridian.name, color: meridian.color, mirrored }
-        grp.add(mesh)
-        this.pointMeshes.push(mesh)
-      }
-
-      meridian.points.forEach(pt => {
-        addPoint(pt.x, pt.y, pt.z, pt.id, pt.name, pt.pt, false)
-        if (meridian.bilateral && Math.abs(pt.x) > 0.002)
-          addPoint(-pt.x, pt.y, pt.z, pt.id + '-E', pt.name, pt.pt, true)
-      })
-    })
-  }
-
-  // ── Interação (clique na tela da doutora) ─────────────────────────────────
-
-  _onClick(event) {
-    const rect = this.renderer.domElement.getBoundingClientRect()
-    this._mouse.x =  ((event.clientX - rect.left) / rect.width)  * 2 - 1
-    this._mouse.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1
-    this._raycaster.setFromCamera(this._mouse, this.camera)
-
-    const hits = this._raycaster.intersectObjects(this.pointMeshes)
-    if (!hits.length) return
-
-    const mesh = hits[0].object
-    const id   = mesh.userData.id
-    if (this.selectedPoints.has(id)) {
-      this.selectedPoints.delete(id)
-      this._applySelection(mesh, false)
-    } else {
-      this.selectedPoints.add(id)
-      this._applySelection(mesh, true)
+  // Enquadra os pontos: centraliza, aproxima e gira para o lado em que estão
+  focusPoints(ids) {
+    const pts = (ids || [...this.selected]).map(id => this.points[this.pointById.get(id)]).filter(Boolean)
+    if (!pts.length) { this._swayBase = null; this.setView('reset'); return }
+    const c = new THREE.Vector3(), n = new THREE.Vector3()
+    pts.forEach(p => { c.add(p.pos); n.add(p.nrm) })
+    c.divideScalar(pts.length)
+    let r = 0
+    pts.forEach(p => { r = Math.max(r, p.pos.distanceTo(c)) })
+    // Coerência: os pontos "olham" para o mesmo lado? (1 = todos iguais, 0 = opostos)
+    const coherence = n.length() / pts.length
+    let dir = coherence > 0.2 ? n.clone().normalize() : null
+    if (!dir) {
+      // Pontos em lados opostos (ex.: frente e costas): mantém a direção atual
+      dir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize()
     }
-    this.onSelectionChange?.([ ...this.selectedPoints ], mesh.userData)
+    dir.y = Math.max(-0.2, Math.min(0.45, dir.y + 0.12))
+    dir.normalize()
+    const vfov = this.camera.fov * Math.PI / 180
+    const fit = (r + 0.12) / Math.sin(vfov / 2) * (this.camera.aspect < 1 ? 1.35 : 1)
+    const dist = Math.min(4.4, Math.max(0.6, fit))
+    const pos = c.clone().addScaledVector(dir, dist)
+    this._animateTo(pos, c, 1100)
+    this._swayT0 = null
+    this._swayBase = { target: c.clone(), dir: dir.clone(), dist, full: coherence < 0.55 }
   }
 
-  _applySelection(mesh, sel) {
-    mesh.material.emissiveIntensity = sel ? 1.4 : 0.30
-    mesh.scale.setScalar(sel ? 2.4 : 1.0)
+  // ── API pública ────────────────────────────────────────────────────────────
+  setSelectedPoints(ids, { focus = false } = {}) {
+    this.selected = new Set((ids || []).filter(id => this.pointById.has(id)))
+    this._refreshAll()
+    if (focus) this.focusPoints()
   }
-
-  // ── API pública ───────────────────────────────────────────────────────────
-
-  setSelectedPoints(ids) {
-    this.pointMeshes.forEach(m => this._applySelection(m, false))
-    this.selectedPoints.clear()
-    ids.forEach(id => {
-      this.selectedPoints.add(id)
-      const m = this.pointMeshes.find(m => m.userData.id === id)
-      if (m) this._applySelection(m, true)
-    })
-  }
-
-  getSelectedPoints() { return [ ...this.selectedPoints ] }
+  getSelectedPoints() { return [...this.selected] }
 
   setMeridianVisible(id, visible) {
-    const grp = this._meridianGroups[id]
-    if (grp) grp.visible = visible
+    if (visible) this.hidden.delete(id); else this.hidden.add(id)
+    this._refreshAll()
   }
+  setAllMeridiansVisible(visible) {
+    this.hidden = visible ? new Set() : new Set(ACU_MERIDIANS.map(m => m.id))
+    this._refreshAll()
+  }
+  setOnlyActive(on) { this.onlyActive = !!on; this._refreshAll() }
+  highlightMeridian(id) {
+    if (this.highlighted === (id || null)) return
+    this.highlighted = id || null
+    this._refreshPoints()
+    this._refreshMeridians()
+  }
+  setLabels(on) { this.labelsOn = !!on; this._refreshSelectionFx() }
+  setAutoRotate(on) { this.autoRotate = !!on }
 
-  // ── Render loop ───────────────────────────────────────────────────────────
-
+  // ── Loop ───────────────────────────────────────────────────────────────────
   _animate() {
     if (this._disposed) return
-    this._animId = requestAnimationFrame(this._animate.bind(this))
+    this._animId = requestAnimationFrame(() => this._animate())
+    const dt = Math.min(0.05, this._clock.getDelta())
+    const t = this._clock.elapsedTime
+
+    if (this._tween) {
+      const k = Math.min(1, (performance.now() - this._tween.start) / this._tween.ms)
+      const e = ease(k)
+      this.camera.position.lerpVectors(this._tween.p0, this._tween.p1, e)
+      this.controls.target.lerpVectors(this._tween.t0, this._tween.t1, e)
+      if (k >= 1) this._tween = null
+    } else if (this.tv && this._swayBase && !this._userMoved) {
+      // TV: câmera "respira" suavemente em torno dos pontos exibidos
+      // Pontos espalhados em lados opostos: gira devagar em volta deles
+      const { target, dir, dist, full } = this._swayBase
+      if (this._swayT0 == null) this._swayT0 = t
+      const a = full ? (t - this._swayT0) * 0.28 : Math.sin((t - this._swayT0) * 0.35) * 0.32
+      const d = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a)
+      this.camera.position.copy(target).addScaledVector(d, dist)
+      this.controls.target.copy(target)
+    }
+    this.controls.autoRotate = this.autoRotate && !this._tween && !this._swayBase && !this._userMoved
+
     this.controls.update()
+
+    // Fluxo de energia
+    for (const f of this._flows) {
+      const arr = f.obj.geometry.attributes.position.array
+      for (let i = 0; i < f.n; i++) {
+        const u = (f.phase + t * f.speed + i / f.n) % 1
+        const p = f.curve.getPointAt(u)
+        arr[i * 3] = p.x; arr[i * 3 + 1] = p.y; arr[i * 3 + 2] = p.z
+      }
+      f.obj.geometry.attributes.position.needsUpdate = true
+    }
+    // Halos pulsando
+    const pulse = 1 + Math.sin(t * 3.2) * 0.22
+    this._halos.forEach(sp => sp.scale.setScalar((this.tv ? 0.05 : 0.04) * pulse))
+
     this.renderer.render(this.scene, this.camera)
+    this._updateLabels()
+  }
+
+  _updateLabels() {
+    if (!this._labels.size) return
+    const W = this.renderer.domElement.clientWidth, H = this.renderer.domElement.clientHeight
+    const cam = this.camera.position, v = new THREE.Vector3(), toCam = new THREE.Vector3()
+    const items = []
+    this._labels.forEach((el, id) => {
+      const pt = this.points[this.pointById.get(id)]
+      toCam.subVectors(cam, pt.pos)
+      const facing = pt.nrm.dot(toCam) > -0.05 * toCam.length()
+      v.copy(pt.pos).project(this.camera)
+      const inView = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1
+      if (!facing || !inView || !this._pointVisible(pt)) { el.style.opacity = '0'; return }
+      if (!el._w) { el._w = el.offsetWidth || 90; el._h = el.offsetHeight || 20 }
+      items.push({ el, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H })
+    })
+    // Evita rótulos sobrepostos: cada um tenta acima do ponto e, se colidir,
+    // desce/sobe em degraus até achar espaço livre.
+    items.sort((a, b) => a.y - b.y)
+    const placed = []
+    for (const it of items) {
+      const w = it.el._w, h = it.el._h
+      let best = null
+      for (const off of [-1, 1, -2, 2, -3, 3, -4, 4]) {
+        const top = it.y + (off < 0 ? off * (h + 3) - 4 : off * (h + 3) - h + 12)
+        const box = { l: it.x - w / 2, r: it.x + w / 2, t: top, b: top + h }
+        if (!placed.some(p => box.l < p.r && box.r > p.l && box.t < p.b && box.b > p.t)) { best = box; break }
+      }
+      if (!best) best = { l: it.x - w / 2, r: it.x + w / 2, t: it.y - h - 8, b: it.y - 8 }
+      placed.push(best)
+      it.el.style.opacity = '1'
+      it.el.style.transform = `translate(${best.l}px, ${best.t}px)`
+    }
   }
 
   _onResize() {
@@ -692,11 +753,13 @@ class AcupunctureViewer {
 
   destroy() {
     this._disposed = true
-    if (this._animId) cancelAnimationFrame(this._animId)
-    window.removeEventListener('resize', this._onResizeBound)
-    this.renderer.domElement.parentNode?.removeChild(this.renderer.domElement)
+    cancelAnimationFrame(this._animId)
+    this._ro?.disconnect()
+    this.controls.dispose()
     this.renderer.dispose()
+    this.renderer.domElement.remove()
+    this.overlay.remove()
   }
 }
 
-export { AcupunctureViewer, ACU_MERIDIANS }
+export { AcupunctureViewer, ACU_MERIDIANS, ACU_PROTOCOLS, findPoint, sideIds, baseId }

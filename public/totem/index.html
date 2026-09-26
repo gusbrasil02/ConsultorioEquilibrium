@@ -796,9 +796,36 @@ function buildWaves(d) {
 
 // ── Polling do estado do totem ───────────────────────────────────────────────
 
+// Último estado recebido do servidor — usado para "destravar" o totem quando
+// o paciente abandona o QR ou o formulário na tela
+let latestState = null
+let abandonTimer = null
+const QR_TIMEOUT_MS     = 5 * 60 * 1000   // QR sem resposta
+const INLINE_IDLE_MS    = 3 * 60 * 1000   // formulário na tela sem toques
+
+function armAbandonTimer(ms) {
+  clearTimeout(abandonTimer)
+  abandonTimer = setTimeout(releaseTotem, ms)
+}
+function releaseTotem() {
+  clearTimeout(abandonTimer)
+  if (payPollTimer) { clearInterval(payPollTimer); payPollTimer = null }
+  const activeId = document.querySelector('.state.active')?.id
+  if (activeId !== 's-qr' && activeId !== 's-inline') return
+  show('idle')              // tira a trava; o estado real vem logo abaixo
+  lastState = ''
+  if (latestState) handleTotemState(latestState)
+  else { setTheme('theme-idle') }
+}
+// Qualquer toque no formulário da tela renova o prazo de inatividade
+document.addEventListener('pointerdown', () => {
+  if (document.querySelector('.state.active')?.id === 's-inline') armAbandonTimer(INLINE_IDLE_MS)
+})
+
 // Aplica um estado do totem com as mesmas travas (inline/QR/dedup)
 function handleTotemState(data) {
   if (!data) return
+  latestState = data
   const activeId = document.querySelector('.state.active')?.id
   // Formulário inline em andamento — não interrompe
   if (activeId === 's-inline') return
@@ -860,6 +887,7 @@ function applyTotemState(data) {
       currentPatientName = data.patient_name
       currentApptId      = data.appointment_id || null
       currentPatientId   = data.patient_id || null
+      document.getElementById('btn-qr').disabled = false
       document.getElementById('patient-name-display').textContent = data.patient_name
       document.getElementById('appt-time-display').textContent =
         data.appointment_time ? `Agendado às ${data.appointment_time}` : 'Próximo atendimento'
@@ -868,6 +896,7 @@ function applyTotemState(data) {
       break
 
     case 'waiting':
+      clearTimeout(abandonTimer)
       setTheme('theme-waiting')
       show('waiting')
       break
@@ -902,6 +931,7 @@ async function generateQR() {
         patient_id: currentPatientId
       })
     })
+    if (!r.ok) throw new Error('Falha ao gerar QR')
     const data = await r.json()
     currentSessionId = data.session_id
 
@@ -910,6 +940,7 @@ async function generateQR() {
     setTheme('theme-qr')
     show('qr')
     lastState = ''  // permite re-render quando polling detectar 'waiting'
+    armAbandonTimer(QR_TIMEOUT_MS)
   } catch (e) {
     document.getElementById('btn-qr').disabled = false
   }
@@ -929,6 +960,7 @@ function startInlineForm() {
 
   renderInlineStep()
   show('inline')
+  armAbandonTimer(INLINE_IDLE_MS)
 
   // Em paralelo: cria a sessão e descobre se há valor a cobrar.
   // A pergunta de pagamento é a última, então dá tempo de chegar.
@@ -1270,6 +1302,8 @@ async function submitInlineForm() {
     return  // Não avança para tela de espera
   }
 
+  clearTimeout(abandonTimer)
+  if (payPollTimer) { clearInterval(payPollTimer); payPollTimer = null }
   setTheme('theme-waiting')
   show('waiting')
   lastState = ''  // permite polling detectar mudança

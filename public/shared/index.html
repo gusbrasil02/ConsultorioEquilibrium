@@ -202,78 +202,57 @@ body.bg-torso    { background: #0c0c14; }  /* tórax, abdome */
 /* ── Tela Acupuntura 3D ── */
 #acu-screen {
   position:fixed; inset:0;
-  display:none; grid-template-columns: 1fr 340px;
+  display:none; grid-template-columns: 1fr minmax(340px, 30vw);
   z-index:10;
-  background: #060610;
+  background: #05050a;
 }
 #acu-screen.visible { display:grid; }
-
-#acu-canvas-shared {
-  width:100%; height:100%;
-  position:relative;
-}
+#acu-canvas-shared { width:100%; height:100%; position:relative; }
 
 .acu-info-col {
   display:flex; flex-direction:column;
-  justify-content:center;
-  padding:3rem 2.5rem;
+  padding:2.6rem 2.2rem 3.5rem;
   border-left:1px solid rgba(255,255,255,0.05);
-  background:rgba(0,0,0,0.3);
+  background:linear-gradient(180deg, rgba(20,18,40,0.6), rgba(5,5,10,0.9));
   overflow:hidden;
 }
-
 .acu-info-label {
-  font-size:0.68rem; text-transform:uppercase;
-  letter-spacing:0.18em;
-  color:rgba(255,255,255,0.22);
-  margin-bottom:1.4rem;
+  font-size:0.72rem; text-transform:uppercase; letter-spacing:0.2em;
+  color:rgba(160,230,210,0.55); margin-bottom:0.9rem;
 }
-
 .acu-info-title {
   font-family:'Cormorant Garamond', serif;
-  font-size:clamp(1.4rem, 2.5vw, 2rem);
-  font-weight:300;
-  color:rgba(255,255,255,0.88);
-  margin-bottom:1.6rem;
-  line-height:1.25;
+  font-size:clamp(1.6rem, 2.6vw, 2.3rem); font-weight:300;
+  color:rgba(255,255,255,0.92); line-height:1.2;
 }
-
-.acu-pts-list {
-  display:flex; flex-direction:column; gap:0.55rem;
-  overflow-y:auto;
-  max-height:60vh;
+.acu-info-sub { margin-top:0.5rem; font-size:0.95rem; color:rgba(255,255,255,0.5); line-height:1.5; }
+.acu-mer-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:1rem; }
+.acu-mer-tag {
+  display:inline-flex; align-items:center; gap:0.4rem;
+  padding:0.25rem 0.75rem; border-radius:60px; font-size:0.82rem;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.78);
 }
-
+.acu-mer-tag i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.acu-sep { height:1px; background:linear-gradient(90deg,rgba(120,200,180,0.3),transparent); margin:1.3rem 0; flex-shrink:0; }
+.acu-pts-list { display:flex; flex-direction:column; gap:0.6rem; overflow-y:auto; flex:1; padding-right:0.3rem; }
+.acu-pts-list::-webkit-scrollbar { width:0; }
 .acu-pt-item {
-  display:flex; align-items:flex-start; gap:0.6rem;
-  padding:0.55rem 0.8rem;
-  background:rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.06);
-  border-radius:10px;
-  animation: fadeInUp 0.4s ease both;
+  display:flex; align-items:flex-start; gap:0.75rem;
+  padding:0.75rem 0.95rem;
+  background:rgba(255,255,255,0.035);
+  border:1px solid rgba(255,255,255,0.07);
+  border-left:3px solid var(--c, #fff);
+  border-radius:12px;
+  animation: fadeInUp 0.45s ease both;
 }
-@keyframes fadeInUp {
-  from{opacity:0;transform:translateY(8px);}
-  to{opacity:1;transform:translateY(0);}
-}
-.acu-pt-dot {
-  width:8px; height:8px; border-radius:50%;
-  flex-shrink:0; margin-top:0.22rem;
-}
-.acu-pt-code {
-  font-size:0.82rem; font-weight:600;
-  color:rgba(255,255,255,0.9);
-  min-width:44px;
-}
-.acu-pt-texts { display:flex; flex-direction:column; gap:0.12rem; }
-.acu-pt-pinyin { font-size:0.8rem; color:rgba(255,255,255,0.6); }
-.acu-pt-name-pt { font-size:0.72rem; color:rgba(255,255,255,0.35); font-style:italic; }
-
-.acu-sep {
-  height:1px;
-  background:linear-gradient(90deg,rgba(120,200,180,0.25),transparent);
-  margin:1.2rem 0;
-}
+@keyframes fadeInUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+.acu-pt-texts { display:flex; flex-direction:column; gap:0.18rem; min-width:0; }
+.acu-pt-top { display:flex; gap:0.55rem; align-items:baseline; flex-wrap:wrap; }
+.acu-pt-code { font-size:1rem; font-weight:600; color:#fff; }
+.acu-pt-pinyin { font-size:0.95rem; color:rgba(255,255,255,0.75); }
+.acu-pt-side { font-size:0.72rem; color:rgba(255,255,255,0.4); }
+.acu-pt-name-pt { font-size:0.85rem; color:rgba(255,255,255,0.45); font-style:italic; }
+.acu-pt-ind { font-size:0.85rem; color:rgba(255,255,255,0.62); line-height:1.45; margin-top:0.15rem; }
 </style>
 </head>
 <body class="bg-default">
@@ -306,8 +285,10 @@ body.bg-torso    { background: #0c0c14; }  /* tórax, abdome */
 <div id="acu-screen">
   <div id="acu-canvas-shared"></div>
   <div class="acu-info-col">
-    <div class="acu-info-label">Acupuntura — Pontos selecionados</div>
+    <div class="acu-info-label">Acupuntura · pontos desta sessão</div>
     <div class="acu-info-title" id="acu-info-title">Aguardando pontos...</div>
+    <div class="acu-info-sub" id="acu-info-sub"></div>
+    <div class="acu-mer-tags" id="acu-mer-tags"></div>
     <div class="acu-sep"></div>
     <div class="acu-pts-list" id="acu-pts-list"></div>
   </div>
@@ -315,7 +296,7 @@ body.bg-torso    { background: #0c0c14; }  /* tórax, abdome */
 
 <div class="shared-footer">
   <span>Consultório de Fisioterapia &amp; Acupuntura</span>
-  <span>Dra. Profissional</span>
+  <span id="footer-clock"></span>
 </div>
 
 <script>
@@ -412,6 +393,9 @@ function getBgClass(regionId) {
 }
 
 // ── Estado ──────────────────────────────────────────────────────────────────
+// A TV acompanha a sessão EM ANDAMENTO (ou a do paciente recém-chamado) e mostra
+// o último conteúdo publicado nela. Sem sessão → tela de repouso. Nunca fica
+// exibindo o conteúdo de um paciente anterior.
 
 let sessionId = null
 let lastEventId = null
@@ -434,6 +418,14 @@ let typewriterTimer = null
     cont.appendChild(p)
   }
 })()
+
+// Relógio discreto no rodapé
+function tickClock() {
+  const el = document.getElementById('footer-clock')
+  if (el) el.textContent = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+tickClock()
+setInterval(tickClock, 30000)
 
 // ── SVG base ────────────────────────────────────────────────────────────────
 
@@ -476,46 +468,36 @@ function typewriterEffect(text, el, delay = 28) {
   }, delay)
 }
 
-// ── Polling ──────────────────────────────────────────────────────────────────
+// ── Estados de tela ──────────────────────────────────────────────────────────
 
-async function init() {
-  // Tenta recuperar sessão salva
-  const saved = localStorage.getItem('shared_session')
-  if (saved) {
-    try { sessionId = JSON.parse(saved).id } catch (_) {}
-  }
-
-  // Se não tiver sessão, busca a mais recente confirmada
-  if (!sessionId) {
-    try {
-      const r = await fetch('/api/sessions/latest/acknowledged')
-      if (r.ok) {
-        const s = await r.json()
-        sessionId = s.id
-        localStorage.setItem('shared_session', JSON.stringify({ id: s.id }))
-      }
-    } catch (_) {}
-  }
-
-  buildBaseSVG(REGIONS_FRONT, null)
-  startSharedStream()
+function showIdle() {
+  if (typewriterTimer) clearInterval(typewriterTimer)
+  document.body.className = 'bg-default'
+  document.getElementById('active-screen').classList.remove('visible')
+  document.getElementById('acu-screen').classList.remove('visible')
+  document.getElementById('idle-screen').classList.remove('hidden')
 }
 
-// SSE (item 13) com fallback para polling
-let sharedES = null, sharedSSEok = false, fallbackTimer = null
-
-function handlePublic(d) {
-  const sh = d.shared || {}
-  if (sh.session_id && sh.session_id !== sessionId) {
-    sessionId = sh.session_id
+// Aplica o estado vindo do servidor: { session_id, anatomy }
+function applyTvState(st) {
+  const sid = st?.session_id || null
+  if (sid !== sessionId) {
+    // Paciente mudou (ou atendimento acabou): limpa a tela na hora
+    sessionId = sid
     lastEventId = null
-    localStorage.setItem('shared_session', JSON.stringify({ id: sessionId }))
+    showIdle()
   }
-  if (sh.anatomy && sh.anatomy.id && sh.anatomy.id !== lastEventId) {
-    lastEventId = sh.anatomy.id
-    showActiveState(sh.anatomy)
+  const ev = st?.anatomy
+  if (!sid || !ev) return
+  if (ev.id !== lastEventId) {
+    lastEventId = ev.id
+    showActiveState(ev)
   }
 }
+
+// ── Tempo real: SSE com fallback para polling ───────────────────────────────
+
+let sharedES = null, sharedSSEok = false, fallbackTimer = null
 
 function startSharedStream() {
   if (!window.EventSource) { startSharedPolling(); return }
@@ -527,7 +509,7 @@ function startSharedStream() {
     }
     sharedES.onmessage = (e) => {
       let d; try { d = JSON.parse(e.data) } catch (_) { return }
-      if (d.type === 'public') handlePublic(d)
+      if (d.type === 'public') applyTvState(d.shared)
     }
     sharedES.onerror = () => { if (!sharedSSEok) startSharedPolling() }
   } catch (_) { startSharedPolling() }
@@ -535,34 +517,14 @@ function startSharedStream() {
 
 function startSharedPolling() {
   if (fallbackTimer) return
-  if (sessionId) pollAnatomyEvent()
-  fallbackTimer = setInterval(async () => {
+  const poll = async () => {
     try {
-      const r = await fetch('/api/sessions/latest/acknowledged')
-      if (r.ok) {
-        const s = await r.json()
-        if (s.id !== sessionId) {
-          sessionId = s.id
-          lastEventId = null
-          localStorage.setItem('shared_session', JSON.stringify({ id: s.id }))
-        }
-      }
+      const r = await fetch('/api/tv/state')
+      if (r.ok) applyTvState(await r.json())
     } catch (_) {}
-    if (sessionId) pollAnatomyEvent()
-  }, 2000)
-}
-
-async function pollAnatomyEvent() {
-  if (!sessionId) return
-  try {
-    const r = await fetch(`/api/anatomy/latest/${sessionId}`)
-    if (!r.ok) return
-    const event = await r.json()
-    if (event && event.id && event.id !== lastEventId) {
-      lastEventId = event.id
-      showActiveState(event)
-    }
-  } catch (_) {}
+  }
+  poll()
+  fallbackTimer = setInterval(poll, 2500)
 }
 
 function showActiveState(event) {
@@ -575,7 +537,7 @@ function showActiveState(event) {
   // Esconde tela de acupuntura se estava ativa
   document.getElementById('acu-screen').classList.remove('visible')
 
-  // Determina se frente ou costas baseado na presença da região "lombar"
+  // Frente ou costas conforme a região
   const isBack = event.region === 'Lombar' || event.region === 'Costas superiores'
   const regions = isBack ? REGIONS_BACK : REGIONS_FRONT
 
@@ -583,18 +545,12 @@ function showActiveState(event) {
   const regionData = regions.find(r => r.label === event.region)
   const regionId = regionData?.id || null
 
-  // Tema de fundo
   document.body.className = getBgClass(regionId)
-
-  // Reconstrói SVG com destaque
   buildBaseSVG(regions, regionId)
   document.getElementById('shared-region-name').textContent = event.region
-
-  // Texto
   document.getElementById('expl-title').textContent = event.region
   typewriterEffect(event.ai_explanation || '', document.getElementById('expl-text'))
 
-  // Exibe tela ativa
   document.getElementById('idle-screen').classList.add('hidden')
   document.getElementById('active-screen').classList.add('visible')
 }
@@ -602,81 +558,98 @@ function showActiveState(event) {
 // ── Modo Acupuntura 3D ────────────────────────────────────────────────────────
 
 let acuSharedViewer = null
+let pendingAcu = null
 
 function showAcupunctureState(event) {
   let points = []
   try { points = JSON.parse(event.problem || '[]') } catch (_) {}
 
-  // Oculta telas normais, exibe tela de acupuntura
+  // Lista vazia = a profissional limpou a TV
+  if (!points.length) { showIdle(); return }
+
   document.body.className = 'bg-default'
   document.getElementById('idle-screen').classList.add('hidden')
   document.getElementById('active-screen').classList.remove('visible')
   document.getElementById('acu-screen').classList.add('visible')
 
-  // Inicializa viewer Three.js (só na primeira chamada)
-  const container = document.getElementById('acu-canvas-shared')
+  if (!window.ACU) {                     // módulo 3D ainda carregando
+    pendingAcu = event
+    setTimeout(() => { if (pendingAcu === event) showAcupunctureState(event) }, 300)
+    return
+  }
+  pendingAcu = null
+
+  const apply = () => acuSharedViewer.setSelectedPoints(points, { focus: true })
   if (!acuSharedViewer) {
-    if (!window.AcupunctureViewer) {
-      setTimeout(() => showAcupunctureState(event), 350)
-      return
-    }
-    acuSharedViewer = new window.AcupunctureViewer(container, {
-      isDoctor:   false,
+    acuSharedViewer = new window.ACU.AcupunctureViewer(document.getElementById('acu-canvas-shared'), {
+      isDoctor: false,
+      tv: true,
       autoRotate: true,
+      onReady: apply
     })
   }
-
-  acuSharedViewer.setSelectedPoints(points)
+  if (acuSharedViewer.ready) apply()
   _renderAcuInfoPanel(points)
 }
 
 function _renderAcuInfoPanel(pointIds) {
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
   const title = document.getElementById('acu-info-title')
+  const sub   = document.getElementById('acu-info-sub')
+  const tags  = document.getElementById('acu-mer-tags')
   const list  = document.getElementById('acu-pts-list')
   list.innerHTML = ''
 
-  if (!pointIds.length) {
-    title.textContent = 'Nenhum ponto ativo'
-    return
-  }
+  // Agrupa D/E do mesmo ponto numa linha só
+  const groups = new Map()
+  pointIds.forEach(id => {
+    const p = window.ACU.findPoint(id)
+    if (!p) return
+    if (!groups.has(p.id)) groups.set(p.id, { p, sides: new Set() })
+    if (p.side) groups.get(p.id).sides.add(p.side)
+  })
 
-  title.textContent = `${pointIds.length} ponto${pointIds.length > 1 ? 's' : ''} ativo${pointIds.length > 1 ? 's' : ''}`
+  const n = groups.size
+  title.textContent = n === 1 ? '1 ponto em tratamento' : `${n} pontos em tratamento`
+  sub.textContent = 'Cada ponto fica sobre um meridiano — um canal por onde circula a energia do corpo.'
 
-  pointIds.forEach((id, idx) => {
-    let ptData = null
-    const baseId = id.replace('-E', '')
-    for (const m of (window.ACU_MERIDIANS || [])) {
-      const p = m.points.find(p => p.id === baseId)
-      if (p) { ptData = { ...p, color: m.color, mName: m.name }; break }
-    }
-    const side = id.endsWith('-E') ? 'Esq.' : 'Dir.'
+  const mers = new Map()
+  groups.forEach(({ p }) => mers.set(p.meridian.id, p.meridian))
+  tags.innerHTML = [...mers.values()].map(m =>
+    `<span class="acu-mer-tag"><i style="background:${m.color}"></i>${esc(m.name)}</span>`).join('')
+
+  let idx = 0
+  groups.forEach(({ p, sides }) => {
+    const lado = !p.pl ? '' : sides.size === 2 ? 'dos dois lados' : sides.has('E') ? 'lado esquerdo' : 'lado direito'
+    const code = p.id === p.name ? (p.code || '') : p.id
     const item = document.createElement('div')
     item.className = 'acu-pt-item'
-    item.style.animationDelay = `${idx * 0.06}s`
+    item.style.setProperty('--c', p.meridian.color)
+    item.style.animationDelay = `${idx++ * 0.07}s`
     item.innerHTML = `
-      <div class="acu-pt-dot" style="background:${ptData?.color || '#aaa'}"></div>
       <div class="acu-pt-texts">
-        <div style="display:flex;gap:0.5rem;align-items:baseline">
-          <span class="acu-pt-code">${id}</span>
-          <span style="font-size:0.68rem;color:rgba(255,255,255,0.3)">${side}</span>
+        <div class="acu-pt-top">
+          <span class="acu-pt-code">${esc(code)}</span>
+          <span class="acu-pt-pinyin">${esc(p.name)}</span>
+          ${lado ? `<span class="acu-pt-side">· ${lado}</span>` : ''}
         </div>
-        <div class="acu-pt-pinyin">${ptData?.name || '—'}</div>
-        <div class="acu-pt-name-pt">${ptData?.pt || ''}</div>
-      </div>
-    `
+        <div class="acu-pt-name-pt">"${esc(p.pt)}" · ${esc(p.meridian.name)}</div>
+        <div class="acu-pt-ind">${esc(p.ind.replace(/\.?\s*Evitar na gestação\.?/i, ''))}</div>
+      </div>`
     list.appendChild(item)
   })
 }
 
-init()
+// ── Início ──────────────────────────────────────────────────────────────────
+buildBaseSVG(REGIONS_FRONT, null)
+startSharedStream()
 
 </script>
 
 <!-- Three.js: expõe AcupunctureViewer no escopo global via módulo -->
 <script type="module">
-import { AcupunctureViewer, ACU_MERIDIANS } from '/js/acupuncture-viewer.js'
-window.AcupunctureViewer = AcupunctureViewer
-window.ACU_MERIDIANS     = ACU_MERIDIANS
+import * as ACU from '/js/acupuncture-viewer.js'
+window.ACU = ACU
 </script>
 </body>
 </html>

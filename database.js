@@ -47,7 +47,9 @@ async function getSession(id) {
   return data
 }
 
-// Salva respostas do formulário — uma linha por pergunta
+// Salva respostas do formulário — uma linha por pergunta.
+// Idempotente: um reenvio (duplo toque, rede instável) substitui as respostas
+// anteriores em vez de duplicá-las.
 async function saveAnswers(session_id, answers) {
   const rows = Object.entries(answers).map(([question_key, answer_value]) => ({
     session_id,
@@ -55,17 +57,38 @@ async function saveAnswers(session_id, answers) {
     answer_value: String(answer_value)
   }))
 
+  const { error: delErr } = await supabase.from('answers').delete().eq('session_id', session_id)
+  if (delErr) throw delErr
+  if (!rows.length) return
   const { error } = await supabase.from('answers').insert(rows)
   if (error) throw error
 }
 
+// Marca a chegada (formulário respondido). Não sobrescreve um horário já gravado.
 async function completeSession(id) {
   const { error } = await supabase
     .from('sessions')
     .update({ completed_at: new Date().toISOString() })
     .eq('id', id)
+    .is('completed_at', null)
 
   if (error) throw error
+}
+
+// Sessão ainda aberta (formulário não respondido) de um agendamento — reaproveitada
+// quando o totem gera o QR de novo, em vez de criar sessões órfãs.
+async function getOpenSessionForAppointment(appointment_id) {
+  if (!appointment_id) return null
+  const { data } = await supabase
+    .from('sessions')
+    .select('id, patient_name, patient_id, appointment_id, status, completed_at')
+    .eq('appointment_id', appointment_id)
+    .is('completed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data || null
 }
 
 // Busca sessão completada e ainda não notificada (mais recente)
@@ -185,20 +208,53 @@ async function getActiveSession() {
   return data
 }
 
-// Retorna sessão aguardando resposta da Dra. ou aguardando entrar (waiting / wait / can_enter)
+// Sessão que o totem deve mostrar entre as que chegaram (waiting / wait / can_enter).
+// Prioridade: quem foi chamado ("pode entrar") > quem acabou de chegar > quem aguarda.
 async function getIncomingSession() {
   const { data, error } = await supabase
     .from('sessions')
-    .select('*, answers(*)')
+    .select('id, patient_name, status, completed_at')
     .in('status', ['waiting', 'wait', 'can_enter'])
     .not('completed_at', 'is', null)
     .gt('expires_at', new Date().toISOString())
     .order('completed_at', { ascending: false })
-    .limit(1)
-    .single()
+    .limit(10)
 
-  if (error) return null
-  return data
+  if (error || !data || !data.length) return null
+  const rank = { can_enter: 0, waiting: 1, wait: 2 }
+  return data.slice().sort((a, b) => rank[a.status] - rank[b.status])[0]
+}
+
+// Fila da recepção para o painel: pacientes que já chegaram e aguardam
+// ("aguardar") ou foram chamados ("pode entrar"), do mais antigo ao mais novo.
+async function getQueue() {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*, answers(*)')
+    .in('status', ['wait', 'can_enter'])
+    .not('completed_at', 'is', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('completed_at', { ascending: true })
+    .limit(10)
+  if (error) return []
+  return data || []
+}
+
+// Sessão exibida na TV da sala de atendimento: a que está em andamento; se não
+// houver, a do paciente que acabou de ser chamado. Sem nenhuma, a TV fica em repouso
+// (nunca mostra conteúdo de um paciente anterior).
+async function getTvSession() {
+  const active = await getActiveSession()
+  if (active) return active
+  const { data } = await supabase
+    .from('sessions')
+    .select('id, patient_name, status')
+    .eq('status', 'can_enter')
+    .gt('expires_at', new Date().toISOString())
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data || null
 }
 
 // Dra. diz "aguardar" — status wait, notified true
@@ -258,7 +314,13 @@ function brasiliaDateTime() {
   }
 }
 
-// Próximo agendamento do dia que ainda não tem sessão vinculada.
+// "Hoje" em Brasília (YYYY-MM-DD). new Date().toISOString() é UTC e, depois das
+// 21h, já devolve o dia seguinte — o lançamento cairia no dia (ou mês) errado.
+function todayBR() {
+  return brasiliaDateTime().dateStr
+}
+
+// Próximo agendamento do dia que ainda não tem paciente "chegado".
 // Inclui agendamentos a partir de 60 min atrás para tolerar atrasos.
 async function getNextAppointmentForTotem(dateStr, fromTimeStr) {
   const { data, error } = await supabase
@@ -272,17 +334,18 @@ async function getNextAppointmentForTotem(dateStr, fromTimeStr) {
 
   if (error || !data || data.length === 0) return null
 
-  // Filtra agendamentos que já têm sessão não-terminada vinculada
   for (const appt of data) {
     const { data: linked } = await supabase
       .from('sessions')
-      .select('id, status')
+      .select('id, status, completed_at')
       .eq('appointment_id', appt.id)
-      .in('status', ['waiting', 'wait', 'can_enter', 'in_session', 'finished'])
-      .limit(1)
-      .single()
+      .limit(5)
 
-    if (!linked) return appt  // sem sessão ativa → este é o próximo
+    // Só conta como "chegou" quem respondeu o formulário. Uma sessão aberta pelo
+    // QR e abandonada não pode sumir com o agendamento do totem.
+    const arrived = (linked || []).some(s =>
+      s.completed_at || ['wait', 'can_enter', 'in_session', 'finished'].includes(s.status))
+    if (!arrived) return appt
   }
 
   return null
@@ -362,8 +425,9 @@ async function getPatient(id) {
       .from('patients')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     if (error) throw error
+    if (!data) return null   // → 404 na rota, em vez de erro 500
 
     // Conta sessões completadas do paciente (por vínculo de id, com fallback nome)
     const { count } = await byPatient(
@@ -465,7 +529,7 @@ async function getAppointmentsByRange(start, end) {
 }
 
 // Cria novo agendamento
-async function createAppointment({ patient_id, patient_name, appointment_date, appointment_time, type, duration_minutes, notes, price, payment_status }) {
+async function createAppointment({ patient_id, patient_name, appointment_date, appointment_time, type, duration_minutes, notes, price, payment_status, series_id }) {
   try {
     const row = {
       patient_id: patient_id || null,
@@ -476,6 +540,7 @@ async function createAppointment({ patient_id, patient_name, appointment_date, a
       duration_minutes: duration_minutes || 60,
       notes
     }
+    if (series_id) row.series_id = series_id
     // Valor precisa ser gravado — sem ele o caixa nunca gera o "a receber"
     if (price !== undefined && price !== null && price !== '' && !isNaN(Number(price))) {
       row.price = Number(price)
@@ -555,6 +620,28 @@ async function getPatientAnatomyEvents(patient_name, patient_id) {
   }
 }
 
+// Pontos de acupuntura exibidos na sessão anterior do paciente ("repetir pontos")
+async function getLastAcupuncture(patient_name, patient_id, exclude_session_id) {
+  const { data: sessions } = await byPatient(
+    supabase.from('sessions').select('id, completed_at'),
+    patient_name, patient_id
+  ).neq('id', exclude_session_id || '')
+  if (!sessions || !sessions.length) return null
+
+  const { data } = await supabase
+    .from('anatomy_events')
+    .select('session_id, problem, created_at')
+    .eq('region', '__acupuncture__')
+    .in('session_id', sessions.map(s => s.id))
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  let points = []
+  try { points = JSON.parse(data.problem || '[]') } catch (_) {}
+  return { points, created_at: data.created_at }
+}
+
 // ─── Usuários / autenticação (item 4) ────────────────────────────────────────
 
 async function countUsers() {
@@ -617,7 +704,8 @@ async function createPayment({ patient_id, appointment_id, session_id, package_i
       amount,
       method: method || null,
       status: status || 'pago',
-      paid_at: paid_at || null,
+      // Sem data o lançamento ficaria com paid_at NULL e sumiria dos relatórios
+      paid_at: paid_at || todayBR(),
       notes: notes || null
     })
     .select()
@@ -1064,7 +1152,8 @@ async function getClinicalReport(start, end, granularity = 'day') {
 
   return {
     start, end, granularity,
-    sessions: { completed: S.length, avg_duration_min: avgDuration },
+    // "Realizadas" = atendimentos finalizados (não só formulários respondidos)
+    sessions: { completed: S.filter(s => s.finished_at).length, arrivals: S.length, avg_duration_min: avgDuration },
     appointments: { total: A.length, attended, no_show: noShow, cancelled, by_status: byStatus, by_type: byType },
     attendance_rate: attendanceRate,
     by_weekday: byWeekday,
@@ -1090,9 +1179,14 @@ export {
   countPatientSessions,
   saveAnatomyEvent,
   getLatestAnatomyEvent,
+  getOpenSessionForAppointment,
+  getLastAcupuncture,
+  todayBR,
   // Controle de fluxo de sessão
   getActiveSession,
   getIncomingSession,
+  getQueue,
+  getTvSession,
   setSessionWait,
   setSessionCanEnter,
   startSession,

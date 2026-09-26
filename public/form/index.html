@@ -480,12 +480,23 @@
       return
     }
 
-    // Nome do paciente
+    // Nome do paciente (e se o formulário já foi respondido)
     try {
       const r = await fetch(`/api/sessions/${sessionId}`)
+      if (r.status === 404) {
+        document.getElementById('question-text').textContent = 'Este link expirou. Por favor, gere um novo QR Code no totem da recepção.'
+        document.getElementById('nav-area').style.display = 'none'
+        return
+      }
       if (r.ok) {
         const data = await r.json()
         if (data) patientName = data.patient_name
+        if (data?.completed || data?.completed_at) {
+          document.getElementById('done-patient-name').textContent = patientName || 'Tudo certo!'
+          document.querySelector('.done-msg').innerHTML = 'Suas respostas já foram enviadas.<br>Pode aguardar — a profissional já foi notificada!'
+          document.getElementById('done-screen').classList.add('visible')
+          return
+        }
       }
     } catch (_) {}
 
@@ -811,12 +822,21 @@
     btn.textContent = 'Enviando...'
 
     try {
-      await fetch(`/api/sessions/${sessionId}/answers`, {
+      const r = await fetch(`/api/sessions/${sessionId}/answers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers })
       })
-    } catch (_) {}
+      // 409 = atendimento já começou: as respostas não são mais necessárias
+      if (!r.ok && r.status !== 409) throw new Error()
+    } catch (_) {
+      // Não finge que deu certo: sem isso a profissional nunca seria avisada
+      btn.disabled = false
+      btn.textContent = 'Tentar enviar de novo ↺'
+      btn.classList.add('ready')
+      return
+    }
+    if (payPollTimer) { clearInterval(payPollTimer); payPollTimer = null }
 
     document.getElementById('done-patient-name').textContent = patientName || 'Obrigado!'
     document.getElementById('done-screen').classList.add('visible')
