@@ -22,6 +22,7 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
    4. `supabase-v2-migration.sql`     — login, financeiro, prontuário estruturado e calibração
    5. `supabase-v3-migration.sql`     — livro-caixa único e agenda recorrente
    6. `supabase-v4-migration.sql`     — Pix via Mercado Pago (id do pagamento, QR, vencimento)
+   7. `supabase-v5-migration.sql`     — sexo do paciente (escolhe o corpo 3D feminino/masculino)
 3. Vá em **Project Settings → API**
 4. Copie a **Project URL** → `SUPABASE_URL`
 5. Copie a chave **service_role** → `SUPABASE_SERVICE_KEY`
@@ -228,6 +229,12 @@ Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no
 
 Aberto pelo botão **⊕** no topo do painel (consulta livre) ou por **⊕ Atlas de Acupuntura** durante uma sessão.
 
+**Três corpos**, escolhidos no topo do atlas:
+- **♀ Feminino** e **♂ Masculino** — realistas (rosto com olhos, nariz e boca, pele texturizada, cabelo), com os mesmos 197 pontos e protocolos;
+- **Clássico** — o modelo anterior, mantido para comparação.
+
+Ao abrir durante uma sessão, o atlas escolhe sozinho o corpo pelo **sexo do paciente** (campo novo no cadastro — rode a migração v5). Dá para trocar na hora; a **TV mostra sempre o mesmo corpo** escolhido pela profissional. O botão **Cabelo** oculta o cabelo para ver os pontos da cabeça e da nuca.
+
 - **197 pontos** nos 14 meridianos + pontos extras (Yintang, Taiyang, Anmian, Xiyan, Zigong…), cada um com localização clássica, indicações tradicionais e categoria (Yuan, Luo, He, Mu, Shu…).
 - Pontos **exatamente sobre a pele** do modelo, dos dois lados do corpo (`ST36` = lado direito, `ST36-E` = esquerdo), e meridianos desenhados como trajetos colados à superfície.
 - **Busca** por código, nome ou indicação (ex.: "insônia", "joelho") e **protocolos prontos** (dor lombar, cervical, ansiedade, insônia, TPM, Quatro Portões…).
@@ -237,9 +244,14 @@ Aberto pelo botão **⊕** no topo do painel (consulta livre) ou por **⊕ Atlas
 
 ### Como os pontos são gerados
 
-As posições não são digitadas à mão: `tools/acupoints/specs.mjs` descreve cada ponto anatomicamente (segmento do membro, distância em *cun*, lado) e `npm run build:acupoints` calcula a posição na pele a partir do próprio `human-body.glb`, gerando `public/js/acu-data.js`. Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build.
+As posições não são digitadas à mão: `tools/acupoints/specs.mjs` descreve cada ponto anatomicamente (segmento do membro, distância em *cun*, lado) e `npm run build:acupoints` calcula a posição na pele de cada corpo:
+- **clássico** → `public/js/acu-data.js` (também guarda nomes, indicações e protocolos);
+- **masculino** → `public/js/acu-geo-male.js`: cada ponto é redirecionado segmento a segmento (braço, antebraço, mão, coxa, perna, pé, tronco/cabeça) usando as juntas do esqueleto (`tools/acupoints/retarget.mjs`);
+- **feminino** → `public/js/acu-geo-female.js`: mesma topologia do masculino, então cada ponto é "amarrado" ao triângulo da malha e reaplicado — correspondência anatômica exata.
 
-A página `/calibrate` continua disponível para ajuste fino manual; uma calibração salva ali **tem prioridade** sobre a posição automática ("Restaurar posição automática" desfaz). Ela é gravada em `app_settings.acu_calibration_v2`; a calibração da versão anterior (`acu_calibration`), feita sobre as referências antigas e com erros (ex.: IG11 e IG15 trocados), foi preservada no banco mas não é mais aplicada.
+Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos realistas são gerados por `tools/bodies/` (veja o README de lá).
+
+A página `/calibrate` continua disponível para ajuste fino manual do corpo **clássico**; uma calibração salva ali **tem prioridade** sobre a posição automática ("Restaurar posição automática" desfaz). Ela é gravada em `app_settings.acu_calibration_v2`. A calibração da versão anterior (`acu_calibration`, com erros como IG11 e IG15 trocados) é apagada pela migração v5.
 
 ---
 

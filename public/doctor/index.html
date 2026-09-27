@@ -237,6 +237,8 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .acu-tb-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 .acu-tb-btn.on { background: rgba(120,200,180,0.18); border-color: rgba(120,220,200,0.5); color: #a8f0dc; }
 .acu-tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.12); margin: 0 0.2rem; }
+.acu-models { display: inline-flex; gap: 0.25rem; }
+.acu-tb-btn.acu-model.on { background: rgba(160,130,255,0.22); border-color: rgba(180,160,255,0.6); color: #e2d8ff; }
 .acu-modal-close {
   width: 34px; height: 34px; border-radius: 50%;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
@@ -1180,7 +1182,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
 <!-- Modal Novo Paciente -->
 <div class="generic-overlay" id="patient-modal">
   <div class="modal-sheet">
-    <h3>Novo Paciente</h3>
+    <h3 id="patient-modal-title">Novo Paciente</h3>
     <div class="form-group">
       <label class="form-label">Nome *</label>
       <input type="text" class="form-control" id="pat-name" placeholder="Nome completo">
@@ -1196,6 +1198,14 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
     <div class="form-group">
       <label class="form-label">Data de nascimento</label>
       <input type="date" class="form-control" id="pat-birth">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Sexo</label>
+      <select class="form-control" id="pat-sex">
+        <option value="">Não informado</option>
+        <option value="F">Feminino</option>
+        <option value="M">Masculino</option>
+      </select>
     </div>
     <div class="form-group">
       <label class="form-label">Condição / queixa principal</label>
@@ -1505,6 +1515,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
       <h2 id="detail-name"></h2>
       <div class="detail-meta" id="detail-meta"></div>
       <div class="session-count-badge" id="detail-session-count"></div>
+      <button class="detail-back" style="margin:0 0 0 0.5rem" onclick="editActivePatient()">✎ Editar cadastro</button>
     </div>
   </div>
   <div class="charts-grid">
@@ -1748,6 +1759,13 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
         <span class="acu-tb-sep"></span>
         <button class="acu-tb-btn on" id="acu-tg-labels" onclick="acuToggle('labels')">Rótulos</button>
         <button class="acu-tb-btn" id="acu-tg-only" onclick="acuToggle('only')" title="Mostrar só os meridianos dos pontos selecionados">Só ativos</button>
+        <button class="acu-tb-btn on" id="acu-tg-hair" onclick="acuToggle('hair')" title="Ocultar o cabelo para ver os pontos da cabeça e da nuca" style="display:none">Cabelo</button>
+        <span class="acu-tb-sep"></span>
+        <span class="acu-models" title="Corpo exibido (a TV mostra o mesmo)">
+          <button class="acu-tb-btn acu-model" data-m="female" onclick="acuSetModel('female')">♀ Feminino</button>
+          <button class="acu-tb-btn acu-model" data-m="male" onclick="acuSetModel('male')">♂ Masculino</button>
+          <button class="acu-tb-btn acu-model" data-m="classic" onclick="acuSetModel('classic')">Clássico</button>
+        </span>
       </div>
       <button class="acu-modal-close" onclick="closeAcuModal()" title="Fechar">×</button>
     </div>
@@ -3346,11 +3364,29 @@ function renderPatientsGrid(patients) {
 }
 
 // Modal Novo Paciente
-function openPatientModal() {
-  ['pat-name','pat-phone','pat-email','pat-birth','pat-condition','pat-notes'].forEach(id => {
-    document.getElementById(id).value = ''
-  })
+let editingPatientId = null   // null = novo cadastro
+
+function openPatientModal(patient = null) {
+  editingPatientId = patient?.id || null
+  document.getElementById('patient-modal-title').textContent = patient ? 'Editar Paciente' : 'Novo Paciente'
+  const val = {
+    'pat-name': patient?.name, 'pat-phone': patient?.phone, 'pat-email': patient?.email,
+    'pat-birth': patient?.birth_date ? String(patient.birth_date).slice(0, 10) : '',
+    'pat-condition': patient?.condition, 'pat-notes': patient?.notes, 'pat-sex': patient?.sex
+  }
+  Object.entries(val).forEach(([id, v]) => { document.getElementById(id).value = v || '' })
   document.getElementById('patient-modal').classList.add('visible')
+}
+
+// Editar o paciente aberto no detalhe
+async function editActivePatient() {
+  if (!activePatientId) return
+  try {
+    const r = await fetch(`/api/patients/${activePatientId}`)
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error()
+    openPatientModal(await r.json())
+  } catch (_) { alert('Erro ao carregar o cadastro.') }
 }
 function closePatientModal() {
   document.getElementById('patient-modal').classList.remove('visible')
@@ -3362,19 +3398,22 @@ async function savePatient() {
   const birthDate = document.getElementById('pat-birth').value
   const condition = document.getElementById('pat-condition').value.trim()
   const notes     = document.getElementById('pat-notes').value.trim()
+  const sex       = document.getElementById('pat-sex').value || null
 
   if (!name) { alert('Nome é obrigatório.'); return }
 
   try {
-    const r = await fetch('/api/patients', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, email, birth_date: birthDate || null, condition, notes })
+    const editing = editingPatientId
+    const r = await fetch(editing ? `/api/patients/${editing}` : '/api/patients', {
+      method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone, email, birth_date: birthDate || null, condition, notes, sex })
     })
     if (r.status === 401) { location.href = '/login'; return }
     if (!r.ok) throw new Error()
     closePatientModal()
-    loadPatients()
-  } catch (err) { alert('Erro ao cadastrar paciente.') }
+    if (editing) openPatientDetail(editing)
+    else loadPatients()
+  } catch (err) { alert(editingPatientId ? 'Erro ao salvar o cadastro.' : 'Erro ao cadastrar paciente.') }
 }
 
 // ── Detalhe + Gráficos do Paciente ───────────────────────────────────────────
@@ -3407,6 +3446,7 @@ async function openPatientDetail(id) {
     if (patient.email)      meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">✉ ${esc(patient.email)}</span>`)
     if (patient.birth_date) meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">🎂 ${fmtDateOnly(patient.birth_date)}</span>`)
     if (patient.condition)  meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">${esc(patient.condition)}</span>`)
+    if (patient.sex)        meta.insertAdjacentHTML('beforeend', `<span class="detail-tag">${patient.sex === 'F' ? '♀ Feminino' : '♂ Masculino'}</span>`)
 
     document.getElementById('detail-session-count').textContent = `${patient.session_count} sessão(ões) registrada(s)`
 
@@ -3620,7 +3660,10 @@ function buildTimeline(sessions, anatomyEvents) {
     // Pontos de acupuntura: vale o último envio para a TV nesta sessão
     const acuEv = events.filter(e => e.region === '__acupuncture__').pop()
     let acuPts = []
-    try { acuPts = acuEv ? JSON.parse(acuEv.problem || '[]') : [] } catch (_) {}
+    try {
+      const v = acuEv ? JSON.parse(acuEv.problem || '[]') : []
+      acuPts = Array.isArray(v) ? v : (v.points || [])
+    } catch (_) {}
     const acuTxt = [...new Set(acuPts.map(id => String(id).replace(/-E$/, '')))].join(', ')
     body.innerHTML = `
       <div><b>Sono:</b> ${esc(ans.sleep || '—')}</div>
@@ -4354,22 +4397,70 @@ let acuInfoPinned = null       // último ponto clicado (fica no painel de info)
 
 const acuNorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-function openAcuModal() {
+// Corpo do atlas: 'female' | 'male' | 'classic'
+let acuModel = null
+
+// Escolha automática: sexo do paciente da sessão; sem cadastro/sexo, a última
+// escolha feita no atlas (padrão: feminino realista)
+async function pickAcuModel() {
+  if (currentSession?.patient_id) {
+    try {
+      const r = await fetch(`/api/patients/${currentSession.patient_id}`)
+      if (r.ok) {
+        const p = await r.json()
+        if (p.sex === 'F') return 'female'
+        if (p.sex === 'M') return 'male'
+      }
+    } catch (_) {}
+  }
+  let saved = null
+  try { saved = localStorage.getItem('acu_model') } catch (_) {}
+  return ['female', 'male', 'classic'].includes(saved) ? saved : 'female'
+}
+
+// (Re)cria o visualizador com o corpo escolhido, mantendo seleção e opções
+function createAcuViewer(model) {
+  const sel = acuViewer ? acuViewer.getSelectedPoints() : []
+  const hidden = acuViewer ? [...acuViewer.hidden] : []
+  if (acuViewer) acuViewer.destroy()
+  acuViewer = new window.ACU.AcupunctureViewer(document.getElementById('acu-canvas-doctor'), {
+    model,
+    isDoctor: true,
+    autoRotate: false,
+    labels: document.getElementById('acu-tg-labels').classList.contains('on'),
+    onSelectionChange: (ids, info) => { acuInfoPinned = info; renderAcuInfo(info); _acuSelectionChanged() },
+    onHover: info => renderAcuInfo(info || acuInfoPinned)
+  })
+  acuModel = model
+  hidden.forEach(id => acuViewer.setMeridianVisible(id, false))
+  acuViewer.setOnlyActive(document.getElementById('acu-tg-only').classList.contains('on'))
+  const hairBtn = document.getElementById('acu-tg-hair')
+  hairBtn.style.display = model === 'classic' ? 'none' : ''
+  acuViewer.setHairVisible(hairBtn.classList.contains('on'))
+  if (sel.length) acuViewer.setSelectedPoints(sel, { focus: true })
+  document.querySelectorAll('.acu-model').forEach(b => b.classList.toggle('on', b.dataset.m === model))
+}
+
+// Troca manual de corpo (vale para as próximas aberturas sem sexo definido)
+function acuSetModel(model) {
+  try { localStorage.setItem('acu_model', model) } catch (_) {}
+  if (model !== acuModel) createAcuViewer(model)
+}
+
+async function openAcuModal() {
   document.getElementById('acu-overlay').style.display = 'flex'
   if (!window.ACU) { setTimeout(openAcuModal, 250); return }
 
-  // Seleção pertence à sessão: outro paciente → começa do zero
+  // Seleção pertence à sessão: outro paciente → começa do zero e escolhe o
+  // corpo pelo sexo do novo paciente
   const sid = currentSession?.id || null
-  if (acuViewer && sid !== acuSessionId) { acuViewer.setSelectedPoints([]); acuInfoPinned = null }
+  const newSession = sid !== acuSessionId
+  if (acuViewer && newSession) { acuViewer.setSelectedPoints([]); acuInfoPinned = null }
   acuSessionId = sid
 
-  if (!acuViewer) {
-    acuViewer = new window.ACU.AcupunctureViewer(document.getElementById('acu-canvas-doctor'), {
-      isDoctor: true,
-      autoRotate: false,
-      onSelectionChange: (ids, info) => { acuInfoPinned = info; renderAcuInfo(info); _acuSelectionChanged() },
-      onHover: info => renderAcuInfo(info || acuInfoPinned)
-    })
+  if (!acuViewer || newSession) {
+    const model = await pickAcuModel()
+    if (!acuViewer || model !== acuModel) createAcuViewer(model)
   }
   document.getElementById('acu-patient').textContent = currentSession ? `· ${currentSession.patient_name}` : '· consulta livre'
   const semSessao = !currentSession
@@ -4387,10 +4478,11 @@ function acuView(v) { acuViewer?.setView(v) }
 function acuFocus() { acuViewer?.focusPoints() }
 function acuToggle(what) {
   if (!acuViewer) return
-  const btn = document.getElementById(what === 'labels' ? 'acu-tg-labels' : 'acu-tg-only')
+  const btn = document.getElementById({ labels: 'acu-tg-labels', only: 'acu-tg-only', hair: 'acu-tg-hair' }[what])
   const on = !btn.classList.contains('on')
   btn.classList.toggle('on', on)
   if (what === 'labels') acuViewer.setLabels(on)
+  else if (what === 'hair') acuViewer.setHairVisible(on)
   else acuViewer.setOnlyActive(on)
 }
 function acuTab(tab) {
@@ -4586,7 +4678,7 @@ async function sendAcuToTV() {
     const r = await fetch('/api/acupuncture/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSession.id, points })
+      body: JSON.stringify({ session_id: currentSession.id, points, model: acuModel || 'classic' })
     })
     if (r.status === 401) { location.href = '/login'; return }
     if (!r.ok) throw new Error()

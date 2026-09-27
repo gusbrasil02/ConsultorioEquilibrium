@@ -561,8 +561,13 @@ let acuSharedViewer = null
 let pendingAcu = null
 
 function showAcupunctureState(event) {
-  let points = []
-  try { points = JSON.parse(event.problem || '[]') } catch (_) {}
+  // Formato: lista de ids (antigo) ou { points, model } — model = corpo escolhido
+  let points = [], model = 'classic'
+  try {
+    const v = JSON.parse(event.problem || '[]')
+    points = Array.isArray(v) ? v : (v.points || [])
+    if (!Array.isArray(v) && v.model) model = v.model
+  } catch (_) {}
 
   // Lista vazia = a profissional limpou a TV
   if (!points.length) { showIdle(); return }
@@ -579,16 +584,20 @@ function showAcupunctureState(event) {
   }
   pendingAcu = null
 
-  const apply = () => acuSharedViewer.setSelectedPoints(points, { focus: true })
+  // Mesmo corpo que a profissional está usando (clássico, masculino ou feminino)
+  if (acuSharedViewer && acuSharedViewer.getModel() !== model) {
+    acuSharedViewer.destroy()
+    acuSharedViewer = null
+  }
   if (!acuSharedViewer) {
     acuSharedViewer = new window.ACU.AcupunctureViewer(document.getElementById('acu-canvas-shared'), {
       isDoctor: false,
       tv: true,
       autoRotate: true,
-      onReady: apply
+      model
     })
   }
-  if (acuSharedViewer.ready) apply()
+  acuSharedViewer.setSelectedPoints(points, { focus: true })
   _renderAcuInfoPanel(points)
 }
 

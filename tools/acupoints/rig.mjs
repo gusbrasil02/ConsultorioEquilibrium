@@ -62,11 +62,11 @@ function torsoZ(y) {
 export const at = (target, dir, mode = 'near') => ({ target, dir: norm(dir), mode })
 
 // Tronco, projeção frontal: x em cun (negativo = direita), y absoluto
-export const front = (xc, y, dy = 0) => ({ target: [xc * RIG.cunH, y, torsoZ(y)], dir: norm([0, dy, 1]), mode: 'out' })
+export const front = (xc, y, dy = 0) => ({ target: [xc * RIG.cunH, y, torsoZ(y)], dir: norm([0, dy, 1]), mode: 'out', reg: 'torso' })
 // Tronco, projeção dorsal
-export const back = (xc, y, dy = 0) => ({ target: [xc * RIG.cunH, y, torsoZ(y)], dir: norm([0, dy, -1]), mode: 'out' })
+export const back = (xc, y, dy = 0) => ({ target: [xc * RIG.cunH, y, torsoZ(y)], dir: norm([0, dy, -1]), mode: 'out', reg: 'torso' })
 // Tronco, raio ao redor do eixo: ang 0 = frente, 90 = lateral direita, 180 = costas
-export const side = (y, ang) => ({ target: [0, y, torsoZ(y)], dir: [-Math.sin(rad(ang)), 0, Math.cos(rad(ang))], mode: 'out' })
+export const side = (y, ang) => ({ target: [0, y, torsoZ(y)], dir: [-Math.sin(rad(ang)), 0, Math.cos(rad(ang))], mode: 'out', reg: 'torso' })
 
 // Referencial de um segmento de membro: eixo d, anterior a, "superior" u
 function limbFrame(A, B, upRef) {
@@ -82,7 +82,7 @@ function limbFrame(A, B, upRef) {
 export function armUt(t, ang) {
   const { a, u } = limbFrame(RIG.S, RIG.E, [0, 1, 0])
   const c = lerp(RIG.S, RIG.E, t)
-  return { target: c, dir: norm(add(scale(a, Math.cos(rad(ang))), scale(u, Math.sin(rad(ang))))), mode: 'out' }
+  return { target: c, dir: norm(add(scale(a, Math.cos(rad(ang))), scale(u, Math.sin(rad(ang))))), mode: 'out', reg: 'ua' }
 }
 // cun acima da prega do cotovelo (9 cun até a prega axilar)
 export const armU = (cunAboveElbow, ang) => armUt(1 - (cunAboveElbow / 9) * (1 - RIG.axillaT), ang)
@@ -90,7 +90,7 @@ export const armU = (cunAboveElbow, ang) => armUt(1 - (cunAboveElbow / 9) * (1 -
 export function armFt(t, ang) {
   const { a, u } = limbFrame(RIG.E, RIG.W, [0, 1, 0])
   const c = lerp(RIG.E, RIG.W, t)
-  return { target: c, dir: norm(add(scale(a, Math.cos(rad(ang))), scale(u, Math.sin(rad(ang))))), mode: 'out' }
+  return { target: c, dir: norm(add(scale(a, Math.cos(rad(ang))), scale(u, Math.sin(rad(ang))))), mode: 'out', reg: 'fa' }
 }
 // cun acima da prega do punho (12 cun até o cotovelo)
 export const armF = (cunAboveWrist, ang) => armFt(1 - cunAboveWrist / 12, ang)
@@ -106,7 +106,7 @@ export function legY(y, ang) {
   const a = norm(sub([0, 0, 1], scale(d, dot([0, 0, 1], d))))
   let l = sub([-1, 0, 0], scale(d, dot([-1, 0, 0], d)))
   l = norm(sub(l, scale(a, dot(l, a))))
-  return { target: c, dir: norm(add(scale(a, Math.cos(rad(ang))), scale(l, Math.sin(rad(ang))))), mode: 'out' }
+  return { target: c, dir: norm(add(scale(a, Math.cos(rad(ang))), scale(l, Math.sin(rad(ang))))), mode: 'out', reg: 'leg' }
 }
 // cun abaixo da prega poplítea / acima do maléolo / acima do topo da patela
 export const belowKnee   = (cun, ang) => legY(RIG.KNEE[1] - cun * RIG.cunLeg, ang)
@@ -119,23 +119,25 @@ export function head(az, el = 0) {
   return {
     target: c,
     dir: [-Math.sin(rad(az)) * Math.cos(rad(el)), Math.sin(rad(el)), Math.cos(rad(az)) * Math.cos(rad(el))],
-    mode: 'out'
+    mode: 'out',
+    reg: 'torso'
   }
 }
 // Cabeça em altura específica (raio horizontal a partir do eixo da cabeça)
 export const headAt = (y, az, dy = 0) => ({
   target: [0, y, RIG.HEAD[2]],
   dir: norm([-Math.sin(rad(az)), dy, Math.cos(rad(az))]),
-  mode: 'out'
+  mode: 'out',
+  reg: 'torso'
 })
 // Rosto: x em metros (negativo = direita), projeção frontal
-export const face = (x, y, lat = 0) => ({ target: [x, y, -0.01], dir: norm([lat, 0, 1]), mode: 'out' })
+export const face = (x, y, lat = 0) => ({ target: [x, y, -0.01], dir: norm([lat, 0, 1]), mode: 'out', reg: 'torso' })
 
 // Pé: (x, z) no plano do chão; dirY 1 = dorso, -1 = planta. O alvo fica dentro
 // do pé (y baixo) e o raio sai pela pele do lado pedido.
-export const foot = (x, z, dirY = 1, y = 0.012) => ({ target: [x, y, z], dir: [0, dirY, 0], mode: 'out' })
+export const foot = (x, z, dirY = 1, y = 0.012) => ({ target: [x, y, z], dir: [0, dirY, 0], mode: 'out', reg: 'foot' })
 // Borda medial (+1) ou lateral (-1) do pé direito
-export const footEdge = (y, z, medial = 1, x = -0.165) => ({ target: [x, y, z], dir: [medial, 0, 0], mode: 'out' })
+export const footEdge = (y, z, medial = 1, x = -0.165) => ({ target: [x, y, z], dir: [medial, 0, 0], mode: 'out', reg: 'foot' })
 
 // Mão direita — referencial obtido por PCA da palma:
 //   F = direção dos dedos, R = lado radial (polegar), N = dorso
@@ -154,14 +156,15 @@ export function hand(f, r, sideName, mode = 'out') {
     dorso: HAND.N, palma: scale(HAND.N, -1),
     radial: HAND.R, ulnar: scale(HAND.R, -1), ponta: HAND.F
   }[sideName]
-  return { target: t, dir, mode }
+  return { target: t, dir, mode, reg: 'hand' }
 }
 
 // Linha sagital na cabeça: plano x = xOff; el 0 = testa, 90 = topo, 180 = nuca
 export const headLine = (xOff, el) => ({
   target: [xOff, RIG.HEAD[1], RIG.HEAD[2]],
   dir: [0, Math.sin(rad(el)), Math.cos(rad(el))],
-  mode: 'out'
+  mode: 'out',
+  reg: 'torso'
 })
 
 export const V = RIG.vert

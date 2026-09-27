@@ -636,11 +636,13 @@ app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
     const points = (Array.isArray(req.body.points) ? req.body.points : [])
       .filter(p => typeof p === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(p))
       .slice(0, 120)
+    // Corpo exibido (a TV mostra o mesmo que a profissional escolheu)
+    const model = ['classic', 'male', 'female'].includes(req.body.model) ? req.body.model : 'classic'
     if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
     await saveAnatomyEvent({
       session_id,
       region: '__acupuncture__',
-      problem: JSON.stringify(points),
+      problem: JSON.stringify({ points, model }),
       ai_explanation: ''
     })
     pollSoon()
@@ -675,7 +677,8 @@ app.post('/api/patients', requireAuth, async (req, res) => {
   try {
     const { name, phone, email, birth_date, condition, notes } = req.body
     if (!name?.trim()) return res.status(400).json({ error: 'Nome do paciente obrigatório' })
-    const patient = await createPatient({ name: name.trim(), phone, email, birth_date, condition, notes })
+    const sex = ['F', 'M'].includes(req.body.sex) ? req.body.sex : null
+    const patient = await createPatient({ name: name.trim(), phone, email, birth_date, condition, notes, sex })
     res.status(201).json(patient)
   } catch (error) {
     res.status(500).json({ error: 'Erro interno ao criar paciente' })
@@ -730,7 +733,8 @@ function pick(body, keys) {
 
 app.put('/api/patients/:id', requireAuth, async (req, res) => {
   try {
-    const updates = pick(req.body, ['name', 'phone', 'email', 'birth_date', 'condition', 'notes'])
+    const updates = pick(req.body, ['name', 'phone', 'email', 'birth_date', 'condition', 'notes', 'sex'])
+    if ('sex' in updates && !['F', 'M'].includes(updates.sex)) updates.sex = null
     if (updates.name !== undefined && !String(updates.name).trim()) {
       return res.status(400).json({ error: 'Nome do paciente obrigatório' })
     }

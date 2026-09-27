@@ -443,13 +443,19 @@ async function getPatient(id) {
 }
 
 // Cria novo paciente
-async function createPatient({ name, phone, email, birth_date, condition, notes }) {
+// Coluna "sex" vem da migração v5. Se ela ainda não existir no banco, gravamos
+// o resto normalmente (o cadastro nunca quebra por causa do campo novo).
+const missingColumn = e => e && (e.code === '42703' || e.code === 'PGRST204' || /sex/.test(e.message || ''))
+
+async function createPatient({ name, phone, email, birth_date, condition, notes, sex }) {
   try {
-    const { data, error } = await supabase
-      .from('patients')
-      .insert({ name, phone, email, birth_date: birth_date || null, condition, notes })
-      .select()
-      .single()
+    const row = { name, phone, email, birth_date: birth_date || null, condition, notes }
+    if (sex) row.sex = sex
+    let { data, error } = await supabase.from('patients').insert(row).select().single()
+    if (error && row.sex && missingColumn(error)) {
+      delete row.sex
+      ;({ data, error } = await supabase.from('patients').insert(row).select().single())
+    }
     if (error) throw error
     return data
   } catch (error) {
@@ -461,12 +467,11 @@ async function createPatient({ name, phone, email, birth_date, condition, notes 
 // Atualiza dados de um paciente
 async function updatePatient(id, updates) {
   try {
-    const { data, error } = await supabase
-      .from('patients')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
+    let { data, error } = await supabase.from('patients').update(updates).eq('id', id).select().single()
+    if (error && 'sex' in updates && missingColumn(error)) {
+      const { sex, ...rest } = updates
+      ;({ data, error } = await supabase.from('patients').update(rest).eq('id', id).select().single())
+    }
     if (error) throw error
     return data
   } catch (error) {
@@ -637,9 +642,14 @@ async function getLastAcupuncture(patient_name, patient_id, exclude_session_id) 
     .limit(1)
     .maybeSingle()
   if (!data) return null
-  let points = []
-  try { points = JSON.parse(data.problem || '[]') } catch (_) {}
-  return { points, created_at: data.created_at }
+  // Formato: lista de ids (antigo) ou { points, model } (atual)
+  let points = [], model = null
+  try {
+    const v = JSON.parse(data.problem || '[]')
+    points = Array.isArray(v) ? v : (v.points || [])
+    model = Array.isArray(v) ? null : (v.model || null)
+  } catch (_) {}
+  return { points, model, created_at: data.created_at }
 }
 
 // ─── Usuários / autenticação (item 4) ────────────────────────────────────────

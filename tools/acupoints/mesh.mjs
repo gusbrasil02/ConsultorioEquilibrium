@@ -16,19 +16,27 @@ function mul4(a, b) {
 }
 const IDENT = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 
-export function loadBody(glbPath) {
+// opts.meshName: usa só a malha com esse nome (ex.: 'body' nos modelos realistas,
+//                ignorando olhos/cabelo); opts.normalize=false: coordenadas do
+//                arquivo já estão normalizadas (modelos gerados por build_bodies.py)
+export function loadBody(glbPath, opts = {}) {
   const b = fs.readFileSync(glbPath)
   const jsonLen = b.readUInt32LE(12)
   const json = JSON.parse(b.slice(20, 20 + jsonLen).toString())
   const bin = b.slice(20 + jsonLen + 8)
 
-  // O modelo é uma cadeia simples de nós até a única malha
   let world = IDENT
-  let node = json.nodes[json.scenes[0].nodes[0]]
-  while (node) {
-    world = mul4(world, node.matrix || IDENT)
-    if (node.mesh != null) break
-    node = node.children ? json.nodes[node.children[0]] : null
+  let node
+  if (opts.meshName) {
+    node = json.nodes.find(n => n.mesh != null && json.meshes[n.mesh].name === opts.meshName)
+  } else {
+    // Modelo clássico: cadeia simples de nós até a única malha
+    node = json.nodes[json.scenes[0].nodes[0]]
+    while (node) {
+      world = mul4(world, node.matrix || IDENT)
+      if (node.mesh != null) break
+      node = node.children ? json.nodes[node.children[0]] : null
+    }
   }
 
   const prim = json.meshes[node.mesh].primitives[0]
@@ -51,7 +59,9 @@ export function loadBody(glbPath) {
   raw.forEach(v => { for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], v[k]); mx[k] = Math.max(mx[k], v[k]) } })
   const s = 1.76 / (mx[1] - mn[1])
   const cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2
-  const verts = raw.map(([x, y, z]) => [(x - cx) * s, (y - mn[1]) * s, (z - cz) * s])
+  const verts = opts.normalize === false
+    ? raw
+    : raw.map(([x, y, z]) => [(x - cx) * s, (y - mn[1]) * s, (z - cz) * s])
 
   const ia = json.accessors[prim.indices]
   const ibv = json.bufferViews[ia.bufferView]
@@ -101,7 +111,10 @@ function snap(body, target, dir, lift) {
   }
   const nn = norm(n)
   const v = body.verts[best]
-  return { p: [v[0] + nn[0] * lift, v[1] + nn[1] * lift, v[2] + nn[2] * lift], n: nn }
+  const raw = [0, 0, 0]
+  for (const t of body.vtris[best]) { const tn = triNormal(body, t); raw[0] += tn[0]; raw[1] += tn[1]; raw[2] += tn[2] }
+  const sgn = raw[0] * nn[0] + raw[1] * nn[1] + raw[2] * nn[2] >= 0 ? 1 : -1
+  return { p: [v[0] + nn[0] * lift, v[1] + nn[1] * lift, v[2] + nn[2] * lift], n: nn, bind: { vert: best, lift, sgn } }
 }
 
 // Todas as interseções da RETA (o + t·d, t ∈ ℝ) com a malha — Möller–Trumbore
@@ -125,7 +138,7 @@ export function lineHits(body, o, d) {
     const tt = (e2x * qx + e2y * qy + e2z * qz) * inv
     let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x
     const nl = Math.hypot(nx, ny, nz) || 1
-    out.push({ t: tt, n: [nx / nl, ny / nl, nz / nl] })
+    out.push({ t: tt, n: [nx / nl, ny / nl, nz / nl], tri: t, u, v })
   }
   return out
 }
@@ -157,5 +170,27 @@ export function surface(body, target, dir, { mode = 'out', maxT = 0.3, lift = 0.
   let n = best.n
   if (n[0] * d[0] + n[1] * d[1] + n[2] * d[2] < 0) n = [-n[0], -n[1], -n[2]]
   const p = [0, 1, 2].map(k => target[k] + d[k] * best.t + n[k] * lift)
-  return { p, n }
+  // "Amarração" à malha: triângulo + coordenadas baricêntricas. Permite levar o
+  // mesmo ponto para outro corpo com a mesma topologia (masculino → feminino).
+  const wn = triNormal(body, best.tri)
+  const sgn = wn[0] * n[0] + wn[1] * n[1] + wn[2] * n[2] >= 0 ? 1 : -1
+  return { p, n, bind: { tri: best.tri, u: best.u, v: best.v, lift, sgn } }
+}
+
+// Reaplica uma amarração em outro corpo de MESMA topologia
+export function applyBind(body, bind) {
+  if (bind.vert != null) {
+    const v = body.verts[bind.vert]
+    const n = [0, 0, 0]
+    for (const t of body.vtris[bind.vert]) {
+      const tn = triNormal(body, t)
+      n[0] += tn[0]; n[1] += tn[1]; n[2] += tn[2]
+    }
+    const nn = norm(n).map(x => x * (bind.sgn || 1))
+    return { p: [0, 1, 2].map(k => v[k] + nn[k] * bind.lift), n: nn }
+  }
+  const T = body.tris, i = bind.tri * 9, w = 1 - bind.u - bind.v
+  const p = [0, 1, 2].map(k => T[i + k] * w + T[i + 3 + k] * bind.u + T[i + 6 + k] * bind.v)
+  const n = triNormal(body, bind.tri).map(x => x * (bind.sgn || 1))
+  return { p: [0, 1, 2].map(k => p[k] + n[k] * bind.lift), n }
 }
