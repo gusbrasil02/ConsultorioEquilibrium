@@ -82,20 +82,19 @@ function glowTexture() {
 
 const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 // ─── Corpos disponíveis ───────────────────────────────────────────────────────
-// clássico: modelo original (normalizado para 1,76 m ao carregar)
-// masculino/feminino: corpos realistas gerados por tools/bodies (MakeHuman, CC0),
-// já normalizados, com geometria dos pontos própria (acu-geo-*.js)
+// Corpos realistas gerados por tools/bodies (MakeHuman, CC0), já normalizados,
+// cada um com a geometria dos pontos própria (acu-geo-*.js). As posições de
+// acu-data.js são as do modelo-base usado só pelo gerador (tools/acupoints).
 const MODELS = {
-  classic: { label: 'Clássico',  glb: '/models/human-body.glb',  normalize: true,  height: 1.76, geo: null },
-  male:    { label: 'Masculino', glb: '/models/body-male.glb',   normalize: false, height: 1.78, geo: '/js/acu-geo-male.js' },
-  female:  { label: 'Feminino',  glb: '/models/body-female.glb', normalize: false, height: 1.66, geo: '/js/acu-geo-female.js' }
+  male:    { label: 'Masculino', glb: '/models/body-male.glb',   height: 1.78, geo: '/js/acu-geo-male.js' },
+  female:  { label: 'Feminino',  glb: '/models/body-female.glb', height: 1.66, geo: '/js/acu-geo-female.js' }
 }
 
 // Geometria (posições + trajetos) por meridiano: Map id → { points: Map, paths }
 const _geoCache = {}
 async function loadGeometry(key) {
   if (_geoCache[key]) return _geoCache[key]
-  const src = MODELS[key].geo ? (await import(MODELS[key].geo)).ACU_GEOMETRY : ACU_MERIDIANS
+  const src = (await import(MODELS[key].geo)).ACU_GEOMETRY
   const map = new Map(src.map(m => [m.id, {
     points: new Map(m.points.map(p => [p.id, { p: p.p, pl: p.pl }])),
     paths: m.paths
@@ -126,7 +125,7 @@ class AcupunctureViewer {
     this.onSelectionChange = options.onSelectionChange ?? null
     this.onHover = options.onHover ?? null
     this.onReady = options.onReady ?? null
-    this.modelKey = MODELS[options.model] ? options.model : 'classic'
+    this.modelKey = MODELS[options.model] ? options.model : 'female'
     this.model = MODELS[this.modelKey]
     this.center = new THREE.Vector3(0, this.model.height * 0.523, 0)   // meio do corpo
     this.hairVisible = true
@@ -165,7 +164,6 @@ class AcupunctureViewer {
     this.renderer.setSize(W, H)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 0.92
-    this.renderer.useLegacyLights = false
     host.appendChild(this.renderer.domElement)
 
     // Iluminação de estúdio (reflexos suaves na pele) + luzes de recorte
@@ -235,7 +233,7 @@ class AcupunctureViewer {
     this.scene.add(floor)
   }
 
-  // Geometria dos pontos → corpo → calibração (esta só vale para o clássico)
+  // Geometria dos pontos → corpo
   async _loadAll() {
     try {
       this.geo = await loadGeometry(this.modelKey)
@@ -253,7 +251,6 @@ class AcupunctureViewer {
       this.setSelectedPoints(ids, { focus })
     } else this._refreshAll()
     await this._loadBody()
-    if (this.modelKey === 'classic') this._loadCalibration()
   }
 
   // ── Corpo ──────────────────────────────────────────────────────────────────
@@ -264,34 +261,12 @@ class AcupunctureViewer {
       if (this._disposed) return
       const model = gltf.scene
 
-      if (this.model.normalize) {
-        // Mesma normalização usada pelo gerador de pontos: pés em Y=0, altura 1,76
-        const box = new THREE.Box3().setFromObject(model)
-        const size = box.getSize(new THREE.Vector3())
-        const center = box.getCenter(new THREE.Vector3())
-        const scale = 1.76 / size.y
-        model.scale.setScalar(scale)
-        model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale)
-      }
-
       this._bodyMeshes = []
       this._hairMeshes = []
-      if (this.modelKey === 'classic') {
-        this.skin = new THREE.MeshPhysicalMaterial({
-          color: 0xc98f72, roughness: 0.6, metalness: 0,
-          sheen: 0.5, sheenRoughness: 0.55, sheenColor: new THREE.Color(0xffc2a6),
-          clearcoat: 0.08, clearcoatRoughness: 0.6, envMapIntensity: 0.4
-        })
-      }
       model.traverse(o => {
         if (!o.isMesh) return
         if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals()
-        if (this.modelKey === 'classic') {
-          o.material = this.skin
-          this._bodyMeshes.push(o)
-          return
-        }
-        // Corpos realistas: mantêm a textura; só ajustamos o acabamento
+        // Mantêm a textura; só ajustamos o acabamento
         const m = o.material
         if (o.name === 'body') {
           m.roughness = 0.6
@@ -323,14 +298,13 @@ class AcupunctureViewer {
 
   // ── Pontos (uma InstancedMesh para todos) ────────────────────────────────
   _buildPoints() {
-    this.points = []   // { id, base, meridian, pos, nrm, orig }
+    this.points = []   // { id, base, meridian, pos, nrm }
     ACU_MERIDIANS.forEach(m => m.points.forEach(p => {
       const g = this.geo.get(m.id)?.points.get(p.id)
       if (!g) return
       const add = (id, a) => this.points.push({
         id, base: p.id, meridian: m, info: p,
         pos: new THREE.Vector3(a[0], a[1], a[2]),
-        orig: new THREE.Vector3(a[0], a[1], a[2]),
         nrm: new THREE.Vector3(a[3], a[4], a[5]).normalize()
       })
       add(p.id, g.p)
@@ -412,31 +386,16 @@ class AcupunctureViewer {
     })
   }
 
-  // (Re)constrói os tubos de um meridiano, deformando o trajeto onde houver
-  // pontos calibrados manualmente (o trajeto acompanha o ponto movido).
+  // Constrói os tubos de um meridiano a partir dos trajetos gerados
   _rebuildMeridian(mid) {
     const M = this.meridians[mid]
     M.group.children.forEach(c => c.geometry.dispose())
     M.group.clear()
     M.curves = []
-    const moved = this.points.filter(pt => pt.meridian.id === mid && pt.pos.distanceToSquared(pt.orig) > 1e-8)
 
     for (const { side, arr } of M.raw) {
       const pts = []
-      for (let i = 0; i < arr.length; i += 3) {
-        const v = new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2])
-        if (moved.length) {
-          const acc = new THREE.Vector3(); let W = 0
-          for (const pt of moved) {
-            if ((side === 'l') !== isLeftId(pt.id) && pt.info.pl) continue
-            const d = v.distanceTo(pt.orig)
-            const w = Math.max(0, 1 - d / 0.07) ** 2
-            if (w > 0) { acc.addScaledVector(new THREE.Vector3().subVectors(pt.pos, pt.orig), w); W += w }
-          }
-          if (W > 0) v.addScaledVector(acc, Math.min(1, W) / W)
-        }
-        pts.push(v)
-      }
+      for (let i = 0; i < arr.length; i += 3) pts.push(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2]))
       if (pts.length < 2) continue
       const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal')
       const seg = Math.min(600, Math.max(8, pts.length * 3))
@@ -530,40 +489,6 @@ class AcupunctureViewer {
     this._refreshPoints()
     this._refreshMeridians()
     this._refreshSelectionFx()
-  }
-
-  // ── Calibração manual (sobrepõe as posições automáticas) ─────────────────
-  async _loadCalibration() {
-    let cal = null
-    try {
-      const r = await fetch('/api/calibrate', { cache: 'no-cache' })
-      if (r.ok) cal = await r.json()
-    } catch (_) {}
-    if (cal && Object.keys(cal).length) this.applyCalibration(cal)
-  }
-
-  // cal = { "LU7": {x,y,z}, "LU7-E": {x,y,z} }. Um id sem "-E" num ponto bilateral
-  // vale para os dois lados (espelhado), a menos que o lado esquerdo tenha o seu.
-  applyCalibration(cal) {
-    const touched = new Set()
-    this.points.forEach(pt => {
-      let c = cal[pt.id], mirrored = false
-      if (!c && isLeftId(pt.id)) { c = cal[pt.base]; mirrored = true }
-      if (!c) { if (!pt.pos.equals(pt.orig)) { pt.pos.copy(pt.orig); touched.add(pt.meridian.id) } return }
-      let x = Number(c.x)
-      if (pt.info.pl) {
-        // Normaliza o lado: direito sempre em X negativo, esquerdo em X positivo
-        x = Math.abs(x) * (isLeftId(pt.id) ? 1 : -1)
-      } else if (mirrored) x = -x
-      pt.pos.set(x, Number(c.y), Number(c.z))
-      touched.add(pt.meridian.id)
-    })
-    touched.forEach(id => this._rebuildMeridian(id))
-    this._halos.forEach((sp, id) => {
-      const pt = this.points[this.pointById.get(id)]
-      sp.position.copy(pt.pos).addScaledVector(pt.nrm, 0.003)
-    })
-    this._refreshAll()
   }
 
   // ── Seleção pelo mouse/toque (painel) ─────────────────────────────────────
@@ -745,7 +670,7 @@ class AcupunctureViewer {
     this.hairVisible = !!on
     ;(this._hairMeshes || []).forEach(h => { h.visible = this.hairVisible })
   }
-  hasHair() { return this.modelKey !== 'classic' }
+  hasHair() { return true }
   getModel() { return this.modelKey }
   setAutoRotate(on) { this.autoRotate = !!on }
 

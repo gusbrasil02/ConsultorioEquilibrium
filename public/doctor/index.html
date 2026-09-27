@@ -207,6 +207,12 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
   color: rgba(120,220,200,0.9);
 }
 .btn-acu:hover { background: linear-gradient(135deg, rgba(120,80,200,0.45), rgba(40,140,120,0.45)) !important; }
+.btn-phy {
+  background: linear-gradient(135deg, rgba(255,70,60,0.2), rgba(40,150,220,0.25));
+  border: 1px solid rgba(120,210,255,0.45);
+  color: rgba(170,230,255,0.95);
+}
+.btn-phy:hover { background: linear-gradient(135deg, rgba(255,70,60,0.35), rgba(40,150,220,0.42)) !important; }
 
 /* ── Atlas de Acupuntura 3D (modal) ── */
 #acu-overlay {
@@ -239,6 +245,7 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .acu-tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.12); margin: 0 0.2rem; }
 .acu-models { display: inline-flex; gap: 0.25rem; }
 .acu-tb-btn.acu-model.on { background: rgba(160,130,255,0.22); border-color: rgba(180,160,255,0.6); color: #e2d8ff; }
+.acu-tb-btn.acu-clear.on { background: rgba(255,190,90,0.16); border-color: rgba(255,200,120,0.55); color: #ffe2b0; }
 .acu-modal-close {
   width: 34px; height: 34px; border-radius: 50%;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
@@ -462,42 +469,99 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 }
 .btn-consult:hover { background: rgba(255,255,255,0.12); color: #fff; }
 
-/* ── Modo Consulta ── */
-#consult-mode { display: none; min-height: 100vh; }
-#consult-mode.visible { display: grid; grid-template-columns: 1fr 1fr; }
-@media (max-width: 800px) { #consult-mode.visible { grid-template-columns: 1fr; } }
-.consult-left  { padding: 2rem; border-right: 1px solid rgba(255,255,255,0.06); overflow-y: auto; }
-.consult-right { padding: 2rem; background: rgba(255,255,255,0.01); overflow-y: auto; }
-.consult-header {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;
+/* ── Modo Consulta: Anatomia 3D (tela cheia) ── */
+#consult-mode {
+  display: none; position: fixed; inset: 0; z-index: 1400;
+  background: #03060b; color: #fff;
 }
-.consult-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 300; color: rgba(255,255,255,0.8); }
+#consult-mode.visible { display: grid; grid-template-columns: 1fr 400px; }
+@media (max-width: 900px) { #consult-mode.visible { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; } }
+.phy-stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+#phy-canvas { position: relative; flex: 1; min-height: 0; }
+.phy-toolbar {
+  display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; flex-shrink: 0;
+  padding: 0.6rem 0.9rem; background: #050b12; border-bottom: 1px solid rgba(120,220,255,0.08);
+}
+.phy-tb {
+  padding: 0.38rem 0.8rem; border-radius: 60px; cursor: pointer;
+  background: rgba(6,20,32,0.72); border: 1px solid rgba(120,220,255,0.22);
+  color: rgba(210,240,255,0.78); font-family: 'DM Sans', sans-serif; font-size: 0.76rem;
+  backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.phy-tb:hover { background: rgba(40,110,150,0.35); color: #fff; }
+.phy-tb.on { background: rgba(60,190,255,0.2); border-color: rgba(120,220,255,0.65); color: #d8f6ff; }
+.phy-tb:disabled { opacity: 0.35; cursor: default; }
+.phy-tb.phy-int.on { background: linear-gradient(135deg, rgba(255,70,60,0.28), rgba(60,190,255,0.22)); border-color: rgba(255,120,110,0.7); color: #fff; }
+.phy-tb-sep { width: 1px; height: 20px; background: rgba(120,220,255,0.2); margin: 0 0.15rem; }
+.phy-hint { margin-left: auto; font-size: 0.7rem; color: rgba(160,220,245,0.4); letter-spacing: 0.03em; }
+.phy-panel {
+  display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, #08121c, #05090f); border-left: 1px solid rgba(120,220,255,0.1);
+}
+.phy-panel-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 0.8rem;
+  padding: 1.1rem 1.2rem 0.9rem; border-bottom: 1px solid rgba(120,220,255,0.08);
+}
+.phy-title { font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 300; color: rgba(255,255,255,0.9); }
+.phy-patient { font-size: 0.78rem; color: rgba(160,220,245,0.55); margin-top: 0.2rem; }
 .btn-back-dash {
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.9rem; flex-shrink: 0;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 60px; color: rgba(255,255,255,0.5);
-  font-size: 0.8rem; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  border-radius: 60px; color: rgba(255,255,255,0.6);
+  font-size: 0.78rem; cursor: pointer; font-family: 'DM Sans', sans-serif;
 }
-.view-toggle { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-.toggle-btn {
-  flex: 1; padding: 0.6rem 1rem;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 60px; color: rgba(255,255,255,0.5);
-  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+.btn-back-dash:hover { color: #fff; background: rgba(255,255,255,0.12); }
+.phy-body { flex: 1; overflow-y: auto; padding: 0.4rem 1.2rem 1rem; }
+.phy-body::-webkit-scrollbar { width: 5px; }
+.phy-body::-webkit-scrollbar-thumb { background: rgba(120,220,255,0.15); border-radius: 3px; }
+.phy-sec { padding: 0.9rem 0 0.4rem; }
+.phy-sec + .phy-sec { border-top: 1px solid rgba(120,220,255,0.07); }
+.phy-sec-t {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(140,220,255,0.6); margin-bottom: 0.65rem;
 }
-.toggle-btn.active { background: rgba(255,180,50,0.15); border-color: rgba(255,180,50,0.4); color: #ffd070; }
-.body-svg-wrapper { display: flex; justify-content: center; margin-bottom: 1.5rem; }
-.body-svg-wrapper svg { width: 180px; height: auto; }
-.body-region {
-  fill: rgba(255,255,255,0.06); stroke: rgba(255,255,255,0.15); stroke-width: 0.8;
-  cursor: pointer; transition: fill 0.2s, stroke 0.2s;
+.phy-sec-t small { text-transform: none; letter-spacing: 0; color: rgba(255,255,255,0.3); margin-left: 0.4rem; font-size: 0.72rem; }
+.phy-select {
+  width: 100%; padding: 0.6rem 0.9rem; border-radius: 12px; outline: none; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(120,220,255,0.2); color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
 }
-.body-region:hover { fill: rgba(255,255,255,0.15); stroke: rgba(255,255,255,0.35); }
-.body-region.selected {
-  fill: rgba(255,180,50,0.25); stroke: rgba(255,180,50,0.7); stroke-width: 1.2;
-  filter: drop-shadow(0 0 6px rgba(255,180,50,0.5));
+.phy-select option, .phy-select optgroup { background: #0b1520; color: #fff; }
+.phy-pain { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; align-items: center; font-size: 0.72rem; color: rgba(255,255,255,0.4); }
+.phy-chip {
+  padding: 0.32rem 0.75rem; border-radius: 60px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.78rem;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.75);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
+.phy-chip:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.phy-chip.pain { border-color: rgba(255,120,110,0.45); color: #ffc9c4; }
+.phy-chip.on { background: rgba(255,70,60,0.2); border-color: rgba(255,110,100,0.8); color: #fff; box-shadow: 0 0 12px rgba(255,60,50,0.25); }
+.phy-conds { display: flex; flex-direction: column; gap: 0.35rem; }
+.phy-cond {
+  display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left; cursor: pointer;
+  padding: 0.55rem 0.75rem; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.84rem;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
+}
+.phy-cond::before { content: ''; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.35); flex-shrink: 0; }
+.phy-cond:hover { background: rgba(255,255,255,0.07); }
+.phy-cond.on { background: rgba(255,70,60,0.14); border-color: rgba(255,110,100,0.6); color: #fff; }
+.phy-cond.on::before { background: #ff4a3d; border-color: #ff4a3d; box-shadow: 0 0 8px #ff4a3d; }
+.phy-card {
+  margin-top: 0.7rem; padding: 0.8rem 0.9rem; border-radius: 12px; font-size: 0.8rem; line-height: 1.55;
+  background: rgba(60,190,255,0.05); border: 1px solid rgba(120,220,255,0.14); color: rgba(255,255,255,0.72);
+}
+.phy-card b { color: rgba(170,230,255,0.9); font-weight: 500; }
+.phy-card p + p { margin-top: 0.45rem; }
+.phy-parts { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.phy-part { font-size: 0.74rem; padding: 0.26rem 0.65rem; }
+.phy-part i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.phy-muted { font-size: 0.78rem; color: rgba(255,255,255,0.35); font-style: italic; }
+.phy-actions { padding: 0.9rem 1.2rem 1.1rem; border-top: 1px solid rgba(120,220,255,0.08); display: flex; flex-direction: column; gap: 0.45rem; }
+.phy-actions .btn-send-tv { display: block; }
+.phy-clear-tv {
+  background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  font-size: 0.76rem; color: rgba(255,255,255,0.4);
+}
+.phy-clear-tv:hover { color: rgba(255,255,255,0.75); }
 .problem-input {
   width: 100%; padding: 0.9rem 1rem;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
@@ -534,18 +598,8 @@ textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
   cursor: pointer; display: none; transition: background 0.2s;
 }
 .btn-send-tv.visible { display: block; }
+.btn-send-tv:disabled { opacity: 0.4; cursor: default; }
 .btn-send-tv:hover { background: rgba(76,175,134,0.3); }
-.preview-label {
-  font-size: 0.72rem; text-transform: uppercase;
-  letter-spacing: 0.12em; color: rgba(255,255,255,0.25); margin-bottom: 1rem;
-}
-.preview-card {
-  background: #0c0c14; border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 16px; padding: 1.5rem; min-height: 200px;
-}
-.preview-region-label { font-size: 0.8rem; color: rgba(255,180,50,0.7); margin-bottom: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
-.preview-text { font-family: 'DM Sans', sans-serif; font-size: 0.9rem; line-height: 1.8; color: rgba(255,255,255,0.7); white-space: pre-wrap; }
-
 /* ─────────────── AGENDA ─────────────── */
 #agenda-view { padding: 2rem; overflow-y: auto; max-height: calc(100vh - 60px); }
 
@@ -1010,26 +1064,25 @@ body.light #session-control, body.light .history-section { border-bottom-color: 
 body.light .patient-name, body.light .pain-display, body.light .detail-info h2,
 body.light .modal-title, body.light .modal-sheet h3 { color: rgba(0,0,0,0.9); }
 body.light .metric-card, body.light .patient-card, body.light .chart-card,
-body.light .history-item, body.light .timeline-item, body.light .preview-card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+body.light .history-item, body.light .timeline-item { background: #ffffff; border-color: rgba(0,0,0,0.08); }
 body.light .metric-label, body.light .section-title, body.light .history-date,
-body.light .timeline-summary, body.light .timeline-expand, body.light .preview-label,
+body.light .timeline-summary, body.light .timeline-expand,
 body.light .form-label, body.light .summary-label, body.light .day-name, body.light .time-tick,
 body.light .session-status-label { color: rgba(0,0,0,0.5); }
 body.light .metric-value, body.light .summary-value, body.light .pc-name,
 body.light .timeline-date, body.light .agenda-week-label, body.light .consult-title { color: rgba(0,0,0,0.8); }
-body.light .metric-reason, body.light .metric-value, body.light .timeline-body, body.light .preview-text { color: rgba(0,0,0,0.7); }
+body.light .metric-reason, body.light .metric-value, body.light .timeline-body { color: rgba(0,0,0,0.7); }
 body.light .day-num { color: rgba(0,0,0,0.7); }
 body.light .modal-sheet, body.light .modal-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
 body.light .form-control, body.light .finish-textarea, body.light .search-input,
-body.light .problem-input, body.light textarea.ai-preview, body.light .summary-row,
-body.light .ai-preview { background: #f3f4f7; border-color: rgba(0,0,0,0.12); color: #1c1e26; }
+body.light .summary-row { background: #f3f4f7; border-color: rgba(0,0,0,0.12); color: #1c1e26; }
 body.light .form-control option { background: #fff; color: #1c1e26; }
 body.light .week-grid { border-color: rgba(0,0,0,0.1); }
 body.light .day-header, body.light .time-axis-header, body.light .time-tick { background: #f6f7f9; }
 body.light .time-slot { border-bottom-color: rgba(0,0,0,0.06); }
 body.light .day-col { border-right-color: rgba(0,0,0,0.06); }
 body.light .btn-consult, body.light .agenda-nav-btn, body.light .detail-back,
-body.light .toggle-btn, body.light .btn-back-dash, body.light .btn-cancel,
+body.light .toggle-btn, body.light .btn-cancel,
 body.light .patient-suggestions { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.6); }
 body.light .patient-suggestions { background: #ffffff; }
 body.light .suggestion-item { color: rgba(0,0,0,0.8); }
@@ -1037,7 +1090,7 @@ body.light .pc-phone, body.light .pc-last, body.light .no-history,
 body.light .no-history-msg { color: rgba(0,0,0,0.4); }
 body.light .pc-condition { color: rgba(0,0,0,0.55); }
 body.light .detail-tag, body.light .notes-pill { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.55); }
-body.light .consult-left, body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,0,0.08); }
+body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,0,0.08); }
 </style>
 </head>
 <body>
@@ -1234,6 +1287,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
   </div>
   <div class="header-right">
     <div class="header-clock" id="clock">--:--</div>
+    <button class="header-icon-btn" title="Anatomia 3D (fisioterapia)" onclick="enterConsultMode()">◎</button>
     <button class="header-icon-btn" title="Atlas de acupuntura 3D" onclick="openAcuModal()">⊕</button>
     <button class="header-icon-btn" id="theme-btn" title="Alternar claro/escuro" onclick="toggleTheme()">☾</button>
     <button class="header-icon-btn" id="logout-btn" title="Sair" onclick="doLogout()">⇥</button>
@@ -1256,7 +1310,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
       <div class="hero-time" id="hero-time"></div>
     </div>
     <div style="margin-left:auto">
-      <button class="btn-consult" onclick="enterConsultMode()">Modo Consulta →</button>
+      <button class="btn-consult" onclick="enterConsultMode()">◎ Anatomia 3D →</button>
     </div>
   </div>
 
@@ -1268,6 +1322,7 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
     <button class="btn-session-action btn-can-enter" id="btn-sc-can-enter" onclick="sessionCanEnter()" style="display:none">Pode entrar →</button>
     <button class="btn-session-action btn-start" id="btn-sc-start" onclick="startSessionAction()" style="display:none">▶ Iniciar Sessão</button>
     <button class="btn-session-action btn-finish" id="btn-sc-finish" onclick="finishSessionAction()" style="display:none">■ Finalizar Sessão</button>
+    <button class="btn-session-action btn-phy" id="btn-sc-phy" onclick="enterConsultMode()" style="display:none">◎ Anatomia 3D</button>
     <button class="btn-session-action btn-acu" id="btn-sc-acu" onclick="openAcuModal()" style="display:none">⊕ Atlas de Acupuntura</button>
   </div>
 
@@ -1303,34 +1358,61 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
   </div>
 </div>
 
-<!-- Modo Consulta -->
+<!-- Modo Consulta: Anatomia 3D (fisioterapia) -->
 <div id="consult-mode">
-  <div class="consult-left">
-    <div class="consult-header">
-      <div class="consult-title">Selecione a região de interesse</div>
-      <button class="btn-back-dash" onclick="exitConsultMode()">← Voltar ao dashboard</button>
+  <div class="phy-stage">
+    <div class="phy-toolbar">
+      <button class="phy-tb" onclick="phyViewer && phyViewer.setView('front')">Frente</button>
+      <button class="phy-tb" onclick="phyViewer && phyViewer.setView('back')">Costas</button>
+      <button class="phy-tb" onclick="phyViewer && phyViewer.setView('right')" title="Lado direito do paciente">Lado D</button>
+      <button class="phy-tb" onclick="phyViewer && phyViewer.setView('left')" title="Lado esquerdo do paciente">Lado E</button>
+      <button class="phy-tb" onclick="phyViewer && phyViewer.setView('reset')" title="Voltar ao corpo inteiro">Corpo inteiro</button>
+      <span class="phy-tb-sep"></span>
+      <button class="phy-tb phy-int" id="phy-int-btn" onclick="phyToggleInternal()" disabled title="Ver ossos, cartilagens, ligamentos, tendões, músculos e nervos da região">◉ Visão interna</button>
+      <button class="phy-tb on" id="phy-tg-labels" onclick="phyToggleLabels()">Rótulos</button>
+      <span class="phy-tb-sep"></span>
+      <button class="phy-tb phy-model" data-m="female" onclick="phySetModel('female')" title="Corpo feminino">♀</button>
+      <button class="phy-tb phy-model" data-m="male" onclick="phySetModel('male')" title="Corpo masculino">♂</button>
+      <span class="phy-hint">Clique no corpo para escolher a região · arraste para girar · role para aproximar</span>
     </div>
-    <div class="view-toggle">
-      <button class="toggle-btn active" id="btn-front" onclick="switchView('front')">Frente</button>
-      <button class="toggle-btn" id="btn-back-view" onclick="switchView('back')">Costas</button>
-    </div>
-    <div class="body-svg-wrapper">
-      <svg id="body-svg" viewBox="0 0 200 450" xmlns="http://www.w3.org/2000/svg"></svg>
-    </div>
-    <div id="selected-region-label" style="text-align:center;font-size:0.8rem;color:rgba(255,180,50,0.7);margin-bottom:1rem;min-height:1.2em;letter-spacing:0.06em;text-transform:uppercase"></div>
-    <textarea class="problem-input" id="problem-input" placeholder="Ex: dor ao flexionar, rigidez matinal, formigamento..."></textarea>
-    <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação (rascunho) →</button>
-    <textarea class="ai-preview" id="ai-preview" style="display:none" placeholder="A explicação gerada aparece aqui e pode ser editada antes de exibir."></textarea>
-    <div id="ai-preview-hint" style="display:none;font-size:0.72rem;color:rgba(255,255,255,0.35);margin:-0.5rem 0 1rem;text-align:center">Rascunho privado — o paciente só vê ao clicar em "Exibir na TV".</div>
-    <button class="btn-send-tv" id="btn-send-tv" onclick="sendToTV()">Exibir na TV do paciente ✓</button>
+    <div id="phy-canvas"></div>
   </div>
-  <div class="consult-right">
-    <div class="preview-label">Preview — TV do paciente</div>
-    <div class="preview-card">
-      <div class="preview-region-label" id="preview-region-label">Aguardando seleção...</div>
-      <div class="preview-text" id="preview-text" style="color:rgba(255,255,255,0.2);font-style:italic">A explicação gerada pela IA aparecerá aqui</div>
+  <aside class="phy-panel">
+    <div class="phy-panel-head">
+      <div>
+        <div class="phy-title">Anatomia 3D</div>
+        <div class="phy-patient" id="phy-patient"></div>
+      </div>
+      <button class="btn-back-dash" onclick="exitConsultMode()">← Voltar</button>
     </div>
-  </div>
+    <div class="phy-body">
+      <div class="phy-sec">
+        <div class="phy-sec-t">1 · Região da dor</div>
+        <select class="phy-select" id="phy-region-select" onchange="phySelectRegion(this.value)"></select>
+        <div class="phy-pain" id="phy-pain"></div>
+      </div>
+      <div class="phy-sec" id="phy-cond-sec" style="display:none">
+        <div class="phy-sec-t">2 · O que pode estar acontecendo</div>
+        <div class="phy-conds" id="phy-conds"></div>
+        <div class="phy-card" id="phy-card" style="display:none"></div>
+      </div>
+      <div class="phy-sec" id="phy-parts-sec" style="display:none">
+        <div class="phy-sec-t">Estruturas <small>clique para marcar em vermelho</small></div>
+        <div class="phy-parts" id="phy-parts"></div>
+      </div>
+      <div class="phy-sec">
+        <div class="phy-sec-t">3 · Explicação para o paciente <small>opcional</small></div>
+        <textarea class="problem-input" id="problem-input" placeholder="O que o paciente relata (ex.: dor ao agachar, estalos, formigamento)…"></textarea>
+        <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação com IA (rascunho) →</button>
+        <textarea class="ai-preview" id="ai-preview" style="display:none" placeholder="A explicação gerada aparece aqui e pode ser editada antes de exibir."></textarea>
+        <div id="ai-preview-hint" style="display:none;font-size:0.72rem;color:rgba(255,255,255,0.35);margin:-0.5rem 0 0.5rem;text-align:center">Rascunho privado — o paciente só vê ao clicar em "Exibir na TV".</div>
+      </div>
+    </div>
+    <div class="phy-actions">
+      <button class="btn-send-tv" id="btn-send-tv" onclick="sendToTV()">Exibir na TV do paciente →</button>
+      <button class="phy-clear-tv" onclick="clearPhysioTV()">Limpar a TV</button>
+    </div>
+  </aside>
 </div>
 
 <!-- Aba Agenda -->
@@ -1759,12 +1841,12 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
         <span class="acu-tb-sep"></span>
         <button class="acu-tb-btn on" id="acu-tg-labels" onclick="acuToggle('labels')">Rótulos</button>
         <button class="acu-tb-btn" id="acu-tg-only" onclick="acuToggle('only')" title="Mostrar só os meridianos dos pontos selecionados">Só ativos</button>
-        <button class="acu-tb-btn on" id="acu-tg-hair" onclick="acuToggle('hair')" title="Ocultar o cabelo para ver os pontos da cabeça e da nuca" style="display:none">Cabelo</button>
+        <button class="acu-tb-btn on" id="acu-tg-hair" onclick="acuToggle('hair')" title="Ocultar o cabelo para ver os pontos da cabeça e da nuca">Cabelo</button>
+        <button class="acu-tb-btn acu-clear" id="acu-clear-all" onclick="acuClearAll()" title="Tirar do corpo todos os meridianos, pontos e protocolos exibidos">⊘ Limpar corpo</button>
         <span class="acu-tb-sep"></span>
         <span class="acu-models" title="Corpo exibido (a TV mostra o mesmo)">
           <button class="acu-tb-btn acu-model" data-m="female" onclick="acuSetModel('female')">♀ Feminino</button>
           <button class="acu-tb-btn acu-model" data-m="male" onclick="acuSetModel('male')">♂ Masculino</button>
-          <button class="acu-tb-btn acu-model" data-m="classic" onclick="acuSetModel('classic')">Clássico</button>
         </span>
       </div>
       <button class="acu-modal-close" onclick="closeAcuModal()" title="Fechar">×</button>
@@ -1800,76 +1882,9 @@ body.light .consult-left, body.light .main-header, body.light .metric-card { bor
 <button class="fab" id="fab-btn" onclick="fabAction()" title="Novo" style="display:none">+</button>
 
 <script>
-// ────────────────────────────────────────────────────────────────────────────
-// Regiões do corpo (frente e costas) — mantidas idênticas ao original
-// ────────────────────────────────────────────────────────────────────────────
-const REGIONS_FRONT = [
-  { id:'cabeca',           label:'Cabeça',              d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
-  { id:'pescoco',          label:'Pescoço',              d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
-  { id:'torax',            label:'Tórax',                d:'M72,74 Q100,78 128,74 L132,130 Q100,136 68,130Z' },
-  { id:'abdome',           label:'Abdome',               d:'M70,130 Q100,134 130,130 L128,168 Q100,172 72,168Z' },
-  { id:'ombro-direito',    label:'Ombro Direito',        d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
-  { id:'ombro-esquerdo',   label:'Ombro Esquerdo',       d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
-  { id:'braco-direito',    label:'Braço Direito',        d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
-  { id:'braco-esquerdo',   label:'Braço Esquerdo',       d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
-  { id:'cotovelo-direito', label:'Cotovelo Direito',     d:'M44,120 Q40,130 42,140 L52,138 L52,128Z' },
-  { id:'cotovelo-esquerdo',label:'Cotovelo Esquerdo',    d:'M156,120 Q160,130 158,140 L148,138 L148,128Z' },
-  { id:'antebraco-direito',label:'Antebraço Direito',    d:'M42,140 Q38,158 40,172 L50,170 L52,138Z' },
-  { id:'antebraco-esquerdo',label:'Antebraço Esquerdo', d:'M158,140 Q162,158 160,172 L150,170 L148,138Z' },
-  { id:'punho-direito',    label:'Punho Direito',        d:'M40,172 Q38,180 40,186 L50,186 L50,170Z' },
-  { id:'punho-esquerdo',   label:'Punho Esquerdo',       d:'M160,172 Q162,180 160,186 L150,186 L150,170Z' },
-  { id:'mao-direita',      label:'Mão Direita',          d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
-  { id:'mao-esquerda',     label:'Mão Esquerda',         d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
-  { id:'quadril-direito',  label:'Quadril Direito',      d:'M68,168 Q60,172 58,188 Q62,200 72,200 L80,190 L72,168Z' },
-  { id:'quadril-esquerdo', label:'Quadril Esquerdo',     d:'M132,168 Q140,172 142,188 Q138,200 128,200 L120,190 L128,168Z' },
-  { id:'coxa-direita',     label:'Coxa Direita',         d:'M72,168 L80,190 Q82,218 80,240 Q76,250 68,250 Q60,246 60,232 L62,200 Q64,182 72,168Z' },
-  { id:'coxa-esquerda',    label:'Coxa Esquerda',        d:'M128,168 L120,190 Q118,218 120,240 Q124,250 132,250 Q140,246 140,232 L138,200 Q136,182 128,168Z' },
-  { id:'joelho-direito',   label:'Joelho Direito',       d:'M60,240 Q56,252 58,264 Q62,270 70,270 Q78,268 80,258 Q82,248 80,240 Q76,250 68,250 Q60,246 60,240Z' },
-  { id:'joelho-esquerdo',  label:'Joelho Esquerdo',      d:'M140,240 Q144,252 142,264 Q138,270 130,270 Q122,268 120,258 Q118,248 120,240 Q124,250 132,250 Q140,246 140,240Z' },
-  { id:'panturrilha-direita',label:'Panturrilha Direita',d:'M58,264 Q54,280 54,300 Q56,314 64,316 Q72,316 76,308 Q80,298 80,278 L80,258 Q78,268 70,270 Q62,270 58,264Z' },
-  { id:'panturrilha-esquerda',label:'Panturrilha Esquerda',d:'M142,264 Q146,280 146,300 Q144,314 136,316 Q128,316 124,308 Q120,298 120,278 L120,258 Q122,268 130,270 Q138,270 142,264Z' },
-  { id:'tornozelo-direito',  label:'Tornozelo Direito',  d:'M54,300 Q52,312 54,322 L66,322 Q72,318 76,308 Q72,316 64,316 Q56,314 54,300Z' },
-  { id:'tornozelo-esquerdo', label:'Tornozelo Esquerdo', d:'M146,300 Q148,312 146,322 L134,322 Q128,318 124,308 Q128,316 136,316 Q144,314 146,300Z' },
-  { id:'pe-direito',         label:'Pé Direito',         d:'M54,322 Q50,330 50,340 Q52,348 66,350 Q76,348 78,340 L76,328 L66,322Z' },
-  { id:'pe-esquerdo',        label:'Pé Esquerdo',        d:'M146,322 Q150,330 150,340 Q148,348 134,350 Q124,348 122,340 L124,328 L134,322Z' },
-]
-const REGIONS_BACK = [
-  { id:'cabeca',             label:'Cabeça',              d:'M85,10 Q100,2 115,10 Q125,25 120,42 Q115,52 100,54 Q85,52 80,42 Q75,25 85,10Z' },
-  { id:'pescoco',            label:'Pescoço',              d:'M90,54 Q100,58 110,54 L112,70 Q100,74 88,70Z' },
-  { id:'torax',              label:'Costas superiores',    d:'M72,74 Q100,78 128,74 L132,120 Q100,126 68,120Z' },
-  { id:'lombar',             label:'Lombar',               d:'M70,120 Q100,124 130,120 L128,168 Q100,172 72,168Z' },
-  { id:'ombro-direito',      label:'Ombro Direito',        d:'M68,74 Q56,76 50,88 L54,108 Q62,112 70,104 L72,80Z' },
-  { id:'ombro-esquerdo',     label:'Ombro Esquerdo',       d:'M132,74 Q144,76 150,88 L146,108 Q138,112 130,104 L128,80Z' },
-  { id:'braco-direito',      label:'Braço Direito',        d:'M50,88 Q44,100 44,120 L52,128 Q60,120 56,108 L54,88Z' },
-  { id:'braco-esquerdo',     label:'Braço Esquerdo',       d:'M150,88 Q156,100 156,120 L148,128 Q140,120 144,108 L146,88Z' },
-  { id:'cotovelo-direito',   label:'Cotovelo Direito',     d:'M44,120 Q40,130 42,140 L52,138 L52,128Z' },
-  { id:'cotovelo-esquerdo',  label:'Cotovelo Esquerdo',    d:'M156,120 Q160,130 158,140 L148,138 L148,128Z' },
-  { id:'antebraco-direito',  label:'Antebraço Direito',    d:'M42,140 Q38,158 40,172 L50,170 L52,138Z' },
-  { id:'antebraco-esquerdo', label:'Antebraço Esquerdo',   d:'M158,140 Q162,158 160,172 L150,170 L148,138Z' },
-  { id:'punho-direito',      label:'Punho Direito',        d:'M40,172 Q38,180 40,186 L50,186 L50,170Z' },
-  { id:'punho-esquerdo',     label:'Punho Esquerdo',       d:'M160,172 Q162,180 160,186 L150,186 L150,170Z' },
-  { id:'mao-direita',        label:'Mão Direita',          d:'M38,186 Q34,196 36,210 Q40,216 48,212 Q52,206 50,186Z' },
-  { id:'mao-esquerda',       label:'Mão Esquerda',         d:'M162,186 Q166,196 164,210 Q160,216 152,212 Q148,206 150,186Z' },
-  { id:'quadril-direito',    label:'Quadril Direito',      d:'M68,168 Q60,172 58,188 Q62,200 72,200 L80,190 L72,168Z' },
-  { id:'quadril-esquerdo',   label:'Quadril Esquerdo',     d:'M132,168 Q140,172 142,188 Q138,200 128,200 L120,190 L128,168Z' },
-  { id:'coxa-direita',       label:'Coxa Direita',         d:'M72,168 L80,190 Q82,218 80,240 Q76,250 68,250 Q60,246 60,232 L62,200 Q64,182 72,168Z' },
-  { id:'coxa-esquerda',      label:'Coxa Esquerda',        d:'M128,168 L120,190 Q118,218 120,240 Q124,250 132,250 Q140,246 140,232 L138,200 Q136,182 128,168Z' },
-  { id:'joelho-direito',     label:'Joelho Direito',       d:'M60,240 Q56,252 58,264 Q62,270 70,270 Q78,268 80,258 Q82,248 80,240 Q76,250 68,250 Q60,246 60,240Z' },
-  { id:'joelho-esquerdo',    label:'Joelho Esquerdo',      d:'M140,240 Q144,252 142,264 Q138,270 130,270 Q122,268 120,258 Q118,248 120,240 Q124,250 132,250 Q140,246 140,240Z' },
-  { id:'panturrilha-direita',label:'Panturrilha Direita',  d:'M58,264 Q54,280 54,300 Q56,314 64,316 Q72,316 76,308 Q80,298 80,278 L80,258 Q78,268 70,270 Q62,270 58,264Z' },
-  { id:'panturrilha-esquerda',label:'Panturrilha Esquerda',d:'M142,264 Q146,280 146,300 Q144,314 136,316 Q128,316 124,308 Q120,298 120,278 L120,258 Q122,268 130,270 Q138,270 142,264Z' },
-  { id:'tornozelo-direito',  label:'Tornozelo Direito',    d:'M54,300 Q52,312 54,322 L66,322 Q72,318 76,308 Q72,316 64,316 Q56,314 54,300Z' },
-  { id:'tornozelo-esquerdo', label:'Tornozelo Esquerdo',   d:'M146,300 Q148,312 146,322 L134,322 Q128,318 124,308 Q128,316 136,316 Q144,314 146,300Z' },
-  { id:'pe-direito',         label:'Pé Direito',           d:'M54,322 Q50,330 50,340 Q52,348 66,350 Q76,348 78,340 L76,328 L66,322Z' },
-  { id:'pe-esquerdo',        label:'Pé Esquerdo',          d:'M146,322 Q150,330 150,340 Q148,348 134,350 Q124,348 122,340 L124,328 L134,322Z' },
-]
-
 // ── Estado global ─────────────────────────────────────────────────────────────
 let pendingSession        = null
 let currentSession        = null
-let selectedRegion        = null
-let currentView           = 'front'
-let generatedExplanation  = ''
 let pollingInterval       = null
 let activeTab             = localStorage.getItem('doctor_active_tab') || 'agenda'
 let previewPatient        = null  // { id, name } ao navegar da agenda para o dashboard
@@ -2596,12 +2611,14 @@ function renderSessionControls() {
   const btnStart    = document.getElementById('btn-sc-start')
   const btnFinish   = document.getElementById('btn-sc-finish')
   const btnAcu      = document.getElementById('btn-sc-acu')
+  const btnPhy      = document.getElementById('btn-sc-phy')
 
   // Reset visibilidade
   btnCanEnter.style.display = 'none'
   btnStart.style.display    = 'none'
   btnFinish.style.display   = 'none'
   btnAcu.style.display      = 'none'
+  btnPhy.style.display      = 'none'
   timer.style.display       = 'none'
 
   if (!status || status === 'finished') {
@@ -2624,6 +2641,7 @@ function renderSessionControls() {
     timer.style.display     = 'inline-block'
     btnFinish.style.display = 'inline-block'
     btnAcu.style.display    = 'inline-block'
+    btnPhy.style.display    = 'inline-block'
     startTimer(currentSession.started_at)
   }
 }
@@ -2832,59 +2850,198 @@ function renderHistory(history) {
   })
 }
 
-// ── Modo Consulta ─────────────────────────────────────────────────────────────
-function enterConsultMode() {
-  document.getElementById('dashboard-view').classList.remove('visible')
-  document.getElementById('consult-mode').classList.add('visible')
-  buildBodySVG(REGIONS_FRONT)
+// ── Modo Consulta: Anatomia 3D ───────────────────────────────────────────────
+// O visualizador (public/js/physio-viewer.js) é carregado como módulo no fim da
+// página e exposto em window.PHY. A região escolhida acende em vermelho no
+// corpo; a condição abre a visão interna (holograma) com a lesão destacada.
+// O que estiver na tela é o que a TV mostra ao clicar em "Exibir na TV".
+
+let phyViewer = null
+let phyModel = null
+let phySessionId            // sessão para a qual o estado atual foi montado
+let phyRegion = null
+let phyCondition = null
+let phyMarks = []
+let phyParts = []
+let phyInternalOn = false
+
+function phyInitSelect() {
+  const sel = document.getElementById('phy-region-select')
+  if (sel.options.length) return
+  const { PHYSIO_REGIONS, REGION_GROUPS } = window.PHY
+  sel.innerHTML = '<option value="">Escolha a região…</option>' + REGION_GROUPS.map(g =>
+    `<optgroup label="${esc(g.name)}">` +
+    PHYSIO_REGIONS.filter(r => g.ids.includes(r.group)).map(r => `<option value="${r.id}">${esc(r.label)}</option>`).join('') +
+    '</optgroup>').join('')
 }
+
+// (Re)cria o visualizador com o corpo escolhido, mantendo o que estava na tela
+function createPhyViewer(model) {
+  if (phyViewer) phyViewer.destroy()
+  phyViewer = new window.PHY.PhysioViewer(document.getElementById('phy-canvas'), {
+    model,
+    isDoctor: true,
+    labels: document.getElementById('phy-tg-labels').classList.contains('on'),
+    onRegion: id => phyRegionChanged(id),
+    onMarks: ids => { phyMarks = ids; renderPhyParts() },
+    onParts: parts => { phyParts = parts; renderPhyParts() }
+  })
+  phyModel = model
+  document.querySelectorAll('.phy-model').forEach(b => b.classList.toggle('on', b.dataset.m === model))
+  if (phyRegion) {
+    phyViewer.setRegion(phyRegion)
+    if (phyCondition) phyViewer.setCondition(phyCondition)
+    if (phyMarks.length) phyViewer.setMarks(phyMarks)
+    if (phyInternalOn) phyViewer.setInternal(true)
+  }
+}
+
+function phySetModel(model) {
+  try { localStorage.setItem('acu_model', model) } catch (_) {}
+  if (model !== phyModel) createPhyViewer(model)
+}
+
+async function enterConsultMode() {
+  document.getElementById('consult-mode').classList.add('visible')
+  if (!window.PHY) { setTimeout(enterConsultMode, 250); return }
+  phyInitSelect()
+  // Outro paciente → começa do zero, com o corpo pelo sexo do novo paciente
+  const sid = currentSession?.id || null
+  const newSession = sid !== phySessionId
+  phySessionId = sid
+  if (newSession) {
+    phyRegion = null; phyCondition = null; phyMarks = []; phyParts = []; phyInternalOn = false
+    resetPhyDraft()
+  }
+  if (!phyViewer || newSession) {
+    const model = await pickAcuModel()
+    if (!phyViewer || model !== phyModel) createPhyViewer(model)
+    else phyViewer.setRegion(null)
+  }
+  document.getElementById('phy-patient').textContent = currentSession ? currentSession.patient_name : 'Consulta livre (sem paciente)'
+  document.getElementById('btn-send-tv').disabled = !currentSession
+  renderPhyPain()
+  renderPhyPanel()
+}
+
 function exitConsultMode() {
-  document.getElementById('dashboard-view').classList.add('visible')
   document.getElementById('consult-mode').classList.remove('visible')
 }
-function switchView(view) {
-  currentView    = view
-  selectedRegion = null
-  document.getElementById('selected-region-label').textContent = ''
-  document.getElementById('btn-front').classList.toggle('active', view === 'front')
-  document.getElementById('btn-back-view').classList.toggle('active', view === 'back')
-  buildBodySVG(view === 'front' ? REGIONS_FRONT : REGIONS_BACK)
+
+// Regiões que o paciente marcou no formulário viram atalhos
+function renderPhyPain() {
+  const box = document.getElementById('phy-pain')
+  const ans = currentSession ? parseAnswers(currentSession.answers) : {}
+  const regs = [...new Set(String(ans.pain_regions || '').split(',').map(x => x.trim()).filter(Boolean))]
+    .map(l => window.PHY.regionByLabel(l)).filter(Boolean)
+  box.innerHTML = regs.length
+    ? 'Paciente marcou:' + regs.map(r => `<button class="phy-chip pain" onclick="phySelectRegion('${r.id}')">${esc(r.label)}</button>`).join('')
+    : ''
+  if (!phyRegion && regs.length) phySelectRegion(regs[0].id)
 }
-function buildBodySVG(regions) {
-  const svg = document.getElementById('body-svg')
-  svg.innerHTML = ''
-  regions.forEach(r => {
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-    path.setAttribute('d', r.d)
-    path.setAttribute('class', 'body-region' + (selectedRegion?.id === r.id ? ' selected' : ''))
-    path.setAttribute('data-id', r.id)
-    path.setAttribute('data-label', r.label)
-    path.addEventListener('click', () => selectRegion(r))
-    svg.appendChild(path)
-  })
+
+function phySelectRegion(id) {
+  if (!phyViewer) return
+  phyViewer.setRegion(id || null)
+  phyRegionChanged(id || null)
 }
-function selectRegion(region) {
-  selectedRegion = region
-  document.querySelectorAll('.body-region').forEach(p => {
-    p.classList.toggle('selected', p.getAttribute('data-id') === region.id)
-  })
-  document.getElementById('selected-region-label').textContent = region.label
-  document.getElementById('preview-region-label').textContent  = region.label
+
+function phyRegionChanged(id) {
+  phyRegion = id
+  phyCondition = null
+  phyMarks = []
+  phyParts = []
+  phyInternalOn = false
+  document.getElementById('phy-region-select').value = id || ''
+  renderPhyPanel()
 }
-// Atualiza o preview da direita conforme a Dra. edita o rascunho
-function syncConsultPreview() {
-  const txt = document.getElementById('ai-preview').value
-  const pv  = document.getElementById('preview-text')
-  pv.textContent  = txt || 'A explicação gerada pela IA aparecerá aqui'
-  pv.style.color  = txt ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.2)'
-  pv.style.fontStyle = txt ? 'normal' : 'italic'
+
+function phyHasInternal(r) { return !!(r?.model && window.PHY.hasAnatomy(r.model)) }
+
+function renderPhyPanel() {
+  const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
+  const hasInt = phyHasInternal(r)
+  const intBtn = document.getElementById('phy-int-btn')
+  intBtn.disabled = !hasInt
+  intBtn.classList.toggle('on', phyInternalOn)
+  document.getElementById('phy-cond-sec').style.display = r ? '' : 'none'
+  document.getElementById('phy-parts-sec').style.display = hasInt ? '' : 'none'
+  const card = document.getElementById('phy-card')
+  if (!r) { document.getElementById('phy-conds').innerHTML = ''; card.style.display = 'none'; return }
+  document.getElementById('phy-conds').innerHTML =
+    `<button class="phy-cond${!phyCondition ? ' on' : ''}" onclick="phyPickCondition(null)">Só destacar a região</button>` +
+    r.conditions.map(c => `<button class="phy-cond${phyCondition === c.id ? ' on' : ''}" onclick="phyPickCondition('${c.id}')">${esc(c.name)}</button>`).join('')
+  const c = phyCondition ? window.PHY.findCondition(r, phyCondition) : null
+  card.innerHTML = c ? `<p><b>O que é:</b> ${esc(c.about)}</p><p><b>Como a fisioterapia ajuda:</b> ${esc(c.treatment)}</p>` : ''
+  card.style.display = c ? '' : 'none'
+  renderPhyParts()
+}
+
+function phyPickCondition(cid) {
+  if (!phyViewer || !phyRegion) return
+  phyCondition = cid
+  phyViewer.setCondition(cid)
+  // Condição com modelo interno → já abre por dentro para mostrar a lesão
+  const r = window.PHY.findRegion(phyRegion)
+  if (cid && phyHasInternal(r) && !phyInternalOn) { phyInternalOn = true; phyViewer.setInternal(true) }
+  renderPhyPanel()
+}
+
+function phyToggleInternal() {
+  if (!phyViewer || !phyRegion) return
+  phyInternalOn = !phyInternalOn
+  phyViewer.setInternal(phyInternalOn)
+  renderPhyPanel()
+}
+
+function phyToggleLabels() {
+  const btn = document.getElementById('phy-tg-labels')
+  const on = !btn.classList.contains('on')
+  btn.classList.toggle('on', on)
+  phyViewer?.setLabels(on)
+}
+
+function renderPhyParts() {
+  const box = document.getElementById('phy-parts')
+  if (!box) return
+  if (!phyParts.length) {
+    box.innerHTML = `<div class="phy-muted">${phyInternalOn ? 'Montando as estruturas…' : 'Abra a visão interna para ver as estruturas da região'}</div>`
+    return
+  }
+  const K = window.PHY.KINDS
+  const sorted = [...phyParts.filter(p => !p.minor), ...phyParts.filter(p => p.minor)]
+  box.innerHTML = sorted.map(p =>
+    `<button class="phy-chip phy-part${phyMarks.includes(p.id) ? ' on' : ''}" onclick="phyToggleMark('${p.id}')">` +
+    `<i style="background:#${K[p.kind].color.toString(16).padStart(6, '0')}"></i>${esc(p.label)}</button>`).join('')
+}
+
+function phyToggleMark(id) {
+  if (!phyViewer) return
+  phyMarks = phyMarks.includes(id) ? phyMarks.filter(x => x !== id) : [...phyMarks, id]
+  phyViewer.setMarks(phyMarks)
+  renderPhyParts()
+}
+
+function resetPhyDraft() {
+  document.getElementById('problem-input').value = ''
+  const preview = document.getElementById('ai-preview')
+  preview.value = ''
+  preview.style.display = 'none'
+  document.getElementById('ai-preview-hint').style.display = 'none'
 }
 
 async function generateExplanation() {
-  if (!selectedRegion) { alert('Selecione uma região do corpo primeiro.'); return }
-  if (!currentSession) { alert('Nenhum paciente ativo.'); return }
-  const problem = document.getElementById('problem-input').value.trim()
-  if (!problem) { document.getElementById('problem-input').focus(); return }
+  const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
+  if (!r) { alert('Escolha a região no corpo ou na lista.'); return }
+  if (!currentSession) { alert('Nenhum paciente em atendimento.'); return }
+  const c = phyCondition ? window.PHY.findCondition(r, phyCondition) : null
+  const obs = document.getElementById('problem-input').value.trim()
+  const problem = [c ? `Condição provável: ${c.name}.` : '', obs].filter(Boolean).join(' ')
+  if (!problem) {
+    document.getElementById('problem-input').focus()
+    alert('Escolha uma condição ou descreva o que o paciente sente.')
+    return
+  }
   const btn     = document.getElementById('btn-gen-ai')
   btn.disabled  = true
   btn.textContent = 'Gerando...'
@@ -2897,32 +3054,32 @@ async function generateExplanation() {
   try {
     const res  = await fetch('/api/anatomy/explain', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSession.id, region: selectedRegion.label, problem })
+      body: JSON.stringify({ session_id: currentSession.id, region: r.label, problem })
     })
     if (res.status === 401) { location.href = '/login'; return }
+    if (!res.ok) throw new Error()
     const data = await res.json()
-    generatedExplanation = data.explanation || ''
-    preview.className    = 'ai-preview'
-    preview.readOnly     = false
-    preview.value        = generatedExplanation
-    preview.oninput      = syncConsultPreview
-    syncConsultPreview()
-    document.getElementById('btn-send-tv').classList.add('visible')
+    preview.className = 'ai-preview'
+    preview.readOnly  = false
+    preview.value     = data.explanation || ''
   } catch (_) {
-    preview.className   = 'ai-preview'
-    preview.readOnly    = false
-    preview.value       = 'Erro ao gerar explicação. Tente novamente.'
+    preview.className = 'ai-preview'
+    preview.readOnly  = false
+    preview.value     = ''
+    alert('Erro ao gerar a explicação. Tente novamente — ou exiba sem texto (a TV usa a explicação padrão da condição).')
   }
   btn.disabled    = false
-  btn.textContent = 'Gerar explicação (rascunho) →'
+  btn.textContent = 'Gerar explicação com IA (rascunho) →'
 }
 
-// Só agora publica na TV do paciente (item 1)
+// Publica na TV exatamente o que está na tela: região, condição, marcações,
+// visão interna e o corpo. Sem texto, a TV usa a explicação padrão da condição.
 async function sendToTV() {
-  if (!currentSession || !selectedRegion) return
+  if (!currentSession) return
+  const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
+  if (!r) { alert('Escolha a região primeiro.'); return }
   const btn  = document.getElementById('btn-send-tv')
-  const text = document.getElementById('ai-preview').value.trim()
-  if (!text) { alert('Gere ou escreva a explicação antes de exibir.'); return }
+  const orig = 'Exibir na TV do paciente →'
   btn.disabled = true
   btn.textContent = 'Exibindo...'
   try {
@@ -2930,17 +3087,33 @@ async function sendToTV() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: currentSession.id,
-        region: selectedRegion.label,
+        region: r.label,
         problem: document.getElementById('problem-input').value.trim(),
-        explanation: text
+        explanation: document.getElementById('ai-preview').value.trim(),
+        view3d: { region: r.id, condition: phyCondition, marks: phyMarks, internal: phyInternalOn, model: phyModel }
       })
     })
     if (res.status === 401) { location.href = '/login'; return }
+    if (!res.ok) throw new Error()
     btn.textContent = '✓ Exibindo na TV'
   } catch (_) {
     btn.textContent = 'Erro — tentar de novo'
   }
-  setTimeout(() => { btn.disabled = false; btn.textContent = 'Exibir na TV do paciente ✓' }, 3000)
+  setTimeout(() => { btn.disabled = !currentSession; btn.textContent = orig }, 2500)
+}
+
+async function clearPhysioTV() {
+  if (!currentSession) return
+  try {
+    const res = await fetch('/api/tv/clear', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: currentSession.id })
+    })
+    if (res.status === 401) { location.href = '/login'; return }
+    if (!res.ok) throw new Error()
+  } catch (_) {
+    alert('Não foi possível limpar a TV.')
+  }
 }
 
 // ── AGENDA ────────────────────────────────────────────────────────────────────
@@ -3593,9 +3766,8 @@ function buildPatientCharts(sessions, anatomyEvents) {
 
   // 4. Regiões mais tratadas (horizontal bar)
   const regionCount = {}
-  anatomyEvents.filter(e => e.region !== '__acupuncture__').forEach(e => {
-    regionCount[e.region] = (regionCount[e.region] || 0) + 1
-  })
+  new Set(anatomyEvents.filter(e => !String(e.region).startsWith('__')).map(e => e.session_id + '|' + e.region))
+    .forEach(key => { const r = key.slice(key.indexOf('|') + 1); regionCount[r] = (regionCount[r] || 0) + 1 })
   const regionEntries = Object.entries(regionCount).sort((a,b) => b[1]-a[1]).slice(0, 10)
 
   const ctxRegions = document.getElementById('chart-regions').getContext('2d')
@@ -3656,7 +3828,15 @@ function buildTimeline(sessions, anatomyEvents) {
     const body = document.createElement('div')
     body.className = 'timeline-body'
     const conduct = s.session_conduct || s.session_notes
-    const regioes = events.filter(e => e.region !== '__acupuncture__').map(e => e.region)
+    // Região + condição mostrada na Anatomia 3D (quando houver)
+    const regioes = [...new Set(events.filter(e => !String(e.region).startsWith('__')).map(e => {
+      let cond = null
+      try {
+        const v = JSON.parse(e.problem || '').view3d
+        if (v?.condition && window.PHY) cond = window.PHY.findCondition(v.region, v.condition)
+      } catch (_) {}
+      return cond ? `${e.region} (${cond.name})` : e.region
+    }))]
     // Pontos de acupuntura: vale o último envio para a TV nesta sessão
     const acuEv = events.filter(e => e.region === '__acupuncture__').pop()
     let acuPts = []
@@ -4397,8 +4577,10 @@ let acuInfoPinned = null       // último ponto clicado (fica no painel de info)
 
 const acuNorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-// Corpo do atlas: 'female' | 'male' | 'classic'
+// Corpo do atlas: 'female' | 'male'
 let acuModel = null
+// Estado guardado pelo "Limpar corpo" (para o "Restaurar")
+let acuCleared = null
 
 // Escolha automática: sexo do paciente da sessão; sem cadastro/sexo, a última
 // escolha feita no atlas (padrão: feminino realista)
@@ -4415,7 +4597,7 @@ async function pickAcuModel() {
   }
   let saved = null
   try { saved = localStorage.getItem('acu_model') } catch (_) {}
-  return ['female', 'male', 'classic'].includes(saved) ? saved : 'female'
+  return ['female', 'male'].includes(saved) ? saved : 'female'
 }
 
 // (Re)cria o visualizador com o corpo escolhido, mantendo seleção e opções
@@ -4434,9 +4616,7 @@ function createAcuViewer(model) {
   acuModel = model
   hidden.forEach(id => acuViewer.setMeridianVisible(id, false))
   acuViewer.setOnlyActive(document.getElementById('acu-tg-only').classList.contains('on'))
-  const hairBtn = document.getElementById('acu-tg-hair')
-  hairBtn.style.display = model === 'classic' ? 'none' : ''
-  acuViewer.setHairVisible(hairBtn.classList.contains('on'))
+  acuViewer.setHairVisible(document.getElementById('acu-tg-hair').classList.contains('on'))
   if (sel.length) acuViewer.setSelectedPoints(sel, { focus: true })
   document.querySelectorAll('.acu-model').forEach(b => b.classList.toggle('on', b.dataset.m === model))
 }
@@ -4455,7 +4635,12 @@ async function openAcuModal() {
   // corpo pelo sexo do novo paciente
   const sid = currentSession?.id || null
   const newSession = sid !== acuSessionId
-  if (acuViewer && newSession) { acuViewer.setSelectedPoints([]); acuInfoPinned = null }
+  if (acuViewer && newSession) {
+    if (acuCleared) acuViewer.setAllMeridiansVisible(true)
+    acuViewer.setSelectedPoints([]); acuInfoPinned = null
+    acuCleared = null
+    renderAcuClearBtn()
+  }
   acuSessionId = sid
 
   if (!acuViewer || newSession) {
@@ -4545,7 +4730,37 @@ function toggleAcuMer(id) {
 function toggleAcuMerVisible(id) {
   if (!acuViewer) return
   acuViewer.setMeridianVisible(id, acuViewer.hidden.has(id))
+  if (acuCleared) { acuCleared = null; renderAcuClearBtn() }
   renderAcuList()
+}
+
+// "Limpar corpo": tira do corpo todos os meridianos, pontos e protocolos
+// exibidos (só na tela da profissional — a TV não muda). Clicar de novo
+// restaura o que estava antes.
+function acuClearAll() {
+  if (!acuViewer) return
+  if (acuCleared) {
+    const { sel, hidden } = acuCleared
+    acuCleared = null
+    acuViewer.setAllMeridiansVisible(true)
+    hidden.forEach(id => acuViewer.setMeridianVisible(id, false))
+    acuViewer.setSelectedPoints(sel)
+  } else {
+    acuCleared = { sel: acuViewer.getSelectedPoints(), hidden: [...acuViewer.hidden] }
+    acuViewer.setSelectedPoints([])
+    acuViewer.setAllMeridiansVisible(false)
+    acuInfoPinned = null
+    renderAcuInfo(null)
+  }
+  renderAcuClearBtn()
+  _acuSelectionChanged()
+}
+function renderAcuClearBtn() {
+  const b = document.getElementById('acu-clear-all')
+  if (!b) return
+  b.textContent = acuCleared ? '↺ Restaurar' : '⊘ Limpar corpo'
+  b.title = acuCleared ? 'Mostrar de novo o que estava no corpo antes de limpar' : 'Tirar do corpo todos os meridianos, pontos e protocolos exibidos'
+  b.classList.toggle('on', !!acuCleared)
 }
 
 // Clique na lista: marca/desmarca o ponto dos dois lados (bilateral)
@@ -4595,6 +4810,11 @@ function _acuSelectionChanged() {
   const list = document.getElementById('acu-selected-list')
   if (!list || !acuViewer) return
   const ids = acuViewer.getSelectedPoints()
+  if (acuCleared && ids.length) {
+    acuCleared = null
+    acuViewer.setAllMeridiansVisible(true)
+    renderAcuClearBtn()
+  }
   document.getElementById('acu-sel-title').textContent =
     ids.length ? `Pontos selecionados (${ids.length})` : 'Pontos selecionados'
 
@@ -4678,7 +4898,7 @@ async function sendAcuToTV() {
     const r = await fetch('/api/acupuncture/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSession.id, points, model: acuModel || 'classic' })
+      body: JSON.stringify({ session_id: currentSession.id, points, model: acuModel || 'female' })
     })
     if (r.status === 401) { location.href = '/login'; return }
     if (!r.ok) throw new Error()
@@ -4694,6 +4914,10 @@ async function sendAcuToTV() {
 <script type="module">
 import * as ACU from '/js/acupuncture-viewer.js'
 window.ACU = ACU
+</script>
+<script type="module">
+import * as PHY from '/js/physio-viewer.js'
+window.PHY = PHY
 </script>
 </body>
 </html>

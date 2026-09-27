@@ -594,6 +594,29 @@ app.post('/api/anatomy/explain', requireAuth, async (req, res) => {
   }
 })
 
+// Cena da Anatomia 3D enviada pelo painel — só ids simples, nada de texto livre
+const ID_RE = /^[A-Za-z0-9-]{1,40}$/
+function cleanView3d(v) {
+  if (!v || typeof v !== 'object' || !ID_RE.test(String(v.region || ''))) return null
+  return {
+    region: String(v.region),
+    condition: ID_RE.test(String(v.condition || '')) ? String(v.condition) : null,
+    marks: (Array.isArray(v.marks) ? v.marks : []).filter(m => typeof m === 'string' && ID_RE.test(m)).slice(0, 30),
+    internal: !!v.internal,
+    model: ['male', 'female'].includes(v.model) ? v.model : 'female'
+  }
+}
+
+// O campo "problem" guarda { text, view3d } (Anatomia 3D) ou só o texto (eventos
+// antigos). Para a TV — canal público — vai só a cena, nunca o relato clínico.
+function publicProblem(ev) {
+  if (!ev || String(ev.region).startsWith('__')) return ev?.problem ?? null
+  try {
+    const v = JSON.parse(ev.problem || '')
+    return v && v.view3d ? JSON.stringify({ view3d: v.view3d }) : null
+  } catch (_) { return null }
+}
+
 // Publica na TV do paciente (item 1 — só agora salva o evento exibido)
 app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
   try {
@@ -601,11 +624,14 @@ app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
     if (!session_id || !region) {
       return res.status(400).json({ error: 'session_id e region são obrigatórios' })
     }
+    if (String(region).startsWith('__')) return res.status(400).json({ error: 'Região inválida' })
     if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
+    const text = String(problem || '').slice(0, 1000)
+    const view3d = cleanView3d(req.body.view3d)
     await saveAnatomyEvent({
       session_id,
       region: String(region).slice(0, 80),
-      problem: String(problem || '').slice(0, 1000),
+      problem: view3d ? JSON.stringify({ text, view3d }) : text,
       ai_explanation: String(explanation || '').slice(0, 5000)
     })
     pollSoon()
@@ -616,12 +642,12 @@ app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
   }
 })
 
-// Evento anatômico mais recente (tela do paciente) — público
+// Evento anatômico mais recente (tela do paciente) — público, sem o relato clínico
 app.get('/api/anatomy/latest/:session_id', async (req, res) => {
   try {
     const event = await getLatestAnatomyEvent(req.params.session_id)
     if (!event) return res.status(404).json({ error: 'Nenhum evento encontrado' })
-    res.json(event)
+    res.json({ ...event, problem: publicProblem(event) })
   } catch (error) {
     res.status(500).json({ error: 'Erro interno' })
   }
@@ -637,7 +663,7 @@ app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
       .filter(p => typeof p === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(p))
       .slice(0, 120)
     // Corpo exibido (a TV mostra o mesmo que a profissional escolheu)
-    const model = ['classic', 'male', 'female'].includes(req.body.model) ? req.body.model : 'classic'
+    const model = ['male', 'female'].includes(req.body.model) ? req.body.model : 'female'
     if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
     await saveAnatomyEvent({
       session_id,
@@ -649,6 +675,21 @@ app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
     res.json({ ok: true })
   } catch (error) {
     console.error('Erro ao publicar acupuntura:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Limpa a TV do paciente (volta à tela de repouso) — protegido
+app.post('/api/tv/clear', requireAuth, async (req, res) => {
+  try {
+    const { session_id } = req.body
+    if (!session_id) return res.status(400).json({ error: 'session_id obrigatório' })
+    if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
+    await saveAnatomyEvent({ session_id, region: '__clear__', problem: '', ai_explanation: '' })
+    pollSoon()
+    res.json({ ok: true })
+  } catch (error) {
+    console.error('Erro ao limpar a TV:', error.message)
     res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -1267,40 +1308,6 @@ app.delete('/api/payments/:id', requireAuth, async (req, res) => {
   }
 })
 
-// ─── Calibração de acupuntura no banco (item 3) ───────────────────────────────
-// Chave v2: as posições automáticas agora são geradas a partir do modelo 3D
-// (tools/acupoints). A calibração antiga ('acu_calibration') foi feita sobre as
-// referências erradas do modelo anterior (ex.: LI11 e LI15 trocados) — fica
-// preservada no banco, mas não é mais aplicada.
-const CALIBRATION_KEY = 'acu_calibration_v2'
-
-app.get('/api/calibrate', async (req, res) => {
-  try {
-    res.json((await getSetting(CALIBRATION_KEY)) || {})
-  } catch (error) {
-    res.json({})
-  }
-})
-
-app.post('/api/calibrate/save', requireAuth, async (req, res) => {
-  try {
-    // Formato: { "LU7": {x, y, z}, "LU7-E": {x, y, z}, ... } — só números
-    const clean = {}
-    for (const [id, c] of Object.entries(req.body || {})) {
-      if (!/^[A-Za-z0-9-]{1,20}$/.test(id) || !c) continue
-      const x = Number(c.x), y = Number(c.y), z = Number(c.z)
-      if ([x, y, z].every(Number.isFinite) && Math.abs(x) < 2 && y > -0.5 && y < 2.5 && Math.abs(z) < 2) {
-        clean[id] = { x, y, z }
-      }
-    }
-    await setSetting(CALIBRATION_KEY, clean)
-    res.json({ ok: true, count: Object.keys(clean).length })
-  } catch (error) {
-    console.error('Erro ao salvar calibração:', error.message)
-    res.status(500).json({ error: 'Erro ao salvar calibração' })
-  }
-})
-
 // ─── SSE — poller único no servidor + fan-out (item 13) ──────────────────────
 
 const sseClients = { public: new Set(), doctor: new Set() }
@@ -1339,7 +1346,7 @@ async function tvState() {
   if (!tv) return { session_id: null, anatomy: null }
   const ev = await getLatestAnatomyEvent(tv.id)
   const anatomy = ev
-    ? { id: ev.id, region: ev.region, problem: ev.problem, ai_explanation: ev.ai_explanation, created_at: ev.created_at }
+    ? { id: ev.id, region: ev.region, problem: publicProblem(ev), ai_explanation: ev.ai_explanation, created_at: ev.created_at }
     : null
   return { session_id: tv.id, anatomy }
 }

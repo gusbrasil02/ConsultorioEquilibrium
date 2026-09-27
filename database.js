@@ -1095,8 +1095,13 @@ async function getClinicalReport(start, end, granularity = 'day') {
   if (S.length) {
     try {
       const { data: ev } = await supabase
-        .from('anatomy_events').select('region').in('session_id', S.map(s => s.id))
-      ;(ev || []).filter(e => e.region !== '__acupuncture__').forEach(e => {
+        .from('anatomy_events').select('region, session_id').in('session_id', S.map(s => s.id))
+      // Cada região conta uma vez por sessão (reenviar para a TV não infla)
+      const seen = new Set()
+      ;(ev || []).filter(e => !String(e.region).startsWith('__')).forEach(e => {
+        const key = e.session_id + '|' + e.region
+        if (seen.has(key)) return
+        seen.add(key)
         regions[e.region] = (regions[e.region] || 0) + 1
       })
     } catch (_) {}

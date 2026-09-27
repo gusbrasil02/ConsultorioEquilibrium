@@ -140,9 +140,10 @@ Paciente chega → identifica o agendamento → QR Code (ou formulário na TV)
 → ao finalizar: prontuário estruturado (queixa, conduta, evolução, plano)
 
 [SALA DE ATENDIMENTO — TV do paciente]
-→ Modo Consulta: seleciona região no corpo → IA gera explicação (rascunho privado)
+→ Anatomia 3D: escolhe a região no corpo 3D → condição (ex.: lesão de menisco)
+  → visão interna mostra a lesão → IA gera explicação (rascunho privado, opcional)
 → revisa/edita → "Exibir na TV" publica para o paciente
-→ ou Corpo Acupuntura 3D com os pontos selecionados
+→ ou Atlas de Acupuntura 3D com os pontos selecionados
 ```
 
 ---
@@ -225,15 +226,28 @@ Tudo isso aparece na **notificação de chegada** e já vem **pré-preenchido no
 
 ---
 
+## Anatomia 3D (fisioterapia)
+
+Aberta pelo botão **◎** no topo do painel (consulta livre), por **◎ Anatomia 3D →** no dashboard ou por **◎ Anatomia 3D** durante a sessão. Usa os mesmos corpos realistas do atlas (feminino/masculino, escolhido pelo sexo do paciente).
+
+1. **Região** — clique no corpo (ou escolha na lista). A pele da região acende em vermelho, com ondas saindo do ponto de dor, um retículo de mira e um anel de varredura. As regiões que o paciente marcou no formulário aparecem como atalhos.
+2. **O que pode estar acontecendo** — cada região tem as condições mais comuns (joelho: menisco, LCA, condromalácia, tendinite patelar, artrose, colateral medial, cisto de Baker; lombar: hérnia de disco, lombalgia, ciática, artrose, discopatia, espondilolistese; e assim por diante), com um texto curto "o que é" e "como a fisioterapia ajuda".
+3. **Visão interna** — a pele vira um holograma translúcido e as estruturas da região se materializam: ossos, cartilagens, meniscos, ligamentos, tendões, músculos, nervos e discos. A estrutura afetada aparece **em vermelho pulsante**, **rompida** (fissura), **desgastada** (cartilagem "corroída"), **inchada** (bursite) ou **deslocada** (espondilolistese); hérnias, esporões, cistos e osteófitos aparecem quando a condição pede. A câmera gira sozinha para o lado da lesão. Clicar numa estrutura (no 3D ou na lista) marca/desmarca em vermelho à mão.
+4. **Exibir na TV** — a TV repete a cena numa sequência automática: corpo inteiro → aproxima na região → abre a visão interna, com o texto ao lado (o da IA, se gerado; senão, a explicação padrão da condição e "como o tratamento ajuda"). **Limpar a TV** volta à tela de repouso.
+
+Regiões com visão interna: joelho, ombro, cotovelo, punho e mão, quadril, tornozelo e pé, coluna cervical, torácica (costas superiores) e lombar, além de braço, antebraço, coxa e panturrilha (músculos e ossos). Cabeça, tórax e abdome acendem a região e têm condições, sem visão interna.
+
+As estruturas internas são modeladas em código (`public/js/physio-anatomy.js`) e encaixadas em cada corpo pelas juntas do esqueleto (`public/models/body-*.joints.json`) e pela espessura real do membro medida na hora. O catálogo de regiões e condições fica em `public/js/physio-data.js` — para incluir uma condição, adicione-a ao grupo da região com os efeitos (`fx`) que ela mostra.
+
+---
+
 ## Atlas de Acupuntura 3D
 
 Aberto pelo botão **⊕** no topo do painel (consulta livre) ou por **⊕ Atlas de Acupuntura** durante uma sessão.
 
-**Três corpos**, escolhidos no topo do atlas:
-- **♀ Feminino** e **♂ Masculino** — realistas (rosto com olhos, nariz e boca, pele texturizada, cabelo), com os mesmos 197 pontos e protocolos;
-- **Clássico** — o modelo anterior, mantido para comparação.
+**Dois corpos realistas**, escolhidos no topo do atlas: **♀ Feminino** e **♂ Masculino** (rosto com olhos, nariz e boca, pele texturizada, cabelo), com os mesmos 197 pontos e protocolos.
 
-Ao abrir durante uma sessão, o atlas escolhe sozinho o corpo pelo **sexo do paciente** (campo novo no cadastro — rode a migração v5). Dá para trocar na hora; a **TV mostra sempre o mesmo corpo** escolhido pela profissional. O botão **Cabelo** oculta o cabelo para ver os pontos da cabeça e da nuca.
+Ao abrir durante uma sessão, o atlas escolhe sozinho o corpo pelo **sexo do paciente** (campo novo no cadastro — rode a migração v5). Dá para trocar na hora; a **TV mostra sempre o mesmo corpo** escolhido pela profissional. O botão **Cabelo** oculta o cabelo para ver os pontos da cabeça e da nuca. **⊘ Limpar corpo** tira do corpo todos os meridianos, pontos e protocolos exibidos (só na tela da profissional); **↺ Restaurar** traz de volta o que estava antes.
 
 - **197 pontos** nos 14 meridianos + pontos extras (Yintang, Taiyang, Anmian, Xiyan, Zigong…), cada um com localização clássica, indicações tradicionais e categoria (Yuan, Luo, He, Mu, Shu…).
 - Pontos **exatamente sobre a pele** do modelo, dos dois lados do corpo (`ST36` = lado direito, `ST36-E` = esquerdo), e meridianos desenhados como trajetos colados à superfície.
@@ -245,13 +259,11 @@ Ao abrir durante uma sessão, o atlas escolhe sozinho o corpo pelo **sexo do pac
 ### Como os pontos são gerados
 
 As posições não são digitadas à mão: `tools/acupoints/specs.mjs` descreve cada ponto anatomicamente (segmento do membro, distância em *cun*, lado) e `npm run build:acupoints` calcula a posição na pele de cada corpo:
-- **clássico** → `public/js/acu-data.js` (também guarda nomes, indicações e protocolos);
+- **modelo-base** (`tools/acupoints/human-body.glb`, o antigo corpo "clássico", usado só pelo gerador) → `public/js/acu-data.js` (também guarda nomes, indicações e protocolos);
 - **masculino** → `public/js/acu-geo-male.js`: cada ponto é redirecionado segmento a segmento (braço, antebraço, mão, coxa, perna, pé, tronco/cabeça) usando as juntas do esqueleto (`tools/acupoints/retarget.mjs`);
 - **feminino** → `public/js/acu-geo-female.js`: mesma topologia do masculino, então cada ponto é "amarrado" ao triângulo da malha e reaplicado — correspondência anatômica exata.
 
 Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos realistas são gerados por `tools/bodies/` (veja o README de lá).
-
-A página `/calibrate` continua disponível para ajuste fino manual do corpo **clássico**; uma calibração salva ali **tem prioridade** sobre a posição automática ("Restaurar posição automática" desfaz). Ela é gravada em `app_settings.acu_calibration_v2`. A calibração da versão anterior (`acu_calibration`, com erros como IG11 e IG15 trocados) é apagada pela migração v5.
 
 ---
 
@@ -265,7 +277,7 @@ A página `/calibrate` continua disponível para ajuste fino manual do corpo **c
 - **Modo claro/escuro** no painel.
 - **Histórico por paciente** vinculado ao cadastro (não confunde homônimos).
 - **Tempo real via SSE** (menos carga no Supabase que o polling anterior).
-- **Calibração de acupuntura** persistida no banco (não se perde no deploy).
+- **Anatomia 3D** para a fisioterapia: região acesa no corpo e visão interna da lesão, também na TV.
 
 ---
 
@@ -286,15 +298,18 @@ A página `/calibrate` continua disponível para ajuste fino manual do corpo **c
 │   ├── specs.mjs                #   meridianos, pontos, protocolos (edite aqui)
 │   ├── rig.mjs                  #   referências anatômicas do modelo 3D
 │   ├── mesh.mjs                 #   leitura do GLB + projeção na pele
-│   └── build.mjs                #   gera public/js/acu-data.js
+│   ├── build.mjs                #   gera public/js/acu-data.js
+│   └── human-body.glb           #   modelo-base dos pontos (não é exibido)
 └── public/
     ├── login/index.html         # tela de acesso / criação da 1ª conta
     ├── totem/index.html
     ├── form/index.html
     ├── doctor/index.html
     ├── shared/index.html        # TV da sala de atendimento
-    ├── calibrate/index.html     # ajuste fino manual dos pontos
     └── js/
-        ├── acupuncture-viewer.js  # visualizador 3D (painel e TV)
-        └── acu-data.js            # GERADO — pontos e trajetos dos meridianos
+        ├── acupuncture-viewer.js  # atlas de acupuntura 3D (painel e TV)
+        ├── acu-data.js            # GERADO — pontos e trajetos dos meridianos
+        ├── physio-viewer.js       # Anatomia 3D da fisioterapia (painel e TV)
+        ├── physio-anatomy.js      #   estruturas internas (ossos, ligamentos, nervos…)
+        └── physio-data.js         #   regiões, condições e efeitos de cada lesão
 ```

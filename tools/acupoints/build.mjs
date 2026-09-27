@@ -2,11 +2,12 @@
 //
 //   npm run build:acupoints
 //
-// • Clássico  (human-body.glb)  → public/js/acu-data.js       (pontos + textos + protocolos)
+// • Base     (tools/acupoints/human-body.glb) → public/js/acu-data.js (pontos + textos + protocolos)
 // • Masculino (body-male.glb)   → public/js/acu-geo-male.js   (só geometria)
 // • Feminino  (body-female.glb) → public/js/acu-geo-female.js (só geometria)
 //
-// As especificações (specs.mjs) são escritas para o modelo clássico. Para o
+// As especificações (specs.mjs) são escritas para o modelo-base — o antigo corpo
+// "clássico", que saiu do sistema e ficou só aqui como referência. Para o
 // masculino, cada posicionamento é redirecionado segmento a segmento
 // (retarget.mjs). O feminino tem a MESMA topologia do masculino (MakeHuman):
 // cada ponto é "amarrado" ao triângulo da malha masculina e reaplicado na
@@ -130,7 +131,7 @@ function write(name, js) {
 }
 
 // ── 1. Clássico ──────────────────────────────────────────────────────────────
-const classicBody = loadBody(path.join(models, 'human-body.glb'))
+const classicBody = loadBody(path.join(path.dirname(fileURLToPath(import.meta.url)), 'human-body.glb'))
 const classic = generate(classicBody, pl => pl, mirrorWith(classicOffset))
 const meridians = classic.map(({ m, bilateral, points, paths }) => ({
   id: m.id, name: m.name, color: m.color, element: m.element, hours: m.hours, desc: m.desc,
