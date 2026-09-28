@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { PHYSIO_REGIONS, REGION_GROUPS, findRegion, regionByLabel, findCondition } from '/js/physio-data.js'
 import { buildAnatomy, hasAnatomy, sharedUniforms, KINDS } from '/js/physio-anatomy.js'
+import { MUSCLES, MUSCLE_GROUPS, muscleId, muscleFromId, findMuscle } from '/js/muscle-data.js'
 
 // ─── Anatomia 3D (fisioterapia) ──────────────────────────────────────────────
 // Corpo realista com a região da dor acesa em vermelho (ondas saindo do ponto)
@@ -12,12 +13,33 @@ import { buildAnatomy, hasAnatomy, sharedUniforms, KINDS } from '/js/physio-anat
 //
 // Usado no painel (Modo Consulta) e na TV do paciente (sequência automática:
 // corpo inteiro → aproxima na região → visão interna).
+//
+// Visão de músculos: a pele dá lugar à textura "écorché" gerada por
+// tools/muscles (cor, relevo e um mapa com o id de cada músculo por lado). O
+// mapa de ids permite clicar, destacar e isolar músculos direto no shader.
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z)
 
 const BODIES = {
-  female: { glb: '/models/body-female.glb', joints: '/models/body-female.joints.json', height: 1.66 },
-  male:   { glb: '/models/body-male.glb',   joints: '/models/body-male.joints.json',   height: 1.78 }
+  female: { glb: '/models/body-female.glb', joints: '/models/body-female.joints.json', mus: '/models/muscles-female', height: 1.66 },
+  male:   { glb: '/models/body-male.glb',   joints: '/models/body-male.joints.json',   mus: '/models/muscles-male',   height: 1.78 }
+}
+const MAX_SEL = 16
+const BUMP = 0.0035
+
+// 'biceps' (os dois lados), 'biceps:D' ou 'biceps:E' → ids do mapa de músculos
+function selIds(list) {
+  const out = []
+  ;(list || []).forEach(s => {
+    const [key, side] = String(s).split(':')
+    if (side) out.push(muscleId(key, side))
+    else out.push(muscleId(key, 'D'), muscleId(key, 'E'))
+  })
+  return out.filter(Boolean).slice(0, MAX_SEL)
+}
+function fillSel(u, ids) {
+  u.value.fill(0)
+  ids.forEach((id, i) => { u.value[i] = id })
 }
 
 const KIND_LABEL = {
@@ -152,9 +174,12 @@ function setupSkin(mat, U) {
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNrm = normalize(mat3(modelMatrix) * objectNormal);')
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-uniform float uTime, uXray;
+uniform float uTime, uXray, uMus, uIso, uHoverM;
 uniform vec3 uH0A, uH0B, uH0F, uH1A, uH1B, uH1F;
 uniform vec4 uH0, uH1;
+uniform sampler2D uMusMap, uIdMap;
+uniform float uSel[${MAX_SEL}], uHotM[${MAX_SEL}];
+uniform int uSelN, uHotN;
 varying vec3 vWPos;
 varying vec3 vWNrm;
 float phyCap(vec3 p, vec3 a, vec3 b) { vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0); return length(pa - ba * h); }
@@ -164,8 +189,21 @@ float phyHot(vec3 a, vec3 b, vec4 H, vec3 F, out float d) {
   if (H.z > 0.5) k *= smoothstep(-0.1, 0.45, dot(normalize(vWNrm), F));
   return k * H.y;
 }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef USE_MAP
+float phyMid = 0.0;
+if (uMus > 0.001) {
+  diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(uMusMap, vMapUv).rgb * diffuse, uMus);
+  phyMid = floor(texture2D(uIdMap, vMapUv).r * 255.0 + 0.5);
+}
+#else
+float phyMid = 0.0;
+#endif`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+roughnessFactor = mix(roughnessFactor, 0.42, uMus);`)
       .replace('#include <opaque_fragment>', `
 float phyD0; float phyK0 = phyHot(uH0A, uH0B, uH0, uH0F, phyD0);
+phyK0 *= 1.0 - 0.55 * uMus;   // na visão de músculos a região acende mais de leve
 float phyD1; float phyK1 = phyHot(uH1A, uH1B, uH1, uH1F, phyD1);
 vec3 phyRed = vec3(1.0, 0.12, 0.07);
 float phyRing = pow(0.5 + 0.5 * sin(phyD0 * 150.0 - uTime * 4.5), 8.0);
@@ -173,7 +211,28 @@ float phyPulse = 0.8 + 0.2 * sin(uTime * 3.0);
 outgoingLight = mix(outgoingLight, outgoingLight * vec3(1.0, 0.42, 0.38) + phyRed * 0.22, phyK0 * 0.8);
 outgoingLight += phyRed * phyK0 * (0.3 * phyPulse + 0.6 * phyRing * (1.0 - uXray));
 outgoingLight += vec3(0.25, 0.75, 1.0) * phyK1 * 0.4;
+// Músculos: selecionados (azul), da condição (vermelho), sob o mouse
+float phySel = 0.0, phyHotM = 0.0;
+for (int i = 0; i < ${MAX_SEL}; i++) {
+  if (i < uSelN && abs(uSel[i] - phyMid) < 0.5) phySel = 1.0;
+  if (i < uHotN && abs(uHotM[i] - phyMid) < 0.5) phyHotM = 1.0;
+}
+phySel *= uMus; phyHotM *= uMus;
+float phyHovM = (phyMid > 0.5 && abs(uHoverM - phyMid) < 0.5) ? uMus : 0.0;
+float phyFrM = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
+float phyBeat = 0.5 + 0.5 * sin(uTime * 3.5);
+outgoingLight = mix(outgoingLight, outgoingLight * vec3(1.15, 0.5, 0.45) + phyRed * 0.3, phyHotM * 0.75);
+outgoingLight += phyRed * phyHotM * (0.2 + 0.35 * phyBeat + 0.5 * phyFrM);
+outgoingLight = mix(outgoingLight, outgoingLight * 1.12, phySel);
+outgoingLight += vec3(0.25, 0.75, 1.0) * phySel * (0.03 + 0.06 * phyBeat + 0.4 * phyFrM);
+outgoingLight += vec3(0.3, 0.8, 1.0) * phyHovM * 0.16;
 #include <opaque_fragment>
+// Isolar: os outros músculos viram um holograma apagado
+float phyIso = uIso * uMus * (1.0 - max(phySel, phyHotM));
+if (phyIso > 0.001) {
+  vec3 phyGh = mix(vec3(0.03, 0.08, 0.13), vec3(0.4, 0.8, 1.0), phyFrM);
+  gl_FragColor = vec4(mix(gl_FragColor.rgb, phyGh, phyIso), mix(gl_FragColor.a, 0.04 + 0.4 * phyFrM, phyIso));
+}
 if (uXray > 0.001) {
   vec3 phyV = normalize(vViewPosition);
   float phyFr = pow(1.0 - abs(dot(normalize(normal), phyV)), 1.8);
@@ -197,6 +256,7 @@ class PhysioViewer {
    *   onRegion       (regionId) => void           — região escolhida clicando no corpo
    *   onMarks        (ids) => void                — estruturas marcadas à mão
    *   onParts        (parts) => void              — estruturas do modelo interno montado
+   *   onMuscles      (sel) => void                — músculos escolhidos clicando no corpo
    *   onReady        () => void
    */
   constructor(container, options = {}) {
@@ -207,6 +267,7 @@ class PhysioViewer {
     this.onRegion = options.onRegion ?? null
     this.onMarks = options.onMarks ?? null
     this.onParts = options.onParts ?? null
+    this.onMuscles = options.onMuscles ?? null
     this.onReady = options.onReady ?? null
     this.modelKey = BODIES[options.model] ? options.model : 'female'
     this.body = BODIES[this.modelKey]
@@ -227,6 +288,11 @@ class PhysioViewer {
     this._tween = null
     this._fx = []
     this._labels = new Map()
+    this.skinMode = 'skin'
+    this.muscles = []          // seleção: 'biceps', 'biceps:D', …
+    this.isolate = false
+    this._mus = 0
+    this._iso = 0
     this._disposed = false
     this._clock = new THREE.Clock()
     this._shared = sharedUniforms()
@@ -335,7 +401,10 @@ class PhysioViewer {
           m.roughness = 0.6
           m.envMapIntensity = 0.45
           this._skinU = {
-            uTime: { value: 0 }, uXray: { value: 0 },
+            uTime: { value: 0 }, uXray: { value: 0 }, uMus: { value: 0 }, uIso: { value: 0 }, uHoverM: { value: 0 },
+            uMusMap: { value: null }, uIdMap: { value: null },
+            uSel: { value: new Float32Array(MAX_SEL) }, uSelN: { value: 0 },
+            uHotM: { value: new Float32Array(MAX_SEL) }, uHotN: { value: 0 },
             uH0A: { value: V() }, uH0B: { value: V() }, uH0F: { value: V() }, uH0: { value: new THREE.Vector4(0.1, 0, 0, 0) },
             uH1A: { value: V() }, uH1B: { value: V() }, uH1F: { value: V() }, uH1: { value: new THREE.Vector4(0.1, 0, 0, 0) }
           }
@@ -449,6 +518,7 @@ class PhysioViewer {
     const prev = this.condition
     this.condition = this.region && id ? findCondition(this.region, id) : null
     this._applyFx()
+    this._updateMuscleUniforms()
     this._updateHud()
     if (this._internal && prev !== this.condition) this.focusInternal()
   }
@@ -480,6 +550,111 @@ class PhysioViewer {
   getParts() {
     if (!this.anatomy) return []
     return this.anatomy.parts.filter(p => !p.extra).map(p => ({ id: p.id, label: p.label, kind: p.kind, minor: p.minor }))
+  }
+
+  // ── Visão de músculos ──────────────────────────────────────────────────────
+  setSkin(mode) {
+    this.skinMode = mode === 'muscle' ? 'muscle' : 'skin'
+    if (this.skinMode === 'muscle') this._loadMuscles()
+    this._updateHud()
+  }
+  getSkin() { return this.skinMode }
+
+  // Texturas geradas por tools/muscles (carregadas na primeira vez)
+  _loadMuscles() {
+    if (this._musLoading) return this._musLoading
+    const base = this.body.mus
+    const tl = new THREE.TextureLoader()
+    const tex = (url, srgb, nearest) => new Promise((res, rej) => tl.load(url, t => {
+      t.flipY = false
+      t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace
+      if (nearest) { t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false }
+      else t.anisotropy = 4
+      res(t)
+    }, undefined, rej))
+    this._musLoading = Promise.all([
+      tex(base + '.jpg', true), tex(base + '-bump.jpg', false), tex(base + '-id.png', false, true),
+      fetch(base + '.json').then(r => r.json())
+    ]).then(([col, bump, id, info]) => {
+      if (this._disposed) return
+      this._musInfo = info
+      this._whenReady(() => {
+        const U = this._skinU
+        U.uMusMap.value = col
+        U.uIdMap.value = id
+        this._skin.bumpMap = bump
+        this._skin.bumpScale = 0
+        this._skin.needsUpdate = true
+        // cópia do mapa de ids na CPU para saber qual músculo está sob o mouse
+        const img = id.image, c = document.createElement('canvas')
+        c.width = img.width; c.height = img.height
+        const g = c.getContext('2d', { willReadFrequently: true })
+        g.drawImage(img, 0, 0)
+        this._idData = { w: c.width, h: c.height, px: g.getImageData(0, 0, c.width, c.height).data }
+        this._musReady = true
+        this._updateMuscleUniforms()
+      })
+    }).catch(err => {
+      console.error('[PhysioViewer] Erro ao carregar os músculos:', err)
+      this._musLoading = null
+    })
+    return this._musLoading
+  }
+
+  setMuscles(list, { focus = false } = {}) {
+    if (!this.ready) { this._whenReady(() => this.setMuscles(list, { focus })); return }
+    this.muscles = [...new Set(list || [])]
+    this._updateMuscleUniforms()
+    this._updateHud()
+    if (focus && this.muscles.length) this.focusMuscles()
+  }
+  getMuscles() { return [...this.muscles] }
+  setIsolate(on) { this.isolate = !!on }
+
+  // Músculos ligados à condição acendem em vermelho (só do lado da região)
+  _condMuscles() {
+    const keys = this.condition?.muscles || []
+    const side = this.region?.side
+    return keys.map(k => (side ? `${k}:${side}` : k))
+  }
+  _updateMuscleUniforms() {
+    const U = this._skinU
+    if (!U) return
+    const sel = selIds(this.muscles), hot = selIds(this._condMuscles())
+    fillSel(U.uSel, sel); U.uSelN.value = sel.length
+    fillSel(U.uHotM, hot); U.uHotN.value = hot.length
+  }
+
+  // Músculo (id) no ponto do corpo sob o cursor
+  _muscleAtUV(uv) {
+    const D = this._idData
+    if (!D || !uv) return 0
+    const x = Math.min(D.w - 1, Math.max(0, Math.floor(uv.x * D.w)))
+    const y = Math.min(D.h - 1, Math.max(0, Math.floor(uv.y * D.h)))
+    return D.px[(y * D.w + x) * 4]
+  }
+  _pickMuscle(cx, cy) {
+    if (!this._bodyMesh || !this._musReady) return 0
+    const hit = this._raycaster(cx, cy).intersectObject(this._bodyMesh, false)[0]
+    return hit ? this._muscleAtUV(hit.uv) : 0
+  }
+
+  // Enquadra os músculos selecionados (centro e normal médios do mapa)
+  focusMuscles(list = this.muscles) {
+    if (!this._musInfo) { this._loadMuscles()?.then(() => this.focusMuscles(list)); return }
+    const ids = selIds(list).filter(id => this._musInfo[id])
+    if (!ids.length) return
+    const c = V(), n = V()
+    let r = 0
+    ids.forEach(id => { const d = this._musInfo[id]; c.add(V(d[0], d[1], d[2])); n.add(V(d[3], d[4], d[5])) })
+    c.multiplyScalar(1 / ids.length)
+    ids.forEach(id => { const d = this._musInfo[id]; r = Math.max(r, d[6] + c.distanceTo(V(d[0], d[1], d[2]))) })
+    // Direção: a normal média no plano horizontal (os dois lados juntos se
+    // anulam em X → olha de frente ou de costas); altura moderada
+    const h = V(n.x, 0, n.z)
+    if (h.length() < 0.25 * ids.length) h.set(0, 0, n.z < -0.05 * ids.length ? -1 : 1)
+    const dir = h.normalize().add(V(0, THREE.MathUtils.clamp(n.y / ids.length, -0.3, 0.35), 0)).normalize()
+    this._goto(c, dir, THREE.MathUtils.clamp(this._fitDist(Math.max(r * 1.25, 0.07)), 0.3, 3.2))
   }
 
   // ── Visão interna ──────────────────────────────────────────────────────────
@@ -694,11 +869,20 @@ class PhysioViewer {
     this._seq.forEach(clearTimeout)
     this._seq = []
     const same = spec.region && spec.region === this.regionId && this._played
+    this.setSkin(spec.skin)
+    this.setIsolate(spec.isolate)
     this.setRegion(spec.region || null, { focus: false })
     this.setCondition(spec.condition || null)
     this.setMarks(spec.marks || [])
+    this.setMuscles(spec.muscles || [])
     const wantInt = !!spec.internal && this.hasInternal()
     this._played = true
+    // Só músculos, sem região: corpo inteiro → aproxima nos músculos
+    if (!this.region && this.muscles.length) {
+      this._wide()
+      this._seq.push(setTimeout(() => this.focusMuscles(), 1400))
+      return
+    }
     if (!this.region) { this.setView('reset'); return }
     if (same) {
       if (wantInt !== this._internal) this.setInternal(wantInt)
@@ -729,6 +913,18 @@ class PhysioViewer {
         }
         return
       }
+      // Visão de músculos: o clique escolhe o músculo (Ctrl/Shift soma à seleção)
+      if (this.skinMode === 'muscle' && this._musReady) {
+        const info = muscleFromId(this._pickMuscle(e.clientX, e.clientY))
+        const k = info ? `${info.muscle.key}:${info.side}` : null
+        let sel = this.muscles
+        if (!k) sel = e.ctrlKey || e.shiftKey ? sel : []
+        else if (e.ctrlKey || e.shiftKey) sel = sel.includes(k) ? sel.filter(x => x !== k) : [...sel, k]
+        else sel = sel.length === 1 && sel[0] === k ? [] : [k]
+        this.setMuscles(sel)
+        this.onMuscles?.(this.getMuscles())
+        return
+      }
       const id = this._pickRegion(e.clientX, e.clientY)
       if (id) { this.setRegion(id); this.onRegion?.(id) }
     })
@@ -737,7 +933,10 @@ class PhysioViewer {
       this._hoverXY = { x: e.clientX, y: e.clientY }
       if (!this._hoverRaf) this._hoverRaf = requestAnimationFrame(() => { this._hoverRaf = null; this._doHover() })
     })
-    el.addEventListener('pointerleave', () => { this._hoverXY = null; this._setHoverRegion(null); this._setHoverPart(null) })
+    el.addEventListener('pointerleave', () => {
+      this._hoverXY = null; this._setHoverRegion(null); this._setHoverPart(null)
+      if (this._skinU) this._skinU.uHoverM.value = 0
+    })
   }
 
   _raycaster(cx, cy) {
@@ -782,6 +981,13 @@ class PhysioViewer {
       const p = this._pickPart(x, y)
       this._setHoverPart(p)
       if (p) text = `${p.label}${this.isDoctor ? ' · clique para marcar' : ''}`
+    } else if (this.skinMode === 'muscle' && this._musReady) {
+      this._setHoverPart(null)
+      this._setHoverRegion(null)
+      const mid = this._pickMuscle(x, y)
+      this._skinU.uHoverM.value = mid
+      const info = muscleFromId(mid)
+      if (info) text = `${info.muscle.name} · ${info.side === 'E' ? 'esquerdo' : 'direito'}`
     } else {
       this._setHoverPart(null)
       const id = this._pickRegion(x, y)
@@ -819,10 +1025,16 @@ class PhysioViewer {
 
   // ── HUD ────────────────────────────────────────────────────────────────────
   _updateHud() {
-    if (!this.region) { this.hudEl.classList.remove('on'); return }
-    const mode = this._internal ? 'Visão interna' : 'Visão externa'
-    this.hudEl.innerHTML = `Análise anatômica 3D · ${mode}<b>${esc(this.region.label)}</b>` +
-      (this.condition ? `<span class="st">${esc(this.condition.name)}</span>` : '')
+    const mus = this.skinMode === 'muscle' ? this.muscles.map(s => {
+      const [k, sd] = s.split(':'), m = findMuscle(k)
+      return m ? m.name + (sd ? (sd === 'E' ? ' (E)' : ' (D)') : '') : null
+    }).filter(Boolean) : []
+    if (!this.region && !mus.length) { this.hudEl.classList.remove('on'); return }
+    const mode = this._internal ? 'Visão interna' : this.skinMode === 'muscle' ? 'Músculos' : 'Visão externa'
+    const title = this.region ? this.region.label : mus.length === 1 ? mus[0] : `${mus.length} músculos`
+    this.hudEl.innerHTML = `Análise anatômica 3D · ${mode}<b>${esc(title)}</b>` +
+      (this.condition ? `<span class="st">${esc(this.condition.name)}</span>` : '') +
+      (this.region && mus.length ? `<span class="st">${esc(mus.slice(0, 3).join(' · '))}${mus.length > 3 ? '…' : ''}</span>` : '')
     this.hudEl.classList.add('on')
   }
 
@@ -868,13 +1080,22 @@ class PhysioViewer {
     this._xray = approach(this._xray, this._internal ? 1 : 0, 3, dt)
     if (this._xray < 0.002) this._xray = 0
     U.uXray.value = this._xray
-    const trans = this._xray > 0
+    // Músculos ↔ pele
+    this._mus = approach(this._mus, this.skinMode === 'muscle' && this._musReady ? 1 : 0, 2.6, dt)
+    if (this._mus < 0.002) this._mus = 0
+    U.uMus.value = this._mus
+    this._iso = approach(this._iso, this.isolate && this.muscles.length + (this.condition?.muscles?.length || 0) > 0 ? 1 : 0, 3, dt)
+    if (this._iso < 0.002) this._iso = 0
+    U.uIso.value = this._iso
+    if (this._skin.bumpMap) this._skin.bumpScale = BUMP * this._mus
+    const trans = this._xray > 0 || this._iso > 0
     if (this._skin.transparent !== trans) {
       this._skin.transparent = trans
       this._skin.depthWrite = !trans
       this._skin.needsUpdate = true
     }
-    this._others.forEach(o => { o.visible = this._xray < 0.3 })
+    // cabelo, sobrancelhas e cílios saem na visão de músculos (os olhos ficam)
+    this._others.forEach(o => { o.visible = this._xray < 0.3 && this._iso < 0.3 && (o.name === 'eyes' || this._mus < 0.35) })
     this._floor.material.opacity = 1 - this._xray * 0.5
 
     // Materialização da anatomia
@@ -1019,4 +1240,7 @@ class PhysioViewer {
   }
 }
 
-export { PhysioViewer, PHYSIO_REGIONS, REGION_GROUPS, KINDS, findRegion, regionByLabel, findCondition, hasAnatomy }
+export {
+  PhysioViewer, PHYSIO_REGIONS, REGION_GROUPS, KINDS, findRegion, regionByLabel, findCondition, hasAnatomy,
+  MUSCLES, MUSCLE_GROUPS, findMuscle, muscleFromId
+}

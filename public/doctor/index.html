@@ -562,6 +562,34 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
   font-size: 0.76rem; color: rgba(255,255,255,0.4);
 }
 .phy-clear-tv:hover { color: rgba(255,255,255,0.75); }
+.phy-skin { display: inline-flex; border-radius: 60px; overflow: hidden; border: 1px solid rgba(120,220,255,0.22); }
+.phy-skin .phy-tb { border: none; border-radius: 0; }
+.phy-skin .phy-tb.on { background: linear-gradient(135deg, rgba(210,80,65,0.45), rgba(120,40,35,0.35)); color: #fff; }
+.phy-search {
+  width: 100%; padding: 0.5rem 0.85rem; border-radius: 60px; outline: none; margin-bottom: 0.6rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(120,220,255,0.2); color: #fff;
+  font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+}
+.phy-search::placeholder { color: rgba(255,255,255,0.3); }
+.phy-mus-list { display: flex; flex-direction: column; gap: 0.15rem; max-height: 260px; overflow-y: auto; padding-right: 0.2rem; }
+.phy-mus-list::-webkit-scrollbar { width: 4px; }
+.phy-mus-list::-webkit-scrollbar-thumb { background: rgba(120,220,255,0.15); border-radius: 3px; }
+.phy-mus-g { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255,255,255,0.32); margin: 0.5rem 0 0.2rem; }
+.phy-mus {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; text-align: left; cursor: pointer;
+  padding: 0.38rem 0.6rem; border-radius: 8px; border: 1px solid transparent; background: none;
+  font-family: 'DM Sans', sans-serif; font-size: 0.8rem; color: rgba(255,255,255,0.75);
+}
+.phy-mus:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.phy-mus i { width: 8px; height: 8px; border-radius: 2px; background: #c95442; flex-shrink: 0; }
+.phy-mus i.w { background: #e8dccb; }
+.phy-mus.on { background: rgba(60,190,255,0.12); border-color: rgba(120,220,255,0.45); color: #fff; }
+.phy-mus.hot { color: #ffc9c4; }
+.phy-mus.hot i { background: #ff4a3d; box-shadow: 0 0 6px #ff4a3d; }
+.phy-mus-sel { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; }
+.phy-mus-sel .phy-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.74rem; padding: 0.24rem 0.6rem;
+  border-color: rgba(120,220,255,0.5); background: rgba(60,190,255,0.12); color: #e0f7ff; }
+.phy-mus-sel .phy-chip b { font-weight: 400; opacity: 0.7; cursor: pointer; }
 .problem-input {
   width: 100%; padding: 0.9rem 1rem;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
@@ -1368,6 +1396,11 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       <button class="phy-tb" onclick="phyViewer && phyViewer.setView('left')" title="Lado esquerdo do paciente">Lado E</button>
       <button class="phy-tb" onclick="phyViewer && phyViewer.setView('reset')" title="Voltar ao corpo inteiro">Corpo inteiro</button>
       <span class="phy-tb-sep"></span>
+      <span class="phy-skin" title="Ver o corpo com pele ou só os músculos">
+        <button class="phy-tb on" data-s="skin" onclick="phySetSkin('skin')">Pele</button>
+        <button class="phy-tb" data-s="muscle" onclick="phySetSkin('muscle')">Músculos</button>
+      </span>
+      <button class="phy-tb" id="phy-iso-btn" onclick="phyToggleIsolate()" disabled title="Deixar só os músculos em destaque; os outros ficam transparentes">◐ Isolar</button>
       <button class="phy-tb phy-int" id="phy-int-btn" onclick="phyToggleInternal()" disabled title="Ver ossos, cartilagens, ligamentos, tendões, músculos e nervos da região">◉ Visão interna</button>
       <button class="phy-tb on" id="phy-tg-labels" onclick="phyToggleLabels()">Rótulos</button>
       <span class="phy-tb-sep"></span>
@@ -1395,6 +1428,13 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
         <div class="phy-sec-t">2 · O que pode estar acontecendo</div>
         <div class="phy-conds" id="phy-conds"></div>
         <div class="phy-card" id="phy-card" style="display:none"></div>
+      </div>
+      <div class="phy-sec" id="phy-mus-sec" style="display:none">
+        <div class="phy-sec-t">Músculos <small>clique no corpo ou na lista · Ctrl soma</small></div>
+        <div class="phy-mus-sel" id="phy-mus-sel"></div>
+        <div class="phy-card" id="phy-mus-card" style="display:none;margin:0 0 0.6rem"></div>
+        <input class="phy-search" id="phy-mus-search" placeholder="Buscar músculo (ex.: glúteo, bíceps)…" oninput="renderPhyMuscles()">
+        <div class="phy-mus-list" id="phy-mus-list"></div>
       </div>
       <div class="phy-sec" id="phy-parts-sec" style="display:none">
         <div class="phy-sec-t">Estruturas <small>clique para marcar em vermelho</small></div>
@@ -2864,6 +2904,9 @@ let phyCondition = null
 let phyMarks = []
 let phyParts = []
 let phyInternalOn = false
+let phySkin = 'skin'           // 'skin' | 'muscle'
+let phyMuscles = []            // 'biceps' (os dois lados), 'biceps:D', 'biceps:E'
+let phyIsolate = false
 
 function phyInitSelect() {
   const sel = document.getElementById('phy-region-select')
@@ -2884,10 +2927,14 @@ function createPhyViewer(model) {
     labels: document.getElementById('phy-tg-labels').classList.contains('on'),
     onRegion: id => phyRegionChanged(id),
     onMarks: ids => { phyMarks = ids; renderPhyParts() },
-    onParts: parts => { phyParts = parts; renderPhyParts() }
+    onParts: parts => { phyParts = parts; renderPhyParts() },
+    onMuscles: sel => { phyMuscles = sel; renderPhyMuscles() }
   })
   phyModel = model
   document.querySelectorAll('.phy-model').forEach(b => b.classList.toggle('on', b.dataset.m === model))
+  phyViewer.setSkin(phySkin)
+  phyViewer.setIsolate(phyIsolate)
+  if (phyMuscles.length) phyViewer.setMuscles(phyMuscles)
   if (phyRegion) {
     phyViewer.setRegion(phyRegion)
     if (phyCondition) phyViewer.setCondition(phyCondition)
@@ -2911,6 +2958,8 @@ async function enterConsultMode() {
   phySessionId = sid
   if (newSession) {
     phyRegion = null; phyCondition = null; phyMarks = []; phyParts = []; phyInternalOn = false
+    phyMuscles = []
+    if (phyViewer) phyViewer.setMuscles([])
     resetPhyDraft()
   }
   if (!phyViewer || newSession) {
@@ -2967,6 +3016,7 @@ function renderPhyPanel() {
   document.getElementById('phy-cond-sec').style.display = r ? '' : 'none'
   document.getElementById('phy-parts-sec').style.display = hasInt ? '' : 'none'
   const card = document.getElementById('phy-card')
+  renderPhyMuscles()
   if (!r) { document.getElementById('phy-conds').innerHTML = ''; card.style.display = 'none'; return }
   document.getElementById('phy-conds').innerHTML =
     `<button class="phy-cond${!phyCondition ? ' on' : ''}" onclick="phyPickCondition(null)">Só destacar a região</button>` +
@@ -2983,7 +3033,8 @@ function phyPickCondition(cid) {
   phyViewer.setCondition(cid)
   // Condição com modelo interno → já abre por dentro para mostrar a lesão
   const r = window.PHY.findRegion(phyRegion)
-  if (cid && phyHasInternal(r) && !phyInternalOn) { phyInternalOn = true; phyViewer.setInternal(true) }
+  // (na visão de músculos a condição só acende os músculos ligados a ela)
+  if (cid && phyHasInternal(r) && !phyInternalOn && phySkin !== 'muscle') { phyInternalOn = true; phyViewer.setInternal(true) }
   renderPhyPanel()
 }
 
@@ -2999,6 +3050,76 @@ function phyToggleLabels() {
   const on = !btn.classList.contains('on')
   btn.classList.toggle('on', on)
   phyViewer?.setLabels(on)
+}
+
+// ── Visão de músculos ──
+function phySetSkin(mode) {
+  phySkin = mode
+  document.querySelectorAll('.phy-skin .phy-tb').forEach(b => b.classList.toggle('on', b.dataset.s === mode))
+  phyViewer?.setSkin(mode)
+  renderPhyMuscles()
+}
+
+function phyToggleIsolate() {
+  phyIsolate = !phyIsolate
+  phyViewer?.setIsolate(phyIsolate)
+  document.getElementById('phy-iso-btn').classList.toggle('on', phyIsolate)
+}
+
+// Clique na lista: o lado da região escolhida (joelho direito → músculos do
+// lado direito); sem região de um lado só, os dois lados
+function phyToggleMuscle(key) {
+  if (!phyViewer) return
+  const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
+  const k = r?.side ? `${key}:${r.side}` : key
+  const has = phyMuscles.some(x => x.split(':')[0] === key)
+  phyMuscles = has ? phyMuscles.filter(x => x.split(':')[0] !== key) : [...phyMuscles, k]
+  phyViewer.setMuscles(phyMuscles, { focus: !has })
+  renderPhyMuscles()
+}
+function phyRemoveMuscle(sel) {
+  phyMuscles = phyMuscles.filter(x => x !== sel)
+  phyViewer?.setMuscles(phyMuscles)
+  renderPhyMuscles()
+}
+
+function renderPhyMuscles() {
+  const on = phySkin === 'muscle'
+  document.getElementById('phy-mus-sec').style.display = on ? '' : 'none'
+  document.getElementById('phy-iso-btn').disabled = !on
+  if (!on || !window.PHY) return
+  const { MUSCLES, MUSCLE_GROUPS, findMuscle } = window.PHY
+  const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
+  const cond = r && phyCondition ? window.PHY.findCondition(r, phyCondition) : null
+  const hot = new Set(cond?.muscles || [])
+  const selKeys = new Set(phyMuscles.map(x => x.split(':')[0]))
+  const ladoTxt = sd => (sd === 'E' ? ' · E' : sd === 'D' ? ' · D' : '')
+
+  document.getElementById('phy-mus-sel').innerHTML = phyMuscles.map(x => {
+    const [k, sd] = x.split(':'), m = findMuscle(k)
+    return m ? `<span class="phy-chip">${esc(m.name)}${ladoTxt(sd)} <b onclick="phyRemoveMuscle('${x}')" title="Tirar">×</b></span>` : ''
+  }).join('')
+
+  const last = phyMuscles.length ? findMuscle(phyMuscles[phyMuscles.length - 1].split(':')[0]) : null
+  const card = document.getElementById('phy-mus-card')
+  card.style.display = last ? '' : 'none'
+  card.innerHTML = last ? `<p><b>${esc(last.name)}</b></p><p><b>Função:</b> ${esc(last.action)}</p>` +
+    `<p><b>Onde fica:</b> ${esc(last.where)}</p><p><b>Problemas comuns:</b> ${esc(last.problems)}</p>` : ''
+
+  const q = acuNorm(document.getElementById('phy-mus-search').value.trim())
+  const match = m => !q || acuNorm(`${m.name} ${m.action} ${m.where}`).includes(q)
+  const item = m => `<button class="phy-mus${selKeys.has(m.key) ? ' on' : ''}${hot.has(m.key) ? ' hot' : ''}" onclick="phyToggleMuscle('${m.key}')">` +
+    `<i class="${m.white ? 'w' : ''}"></i>${esc(m.name)}</button>`
+  let html = ''
+  if (r && !q) {
+    const da = MUSCLES.filter(m => m.regions.includes(r.group))
+    if (da.length) html += `<div class="phy-mus-g">Da região · ${esc(r.label)}</div>` + da.map(item).join('')
+  }
+  MUSCLE_GROUPS.forEach((g, gi) => {
+    const list = MUSCLES.filter(m => m.group === gi && match(m))
+    if (list.length) html += `<div class="phy-mus-g">${esc(g)}</div>` + list.map(item).join('')
+  })
+  document.getElementById('phy-mus-list').innerHTML = html || '<div class="phy-muted">Nenhum músculo encontrado</div>'
 }
 
 function renderPhyParts() {
@@ -3032,11 +3153,13 @@ function resetPhyDraft() {
 
 async function generateExplanation() {
   const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
-  if (!r) { alert('Escolha a região no corpo ou na lista.'); return }
+  const musNames = (phySkin === 'muscle' ? phyMuscles : []).map(x => window.PHY.findMuscle(x.split(':')[0])?.name).filter(Boolean)
+  if (!r && !musNames.length) { alert('Escolha a região no corpo ou na lista.'); return }
   if (!currentSession) { alert('Nenhum paciente em atendimento.'); return }
-  const c = phyCondition ? window.PHY.findCondition(r, phyCondition) : null
+  const c = r && phyCondition ? window.PHY.findCondition(r, phyCondition) : null
   const obs = document.getElementById('problem-input').value.trim()
-  const problem = [c ? `Condição provável: ${c.name}.` : '', obs].filter(Boolean).join(' ')
+  const problem = [c ? `Condição provável: ${c.name}.` : '', musNames.length ? `Músculos envolvidos: ${musNames.join(', ')}.` : '', obs]
+    .filter(Boolean).join(' ')
   if (!problem) {
     document.getElementById('problem-input').focus()
     alert('Escolha uma condição ou descreva o que o paciente sente.')
@@ -3054,7 +3177,7 @@ async function generateExplanation() {
   try {
     const res  = await fetch('/api/anatomy/explain', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSession.id, region: r.label, problem })
+      body: JSON.stringify({ session_id: currentSession.id, region: r ? r.label : musNames.join(', ').slice(0, 80), problem })
     })
     if (res.status === 401) { location.href = '/login'; return }
     if (!res.ok) throw new Error()
@@ -3077,7 +3200,10 @@ async function generateExplanation() {
 async function sendToTV() {
   if (!currentSession) return
   const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
-  if (!r) { alert('Escolha a região primeiro.'); return }
+  const mus = phySkin === 'muscle' ? phyMuscles : []
+  if (!r && !mus.length) { alert('Escolha a região ou um músculo primeiro.'); return }
+  // Sem região, o histórico registra o músculo mostrado
+  const label = r ? r.label : (window.PHY.findMuscle(mus[0].split(':')[0])?.name || 'Músculos')
   const btn  = document.getElementById('btn-send-tv')
   const orig = 'Exibir na TV do paciente →'
   btn.disabled = true
@@ -3087,10 +3213,13 @@ async function sendToTV() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: currentSession.id,
-        region: r.label,
+        region: label,
         problem: document.getElementById('problem-input').value.trim(),
         explanation: document.getElementById('ai-preview').value.trim(),
-        view3d: { region: r.id, condition: phyCondition, marks: phyMarks, internal: phyInternalOn, model: phyModel }
+        view3d: {
+          region: r ? r.id : null, condition: phyCondition, marks: phyMarks, internal: phyInternalOn, model: phyModel,
+          skin: phySkin, muscles: mus, isolate: phyIsolate
+        }
       })
     })
     if (res.status === 401) { location.href = '/login'; return }

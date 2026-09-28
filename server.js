@@ -596,14 +596,21 @@ app.post('/api/anatomy/explain', requireAuth, async (req, res) => {
 
 // Cena da Anatomia 3D enviada pelo painel — só ids simples, nada de texto livre
 const ID_RE = /^[A-Za-z0-9-]{1,40}$/
+const MUSCLE_RE = /^[A-Za-z]{1,40}(:[DE])?$/
 function cleanView3d(v) {
-  if (!v || typeof v !== 'object' || !ID_RE.test(String(v.region || ''))) return null
+  if (!v || typeof v !== 'object') return null
+  const region = ID_RE.test(String(v.region || '')) ? String(v.region) : null
+  const muscles = (Array.isArray(v.muscles) ? v.muscles : []).filter(m => typeof m === 'string' && MUSCLE_RE.test(m)).slice(0, 16)
+  if (!region && !muscles.length) return null
   return {
-    region: String(v.region),
-    condition: ID_RE.test(String(v.condition || '')) ? String(v.condition) : null,
+    region,
+    condition: region && ID_RE.test(String(v.condition || '')) ? String(v.condition) : null,
     marks: (Array.isArray(v.marks) ? v.marks : []).filter(m => typeof m === 'string' && ID_RE.test(m)).slice(0, 30),
     internal: !!v.internal,
-    model: ['male', 'female'].includes(v.model) ? v.model : 'female'
+    model: ['male', 'female'].includes(v.model) ? v.model : 'female',
+    skin: v.skin === 'muscle' ? 'muscle' : 'skin',
+    muscles,
+    isolate: !!v.isolate
   }
 }
 

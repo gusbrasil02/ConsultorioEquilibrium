@@ -235,6 +235,14 @@ Aberta pelo botão **◎** no topo do painel (consulta livre), por **◎ Anatomi
 3. **Visão interna** — a pele vira um holograma translúcido e as estruturas da região se materializam: ossos, cartilagens, meniscos, ligamentos, tendões, músculos, nervos e discos. A estrutura afetada aparece **em vermelho pulsante**, **rompida** (fissura), **desgastada** (cartilagem "corroída"), **inchada** (bursite) ou **deslocada** (espondilolistese); hérnias, esporões, cistos e osteófitos aparecem quando a condição pede. A câmera gira sozinha para o lado da lesão. Clicar numa estrutura (no 3D ou na lista) marca/desmarca em vermelho à mão.
 4. **Exibir na TV** — a TV repete a cena numa sequência automática: corpo inteiro → aproxima na região → abre a visão interna, com o texto ao lado (o da IA, se gerado; senão, a explicação padrão da condição e "como o tratamento ajuda"). **Limpar a TV** volta à tela de repouso.
 
+**Visão de músculos** — o botão **Pele / Músculos** troca a pele pelo corpo "écorché" (como nos atlas de anatomia): cada músculo com fibras, sulcos, tendões e fáscias brancas. São 43 músculos e estruturas por lado (deltoide, peitoral, trapézio, grande dorsal, reto abdominal, oblíquos, bíceps, tríceps, flexores e extensores do antebraço, glúteos, quadríceps, sartório, adutores, isquiotibiais, gastrocnêmios, sóleo, tibial anterior, trato iliotibial, tendão de Aquiles…):
+- clique num músculo no corpo (Ctrl soma outro) ou escolha na lista com busca — os da região escolhida aparecem primeiro; ele acende e aparece a **ficha** (função, onde fica, problemas comuns);
+- **◐ Isolar** deixa só os músculos em destaque; o resto vira holograma transparente;
+- as condições acendem em vermelho os músculos envolvidos (ex.: estiramento dos isquiotibiais, contratura do trapézio, síndrome do trato iliotibial);
+- **Exibir na TV** leva a visão de músculos, a seleção e o isolamento; sem condição, a TV mostra a ficha do músculo em linguagem simples.
+
+A textura dos músculos é gerada por `tools/muscles/build_muscles.py` a partir do próprio corpo 3D (cor, relevo e um mapa com o id de cada músculo por lado, em `public/models/muscles-*`). O catálogo com os textos fica em `public/js/muscle-data.js`. Para mudar o desenho de um músculo, edite os traços dele no gerador e rode `python tools/muscles/build_muscles.py` (requer numpy e pillow).
+
 Regiões com visão interna: joelho, ombro, cotovelo, punho e mão, quadril, tornozelo e pé, coluna cervical, torácica (costas superiores) e lombar, além de braço, antebraço, coxa e panturrilha (músculos e ossos). Cabeça, tórax e abdome acendem a região e têm condições, sem visão interna.
 
 As estruturas internas são modeladas em código (`public/js/physio-anatomy.js`) e encaixadas em cada corpo pelas juntas do esqueleto (`public/models/body-*.joints.json`) e pela espessura real do membro medida na hora. O catálogo de regiões e condições fica em `public/js/physio-data.js` — para incluir uma condição, adicione-a ao grupo da região com os efeitos (`fx`) que ela mostra.
@@ -300,6 +308,7 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
 │   ├── mesh.mjs                 #   leitura do GLB + projeção na pele
 │   ├── build.mjs                #   gera public/js/acu-data.js
 │   └── human-body.glb           #   modelo-base dos pontos (não é exibido)
+├── tools/muscles/build_muscles.py  # gera a visão de músculos (public/models/muscles-*)
 └── public/
     ├── login/index.html         # tela de acesso / criação da 1ª conta
     ├── totem/index.html
@@ -311,5 +320,6 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
         ├── acu-data.js            # GERADO — pontos e trajetos dos meridianos
         ├── physio-viewer.js       # Anatomia 3D da fisioterapia (painel e TV)
         ├── physio-anatomy.js      #   estruturas internas (ossos, ligamentos, nervos…)
-        └── physio-data.js         #   regiões, condições e efeitos de cada lesão
+        ├── physio-data.js         #   regiões, condições e efeitos de cada lesão
+        └── muscle-data.js         #   músculos da visão de músculos (nomes, função, problemas)
 ```

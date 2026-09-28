@@ -232,7 +232,7 @@ body.bg-default  { background: #0c0c14; }
     <div class="explanation-title" id="expl-title"></div>
     <div class="explanation-text" id="expl-text"></div>
     <div class="expl-block" id="expl-treat">
-      <div class="expl-block-t">Como o tratamento ajuda</div>
+      <div class="expl-block-t" id="expl-treat-t">Como o tratamento ajuda</div>
       <div id="expl-treat-text"></div>
     </div>
     <div class="expl-tags" id="expl-tags"></div>
@@ -418,19 +418,30 @@ function showPhysioState(event) {
       onParts: parts => renderPhyTags(parts)
     })
   }
+  const skin = v?.skin === 'muscle' ? 'muscle' : 'skin'
+  const muscles = skin === 'muscle' ? (v?.muscles || []) : []
   phySharedViewer._tvFx = cond?.fx || []
   phySharedViewer._tvMarks = v?.marks || []
-  phySharedViewer.play({ region: region?.id || null, condition: cond?.id || null, marks: v?.marks || [], internal: !!v?.internal })
+  // Músculos em destaque: os escolhidos + os ligados à condição
+  phySharedViewer._tvMuscles = [...new Set([...muscles.map(x => x.split(':')[0]), ...(skin === 'muscle' ? cond?.muscles || [] : [])])]
+  phySharedViewer.play({
+    region: region?.id || null, condition: cond?.id || null, marks: v?.marks || [], internal: !!v?.internal,
+    skin, muscles, isolate: !!v?.isolate
+  })
 
-  document.getElementById('expl-region').textContent = region?.label || event.region
-  document.getElementById('expl-title').textContent = cond?.name || region?.label || event.region
+  // Só músculos (sem condição): a ficha do músculo
+  const mus = !cond && muscles.length ? PHY.findMuscle(muscles[0].split(':')[0]) : null
+  const lado = mus ? ({ D: ' direito', E: ' esquerdo' }[muscles[0].split(':')[1]] || '') : ''
+  document.getElementById('expl-region').textContent = region?.label || (mus ? 'Músculo' + lado : event.region)
+  document.getElementById('expl-title').textContent = cond?.name || (mus ? mus.name : region?.label || event.region)
   const treat = document.getElementById('expl-treat')
   treat.classList.remove('on')
   document.getElementById('expl-tags').innerHTML = ''
-  // Texto da profissional/IA; sem ele, a explicação padrão da condição
+  // Texto da profissional/IA; sem ele, a explicação padrão da condição (ou do músculo)
   const ai = (event.ai_explanation || '').trim()
-  const text = ai || cond?.about || 'Esta é a região que estamos avaliando e tratando hoje.'
-  const treatText = ai ? '' : (cond?.treatment || '')
+  const text = ai || cond?.about || (mus ? `${mus.action} ${mus.where}` : 'Esta é a região que estamos avaliando e tratando hoje.')
+  const treatText = ai ? '' : (cond?.treatment || mus?.problems || '')
+  document.getElementById('expl-treat-t').textContent = cond || !mus ? 'Como o tratamento ajuda' : 'Problemas comuns'
   document.getElementById('expl-treat-text').textContent = treatText
   typewriterEffect(text, document.getElementById('expl-text'), ai ? 24 : 28, () => {
     if (treatText) treat.classList.add('on')
@@ -444,8 +455,12 @@ function renderPhyTags(parts) {
   if (!box || !phySharedViewer) return
   const ids = new Set([...(phySharedViewer._tvFx || []).map(f => f[0]), ...(phySharedViewer._tvMarks || [])])
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
-  box.innerHTML = (parts || []).filter(p => ids.has(p.id)).map((p, i) =>
-    `<span class="expl-tag" style="animation-delay:${i * 0.08}s"><i></i>${esc(p.label)}</span>`).join('')
+  const labels = [
+    ...(parts || []).filter(p => ids.has(p.id)).map(p => p.label),
+    ...(phySharedViewer._tvMuscles || []).map(k => PHY.findMuscle(k)?.name).filter(Boolean)
+  ]
+  box.innerHTML = [...new Set(labels)].map((l, i) =>
+    `<span class="expl-tag" style="animation-delay:${i * 0.08}s"><i></i>${esc(l)}</span>`).join('')
 }
 
 // ── Modo Acupuntura 3D ────────────────────────────────────────────────────────
