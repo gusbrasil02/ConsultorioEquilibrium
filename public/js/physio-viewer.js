@@ -15,7 +15,8 @@ import { MUSCLES, MUSCLE_GROUPS, muscleId, muscleFromId, findMuscle } from '/js/
 // corpo inteiro → aproxima na região → visão interna).
 //
 // Visão de músculos: a pele dá lugar à textura "écorché" gerada por
-// tools/muscles (cor, relevo e um mapa com o id de cada músculo por lado). O
+// tools/muscles (cor, normais com o volume de cada músculo e um mapa com o id
+// de cada músculo por lado). O
 // mapa de ids permite clicar, destacar e isolar músculos direto no shader.
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z)
@@ -25,7 +26,6 @@ const BODIES = {
   male:   { glb: '/models/body-male.glb',   joints: '/models/body-male.joints.json',   mus: '/models/muscles-male',   height: 1.78 }
 }
 const MAX_SEL = 16
-const BUMP = 0.0035
 
 // 'biceps' (os dois lados), 'biceps:D' ou 'biceps:E' → ids do mapa de músculos
 function selIds(list) {
@@ -177,7 +177,8 @@ function setupSkin(mat, U) {
 uniform float uTime, uXray, uMus, uIso, uHoverM;
 uniform vec3 uH0A, uH0B, uH0F, uH1A, uH1B, uH1F;
 uniform vec4 uH0, uH1;
-uniform sampler2D uMusMap, uIdMap;
+uniform sampler2D uMusMap, uIdMap, uMusNrm;
+uniform mat3 normalMatrix;
 uniform float uSel[${MAX_SEL}], uHotM[${MAX_SEL}];
 uniform int uSelN, uHotN;
 varying vec3 vWPos;
@@ -200,7 +201,15 @@ if (uMus > 0.001) {
 float phyMid = 0.0;
 #endif`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, 0.42, uMus);`)
+roughnessFactor = mix(roughnessFactor, 0.4, uMus);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+#ifdef USE_MAP
+// Volume dos músculos: normais já no espaço do objeto (corpo estático)
+if (uMus > 0.001) {
+  vec3 phyMN = normalize(normalMatrix * (texture2D(uMusNrm, vMapUv).xyz * 2.0 - 1.0));
+  normal = normalize(mix(normal, phyMN, uMus));
+}
+#endif`)
       .replace('#include <opaque_fragment>', `
 float phyD0; float phyK0 = phyHot(uH0A, uH0B, uH0, uH0F, phyD0);
 phyK0 *= 1.0 - 0.55 * uMus;   // na visão de músculos a região acende mais de leve
@@ -402,7 +411,7 @@ class PhysioViewer {
           m.envMapIntensity = 0.45
           this._skinU = {
             uTime: { value: 0 }, uXray: { value: 0 }, uMus: { value: 0 }, uIso: { value: 0 }, uHoverM: { value: 0 },
-            uMusMap: { value: null }, uIdMap: { value: null },
+            uMusMap: { value: null }, uIdMap: { value: null }, uMusNrm: { value: null },
             uSel: { value: new Float32Array(MAX_SEL) }, uSelN: { value: 0 },
             uHotM: { value: new Float32Array(MAX_SEL) }, uHotN: { value: 0 },
             uH0A: { value: V() }, uH0B: { value: V() }, uH0F: { value: V() }, uH0: { value: new THREE.Vector4(0.1, 0, 0, 0) },
@@ -573,18 +582,16 @@ class PhysioViewer {
       res(t)
     }, undefined, rej))
     this._musLoading = Promise.all([
-      tex(base + '.jpg', true), tex(base + '-bump.jpg', false), tex(base + '-id.png', false, true),
+      tex(base + '.jpg', true), tex(base + '-normal.jpg', false), tex(base + '-id.png', false, true),
       fetch(base + '.json').then(r => r.json())
-    ]).then(([col, bump, id, info]) => {
+    ]).then(([col, nrm, id, info]) => {
       if (this._disposed) return
       this._musInfo = info
       this._whenReady(() => {
         const U = this._skinU
         U.uMusMap.value = col
         U.uIdMap.value = id
-        this._skin.bumpMap = bump
-        this._skin.bumpScale = 0
-        this._skin.needsUpdate = true
+        U.uMusNrm.value = nrm
         // cópia do mapa de ids na CPU para saber qual músculo está sob o mouse
         const img = id.image, c = document.createElement('canvas')
         c.width = img.width; c.height = img.height
@@ -1087,7 +1094,7 @@ class PhysioViewer {
     this._iso = approach(this._iso, this.isolate && this.muscles.length + (this.condition?.muscles?.length || 0) > 0 ? 1 : 0, 3, dt)
     if (this._iso < 0.002) this._iso = 0
     U.uIso.value = this._iso
-    if (this._skin.bumpMap) this._skin.bumpScale = BUMP * this._mus
+    this._skin.envMapIntensity = 0.45 + 0.4 * this._mus     // músculos mais brilhantes que a pele
     const trans = this._xray > 0 || this._iso > 0
     if (this._skin.transparent !== trans) {
       this._skin.transparent = trans

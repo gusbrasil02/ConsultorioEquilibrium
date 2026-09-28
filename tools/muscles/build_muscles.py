@@ -6,7 +6,8 @@ Gera a visão de músculos ("écorché") dos corpos realistas da Anatomia 3D.
 
 Requer Python 3 com numpy e pillow. Saída em public/models/:
     muscles-<corpo>.jpg        cor: músculos com fibras, sulcos, tendões e fáscias
-    muscles-<corpo>-bump.jpg   relevo (barriga dos músculos, sulcos e fibras)
+    muscles-<corpo>-normal.jpg normais no espaço do objeto: volume de cada músculo,
+                               sulcos e estrias (o relevo reage à luz)
     muscles-<corpo>-id.png     id de cada músculo por texel (ver public/js/muscle-data.js)
     muscles-<corpo>.json       centro, normal média e tamanho de cada id (câmera)
 
@@ -57,14 +58,16 @@ def st(key, pts, r, belly=(0.0, 1.0), reach=T_BG):
 
 
 # Cabeça (t: 0 = altura da boca, 1 = topo) e pescoço (0 = base, 1 = cabeça)
-st('frontal', [('head', 0.46, 18), ('head', 0.84, 14)], 0.026, (0, 0.85), reach=0.012)
-st('temporal', [('head', 0.3, 80), ('head', 0.62, 95)], 0.022, (0.1, 0.95), reach=0.01)
-st('temporal', [('head', 0.35, 105), ('head', 0.55, 120)], 0.016, reach=0.01)
-st('masseter', [('head', -0.34, 60), ('head', 0.02, 66)], 0.016, reach=0.012)
-st('musculosFace', [('head', -0.2, 8), ('head', -0.05, 22)], 0.01, reach=0.012)
-st('musculosFace', [('head', 0.05, 42), ('head', -0.12, 24)], 0.012, reach=0.012)
-st('musculosFace', [('head', 0.18, 22), ('head', 0.32, 40)], 0.011, reach=0.012)
-st('musculosFace', [('head', -0.42, 8), ('head', -0.28, 14)], 0.01, reach=0.012)
+st('frontal', [('head', 0.46, 18), ('head', 0.84, 14)], 0.026, (0, 0.85), reach=0.014)
+st('temporal', [('head', 0.3, 80), ('head', 0.62, 95)], 0.022, (0.1, 0.95), reach=0.014)
+st('temporal', [('head', 0.35, 105), ('head', 0.55, 120)], 0.016, reach=0.014)
+st('masseter', [('head', -0.34, 60), ('head', 0.02, 66)], 0.016, reach=0.018)
+st('musculosFace', [('head', -0.2, 8), ('head', -0.05, 22)], 0.01, reach=0.02)
+st('musculosFace', [('head', 0.05, 42), ('head', -0.12, 24)], 0.012, reach=0.02)
+st('musculosFace', [('head', 0.18, 22), ('head', 0.32, 40)], 0.011, reach=0.02)
+st('musculosFace', [('head', -0.42, 8), ('head', -0.28, 14)], 0.01, reach=0.02)
+st('musculosFace', [('head', 0.08, 12), ('head', 0.2, 16)], 0.009, reach=0.016)
+st('musculosFace', [('head', -0.3, 35), ('head', -0.1, 48)], 0.012, reach=0.02)
 st('esternocleidomastoideo', [('head', -0.08, 108), ('neck', 0.4, 62), ('neck', -0.55, 14)], 0.011, (0.08, 0.92))
 st('pescocoAnterior', [('neck', -0.45, 5), ('neck', 0.6, 6)], 0.01)
 # Trapézio: descendente (nuca → ombro), transverso e ascendente
@@ -83,16 +86,16 @@ st('serratilAnterior', [('torso', 0.55, 62), ('torso', 0.6, 84)], 0.012)
 st('serratilAnterior', [('torso', 0.47, 60), ('torso', 0.54, 86)], 0.012)
 st('serratilAnterior', [('torso', 0.62, 66), ('torso', 0.67, 86)], 0.011)
 st('retoAbdominal', [('torso', -0.06, 9), ('torso', 0.3, 11), ('torso', 0.55, 13)], 0.024)
-st('obliquoExterno', [('torso', 0.58, 58), ('torso', 0.35, 42), ('torso', 0.12, 33)], 0.028, (0, 0.8))
-st('obliquoExterno', [('torso', 0.52, 88), ('torso', 0.3, 76), ('torso', 0.1, 70)], 0.028, (0, 0.9))
-st('obliquoExterno', [('torso', 0.2, 48), ('torso', 0.0, 28)], 0.022, (0, 0.8))
+st('obliquoExterno', [('torso', 0.58, 58), ('torso', 0.35, 42), ('torso', 0.12, 33)], 0.028, (0, 0.97))
+st('obliquoExterno', [('torso', 0.52, 88), ('torso', 0.3, 76), ('torso', 0.1, 70)], 0.028, (0, 0.97))
+st('obliquoExterno', [('torso', 0.2, 48), ('torso', 0.0, 28)], 0.022, (0, 0.95))
 # Tronco — costas
 I_LAT = ('arm', 0.1, -140)
 st('grandeDorsal', [('torso', 0.1, 150), ('torso', 0.35, 125), ('torso', 0.6, 108), I_LAT], 0.03, (0.12, 0.9))
 st('grandeDorsal', [('torso', 0.4, 165), ('torso', 0.55, 140), ('torso', 0.66, 118), I_LAT], 0.03, (0.1, 0.9))
 st('eretores', [('torso', 0.1, 166), ('torso', 0.45, 168), ('torso', 0.62, 170)], 0.016)
-st('fasciaToracolombar', [('torso', -0.05, 172), ('torso', 0.3, 172)], 0.03)
-st('fasciaToracolombar', [('torso', 0.05, 150), ('torso', 0.2, 145)], 0.02)
+st('fasciaToracolombar', [('torso', -0.05, 174), ('torso', 0.28, 174)], 0.022, reach=0.016)
+st('fasciaToracolombar', [('torso', 0.08, 158), ('torso', 0.18, 155)], 0.014, reach=0.016)
 st('infraespinal', [('torso', 0.72, 140), ('arm', -0.02, 175)], 0.024, (0, 0.95))
 st('redondoMaior', [('torso', 0.56, 128), ('arm', 0.12, -165)], 0.016, (0, 0.95))
 # Ombro e braço
@@ -107,12 +110,12 @@ st('triceps', [('arm', 0.05, -150), ('arm', 0.5, -165)], 0.018)
 st('triceps', [('arm', 0.2, 130), ('arm', 0.55, 140)], 0.016)
 # Antebraço (0 = palma, 90 = lado do polegar) e mão
 st('braquiorradial', [('arm', 0.72, 75), ('forearm', 0.12, 85), ('forearm', 0.5, 92), ('forearm', 0.92, 95)], 0.015, (0, 0.62))
-st('flexoresAntebraco', [('forearm', 0.05, -65), ('forearm', 0.45, -30), ('forearm', 0.92, -5)], 0.015, (0, 0.72))
-st('flexoresAntebraco', [('forearm', 0.05, -85), ('forearm', 0.45, -70), ('forearm', 0.92, -55)], 0.014, (0, 0.72))
-st('flexoresAntebraco', [('forearm', 0.1, -40), ('forearm', 0.45, 20), ('forearm', 0.92, 40)], 0.013, (0, 0.72))
-st('extensoresAntebraco', [('forearm', 0.05, 125), ('forearm', 0.45, 140), ('forearm', 0.92, 150)], 0.014, (0, 0.72))
-st('extensoresAntebraco', [('forearm', 0.05, 150), ('forearm', 0.45, 168), ('forearm', 0.92, 180)], 0.014, (0, 0.72))
-st('extensoresAntebraco', [('forearm', 0.1, -170), ('forearm', 0.5, -150), ('forearm', 0.92, -130)], 0.013, (0, 0.72))
+st('flexoresAntebraco', [('forearm', 0.05, -65), ('forearm', 0.45, -30), ('forearm', 0.92, -5)], 0.015, (0, 0.84))
+st('flexoresAntebraco', [('forearm', 0.05, -85), ('forearm', 0.45, -70), ('forearm', 0.92, -55)], 0.014, (0, 0.84))
+st('flexoresAntebraco', [('forearm', 0.1, -40), ('forearm', 0.45, 20), ('forearm', 0.92, 40)], 0.013, (0, 0.84))
+st('extensoresAntebraco', [('forearm', 0.05, 125), ('forearm', 0.45, 140), ('forearm', 0.92, 150)], 0.014, (0, 0.84))
+st('extensoresAntebraco', [('forearm', 0.05, 150), ('forearm', 0.45, 168), ('forearm', 0.92, 180)], 0.014, (0, 0.84))
+st('extensoresAntebraco', [('forearm', 0.1, -170), ('forearm', 0.5, -150), ('forearm', 0.92, -130)], 0.013, (0, 0.84))
 st('extensoresAntebraco', [('forearm', 0.5, 150), ('forearm', 0.85, 110)], 0.008, (0, 0.7))
 st('tenar', [('hand', 0.1, 55), ('hand', 0.45, 75)], 0.011, reach=0.007)
 st('hipotenar', [('hand', 0.12, -60), ('hand', 0.6, -80)], 0.009, reach=0.007)
@@ -121,18 +124,19 @@ st('gluteoMedio', [('torso', 0.12, 118), ('thigh', -0.1, 100)], 0.03)
 st('gluteoMaximo', [('torso', 0.02, 168), ('thigh', -0.02, 170), ('thigh', 0.16, 140)], 0.04, (0, 0.88))
 st('gluteoMaximo', [('torso', 0.1, 140), ('thigh', -0.1, 140), ('thigh', 0.18, 115)], 0.035, (0, 0.85))
 st('tensorFascia', [('thigh', -0.12, 55), ('thigh', 0.12, 75)], 0.018, (0, 0.8))
-st('tratoIliotibial', [('thigh', 0.1, 92), ('thigh', 0.55, 92), ('thigh', 0.98, 98)], 0.012)
+st('tratoIliotibial', [('thigh', 0.1, 92), ('thigh', 0.55, 92), ('thigh', 0.98, 98)], 0.008, reach=0.012)
 st('sartorio', [('thigh', -0.12, 40), ('thigh', 0.15, 10), ('thigh', 0.45, -45), ('thigh', 0.75, -95), ('thigh', 1.0, -115)], 0.009)
 st('retoFemoral', [('thigh', 0.05, 15), ('thigh', 0.45, 5), ('thigh', 0.88, 0)], 0.022, (0.04, 0.8))
 st('vastoLateral', [('thigh', 0.18, 62), ('thigh', 0.55, 55), ('thigh', 0.9, 35)], 0.026, (0, 0.9))
 st('vastoMedial', [('thigh', 0.5, -38), ('thigh', 0.86, -35)], 0.022)
 st('adutores', [('thigh', 0.0, -75), ('thigh', 0.3, -78), ('thigh', 0.55, -90)], 0.028)
 st('adutores', [('thigh', 0.05, -110), ('thigh', 0.5, -118), ('thigh', 0.9, -125)], 0.011)
-st('bicepsFemoral', [('thigh', 0.18, 150), ('thigh', 0.55, 140), ('thigh', 0.92, 125)], 0.022, (0, 0.85))
-st('semitendineo', [('thigh', 0.18, -162), ('thigh', 0.55, -158), ('thigh', 0.92, -142)], 0.022, (0, 0.85))
+st('adutores', [('thigh', -0.08, -25), ('thigh', 0.12, -50)], 0.02)   # pectíneo / triângulo femoral
+st('bicepsFemoral', [('thigh', 0.18, 150), ('thigh', 0.55, 140), ('thigh', 0.92, 125)], 0.022, (0, 0.93))
+st('semitendineo', [('thigh', 0.18, -162), ('thigh', 0.55, -158), ('thigh', 0.92, -142)], 0.022, (0, 0.93))
 # Perna
-st('gastroMedial', [('leg', 0.03, -150), ('leg', 0.28, -158), ('leg', 0.52, -172)], 0.028)
-st('gastroLateral', [('leg', 0.03, 150), ('leg', 0.26, 158), ('leg', 0.47, 170)], 0.024)
+st('gastroMedial', [('leg', -0.06, -150), ('leg', 0.28, -158), ('leg', 0.52, -172)], 0.028)
+st('gastroLateral', [('leg', -0.06, 150), ('leg', 0.26, 158), ('leg', 0.47, 170)], 0.024)
 st('soleo', [('leg', 0.4, -118), ('leg', 0.72, -135)], 0.016)
 st('soleo', [('leg', 0.4, 118), ('leg', 0.72, 135)], 0.016)
 st('aquiles', [('leg', 0.52, 180), ('leg', 0.98, 180)], 0.011)
@@ -147,6 +151,13 @@ OVERLAY = [
     ([('torso', 0.24, 1), ('torso', 0.25, 20)], 0.0022),
     ([('torso', 0.35, 1), ('torso', 0.36, 20)], 0.0022),
     ([('torso', 0.46, 1), ('torso', 0.47, 19)], 0.0022),
+    # processos espinhosos e ligamento da nuca
+    ([('torso', 0.02, 179.6), ('torso', 0.5, 179.6), ('torso', 0.97, 179.6)], 0.005),
+    ([('neck', -0.4, 179.6), ('neck', 0.8, 179.6)], 0.0045),
+    # ligamento inguinal
+    ([('thigh', -0.16, 50), ('torso', -0.08, 6)], 0.0035),
+    # clavícula
+    ([('torso', 0.93, 5), ('torso', 0.935, 38), ('arm', -0.1, 20)], 0.0035),
 ]
 
 
@@ -366,7 +377,8 @@ def build(sex):
         sn = norm((Nv[idx] * w[:, None]).sum(0))
         return sp, sn
 
-    caps = []   # a, b, r, id, u0, u1, belly0, belly1
+    caps = []   # a, b, r, id, u0, u1, belly0, belly1, alcance, traço
+    SO, SE, SD = [], [], []    # por traço: origem, direção através e ao longo das fibras
     for key, pts, r, belly, reach in S:
         for side in (-1, 1):
             anchors = [B.skin(sg, t, th, side)[0] for sg, t, th in pts]
@@ -380,10 +392,15 @@ def build(sex):
                 sp, sn = snap(q)
                 line.append(sp - sn * DEPTH * k)
             line = np.array(line)
+            # Fibras com um referencial fixo por traço (sem "anéis" nas curvas)
+            dm = norm(line[-1] - line[0])
+            nm = norm(np.mean([snap(q)[1] for q in line[::3]], 0))
+            SO.append(line[0]); SD.append(dm); SE.append(norm(np.cross(dm, nm)))
+            si = len(SO) - 1
             L = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(line, axis=0), axis=1))])
             L /= L[-1] + 1e-9
             for i in range(len(line) - 1):
-                caps.append((line[i], line[i + 1], r * k, mid(key, side), L[i], L[i + 1], belly[0], belly[1], reach * k))
+                caps.append((line[i], line[i + 1], r * k, mid(key, side), L[i], L[i + 1], belly[0], belly[1], reach * k, si))
     print('  cápsulas:', len(caps))
 
     ov = []
@@ -416,7 +433,8 @@ def build(sex):
     u1 = np.zeros(M)
     bel = np.zeros((M, 2))
     rch = np.full(M, T_BG * k)
-    for a, b, r, idn, ua, ub, be0, be1, reach in caps:
+    strk = np.zeros(M, np.int32)
+    for a, b, r, idn, ua, ub, be0, be1, reach, si in caps:
         lo = np.floor((np.minimum(a, b) - r - reach - 0.012) / cell).astype(int)
         hi = np.floor((np.maximum(a, b) + r + reach + 0.012) / cell).astype(int)
         idx = [cells[kk] for x in range(lo[0], hi[0] + 1) for y in range(lo[1], hi[1] + 1) for z in range(lo[2], hi[2] + 1)
@@ -442,87 +460,127 @@ def build(sex):
         u1[sel] = ua + (ub - ua) * tt[better]
         bel[sel] = (be0, be1)
         rch[sel] = reach
+        strk[sel] = si
 
     Tk = rch
     muscle = b1 < Tk
     ids = np.where(muscle, id1, 0)
     margin = np.minimum(b2, Tk) - b1                    # distância até a fronteira (m)
-    groove = 1 - smooth(0.0004, 0.0024 * k, margin)     # sulco entre músculos
-    belly = smooth(0.0, 0.02 * k, margin)                # barriga do músculo
+    groove = 1 - smooth(0.0003, 0.0022 * k, margin)     # vinco entre músculos
+    dome = 0.5 - 0.5 * np.cos(np.pi * np.clip(margin / (0.028 * k), 0, 1))   # volume, borda suave
     tend = np.maximum(1 - smooth(bel[:, 0] - 0.06, bel[:, 0] + 0.02, u1), smooth(bel[:, 1] - 0.02, bel[:, 1] + 0.06, u1))
     tend = np.where(muscle, tend, 1.0)
     white_ids = {mid(k2, s) for k2 in WHITE for s in (-1, 1)}
     tend = np.where(np.isin(ids, list(white_ids)), 1.0, tend)
-    # para o fundo (sem músculo) a transição é suave, sem sulco escuro
+    # para o fundo (sem músculo) a transição é suave, sem vinco
     bgmix = smooth(-0.0025 * k, 0.0015 * k, b1 - Tk)
-    tend = np.maximum(tend, bgmix)
-    groove = np.where(b2 >= Tk, groove * 0.25, groove)
+    groove = np.where(b2 >= Tk, groove * 0.2, groove)
 
-    # Linhas brancas por cima (linha alba, esterno, interseções)
+    # Linhas brancas por cima (linha alba, esterno, interseções, coluna, clavícula)
     wline = np.zeros(M)
     for a, b, w in ov:
         ab = b - a
         tt = np.clip(((Q - a) @ ab) / max(ab @ ab, 1e-12), 0, 1)
         d = np.linalg.norm(Q - (a + tt[:, None] * ab), axis=1)
-        wline = np.maximum(wline, 1 - smooth(w * 0.6, w, d))
-    tend = np.maximum(tend, wline)
+        wline = np.maximum(wline, 1 - smooth(w * 0.55, w, d))
     ids = np.where(wline > 0.5, 0, ids)
     groove *= 1 - wline
 
-    # Fibras: ruído esticado ao longo da direção do músculo
-    dirv = np.where(np.linalg.norm(dir1, axis=1, keepdims=True) > 0, dir1, np.array([0, 1, 0]))
-    e1 = np.cross(dirv, Qn)
-    e1 /= np.linalg.norm(e1, axis=1, keepdims=True) + 1e-9
-    fx = (Q * e1).sum(1) / k
-    fy = (Q * dirv).sum(1) / k
-    # período ≥ ~3 texels (senão vira moiré); fibras finas cruzando, longas ao longo
-    fib = 0.65 * vnoise2(fx * 240, fy * 2.5) + 0.35 * vnoise2(fx * 520 + 7.3, fy * 5)
+    # Estrias: linhas finas paralelas à direção do músculo, levemente onduladas
+    SO, SE, SD = np.array(SO), np.array(SE), np.array(SD)
+    rel = Q - SO[strk]
+    fx = (rel * SE[strk]).sum(1) / k
+    fy = (rel * SD[strk]).sum(1) / k
+    warp = vnoise2(fx * 35, fy * 4) * 2.2 + vnoise2(fx * 90 + 3.1, fy * 9) * 0.8
+    stri = 0.5 + 0.5 * np.sin(2 * np.pi * (fx * 175 + warp))       # período ~5,7 mm
+    stri = stri * (0.55 + 0.45 * vnoise2(fx * 300, fy * 6))         # linhas irregulares
     grain = vnoise2(Q[:, 0] * 300 + Q[:, 2] * 170, Q[:, 1] * 300)
 
+    # O tendão entra no músculo em "franjas" que seguem as fibras
+    fr = (stri - 0.5) * 0.9 * np.clip(tend * (1 - tend) * 4, 0, 1)
+    tend = np.clip(tend + fr, 0, 1)
+    tend = np.maximum(tend, bgmix)
+    tendH = tend                       # a altura ignora as linhas brancas pintadas por cima
+    tend = np.maximum(tend, wline)
+
+    # Perfil ao longo do músculo: mais volume no meio da barriga
+    span = np.maximum(bel[:, 1] - bel[:, 0], 1e-3)
+    pu = np.clip((u1 - bel[:, 0]) / span, 0, 1)
+    prof = np.sin(np.pi * pu) ** 0.6
+
+    # ── Cor (tons tirados da referência: salmão rosado, tendões em branco quente)
     rng = np.random.default_rng(7)
-    hue = rng.uniform(-0.05, 0.05, 256)
-    musc = np.array([196, 84, 70], float)[None] * (1 + hue[ids][:, None])
-    musc = musc * (0.7 + 0.3 * belly[:, None]) * (0.84 + 0.28 * fib[:, None])
-    musc = musc + np.array([46, 34, 30]) * (belly * fib)[:, None] * 0.4
-    tcol = np.array([236, 226, 208], float)[None] * (0.93 + 0.08 * fib[:, None]) * (0.96 + 0.05 * grain[:, None])
+    hue = rng.uniform(-0.045, 0.045, 256)
+    base = np.array([208, 104, 90], float)[None] * (1 + hue[ids][:, None])
+    musc = base * (0.8 + 0.2 * dome[:, None]) * (0.92 + 0.09 * stri[:, None])
+    musc = musc + np.array([22, 26, 24])[None] * (stri ** 3 * dome)[:, None]          # estrias claras
+    musc = musc * (1 - 0.14 * groove)[:, None]
+    tcol = np.array([232, 221, 210], float)[None] * (0.95 + 0.05 * stri[:, None]) * (0.97 + 0.04 * grain[:, None])
+    tcol = tcol * (1 - 0.06 * wline[:, None]) + np.array([-8, -6, 2])[None] * (1 - dome)[:, None] * (1 - bgmix)[:, None]
     col = musc * (1 - tend[:, None]) + tcol * tend[:, None]
-    col *= (1 - 0.55 * groove)[:, None]
     col = np.clip(col, 0, 255)
 
-    h = np.clip(0.4 + 0.42 * belly * (1 - tend) + 0.1 * tend - 0.45 * groove + 0.1 * (fib - 0.5), 0, 1)
+    # ── Altura (m) → normais: volume, vincos e estrias
+    A = 0.0065 * k
+    H = A * dome * (0.35 + 0.65 * prof) * (1 - tendH) + A * 0.14 * dome * tendH
+    H += 0.00018 * k * (stri - 0.5) * (1 - tend) + 0.00007 * k * (stri - 0.5) * tend
+    H -= 0.0005 * k * groove + 0.00015 * k * wline
 
     # ── Imagens (com sangria nas bordas das ilhas da textura)
     img = np.zeros((N, N, 3), np.float32)
     img[filled] = col
-    hmap = np.zeros((N, N), np.float32)
-    hmap[filled] = h
+    Hm = np.zeros((N, N), np.float32)
+    Hm[filled] = H
     idm = np.zeros((N, N), np.uint8)
     idm[filled] = ids
+
+    # Normal perturbada pelo gradiente da altura na superfície (espaço do objeto)
+    def nb(a, dy, dx):
+        return np.roll(np.roll(a, -dy, 0), -dx, 1)
+    fx1, fx0 = nb(filled, 0, 1), nb(filled, 0, -1)
+    fy1, fy0 = nb(filled, 1, 0), nb(filled, -1, 0)
+    okx, oky = filled & fx1 & fx0, filled & fy1 & fy0
+    T = np.where(okx[..., None], nb(pos, 0, 1) - nb(pos, 0, -1), 0)
+    Bv = np.where(oky[..., None], nb(pos, 1, 0) - nb(pos, -1, 0), 0)
+    Hu = np.where(okx, nb(Hm, 0, 1) - nb(Hm, 0, -1), 0)
+    Hv = np.where(oky, nb(Hm, 1, 0) - nb(Hm, -1, 0), 0)
+    Nn = nrm
+    D = (Nn * np.cross(T, Bv)).sum(2)
+    ok = okx & oky & (np.abs(D) > 1e-14)
+    g = (Hu[..., None] * np.cross(Bv, Nn) + Hv[..., None] * np.cross(Nn, T)) / np.where(ok, D, 1)[..., None]
+    g = np.where(ok[..., None], g, 0)
+    nmap = Nn - g
+    nmap /= np.linalg.norm(nmap, axis=2, keepdims=True) + 1e-9
+    nimg = np.zeros((N, N, 3), np.float32)
+    nimg[filled] = (nmap[filled] * 0.5 + 0.5) * 255
+
     fill = filled.copy()
     for _ in range(12):
         acc = np.zeros_like(img)
-        hacc = np.zeros_like(hmap)
+        nacc = np.zeros_like(nimg)
         cnt = np.zeros((N, N), np.float32)
         idn = idm.copy()
         for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
             sf = np.roll(np.roll(fill, dy, 0), dx, 1)
             acc += np.roll(np.roll(img, dy, 0), dx, 1) * sf[..., None]
-            hacc += np.roll(np.roll(hmap, dy, 0), dx, 1) * sf
+            nacc += np.roll(np.roll(nimg, dy, 0), dx, 1) * sf[..., None]
             cnt += sf
             sid = np.roll(np.roll(idm, dy, 0), dx, 1)
             idn = np.where(~fill & sf & (idn == 0), sid, idn)
         grow = ~fill & (cnt > 0)
         img[grow] = acc[grow] / cnt[grow][:, None]
-        hmap[grow] = hacc[grow] / cnt[grow]
+        nimg[grow] = nacc[grow] / cnt[grow][:, None]
         idm = np.where(grow, idn, idm)
         fill |= grow
     img[~fill] = (230, 220, 204)
-    hmap[~fill] = 0.4
+    nimg[~fill] = (128, 128, 255)
 
     base = os.path.join(MODELS, f'muscles-{sex}')
-    Image.fromarray(img.astype(np.uint8)).save(base + '.jpg', quality=86, optimize=True)
-    Image.fromarray((hmap * 255).astype(np.uint8)).resize((1024, 1024), Image.LANCZOS).save(base + '-bump.jpg', quality=88)
+    Image.fromarray(img.astype(np.uint8)).save(base + '.jpg', quality=88, optimize=True)
+    Image.fromarray(np.clip(nimg, 0, 255).astype(np.uint8)).save(base + '-normal.jpg', quality=92, optimize=True)
     Image.fromarray(idm).save(base + '-id.png', optimize=True)
+    if os.path.exists(base + '-bump.jpg'):
+        os.remove(base + '-bump.jpg')
 
     # Centro, normal média e tamanho de cada id (a câmera enquadra o músculo)
     info = {}
@@ -535,7 +593,7 @@ def build(sex):
         rad = float(np.percentile(np.linalg.norm(Q[m] - c, axis=1), 90))
         info[int(i)] = [round(float(x), 4) for x in (*c, *nr, rad)]
     json.dump(info, open(base + '.json', 'w'), separators=(',', ':'))
-    for suf in ('.jpg', '-bump.jpg', '-id.png', '.json'):
+    for suf in ('.jpg', '-normal.jpg', '-id.png', '.json'):
         print(f'  {os.path.relpath(base + suf, ROOT)}  {os.path.getsize(base + suf) / 1024:.0f} KB')
     missing = [KEYS[(i - 1) // 2] for i in range(1, 2 * len(KEYS) + 1) if str(i) not in {str(x) for x in info}]
     if missing:

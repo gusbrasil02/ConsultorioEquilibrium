@@ -241,7 +241,7 @@ Aberta pelo botão **◎** no topo do painel (consulta livre), por **◎ Anatomi
 - as condições acendem em vermelho os músculos envolvidos (ex.: estiramento dos isquiotibiais, contratura do trapézio, síndrome do trato iliotibial);
 - **Exibir na TV** leva a visão de músculos, a seleção e o isolamento; sem condição, a TV mostra a ficha do músculo em linguagem simples.
 
-A textura dos músculos é gerada por `tools/muscles/build_muscles.py` a partir do próprio corpo 3D (cor, relevo e um mapa com o id de cada músculo por lado, em `public/models/muscles-*`). O catálogo com os textos fica em `public/js/muscle-data.js`. Para mudar o desenho de um músculo, edite os traços dele no gerador e rode `python tools/muscles/build_muscles.py` (requer numpy e pillow).
+A textura dos músculos é gerada por `tools/muscles/build_muscles.py` a partir do próprio corpo 3D (cor, mapa de normais com o volume e as estrias de cada músculo e um mapa com o id de cada músculo por lado, em `public/models/muscles-*`). O catálogo com os textos fica em `public/js/muscle-data.js`. Para mudar o desenho de um músculo, edite os traços dele no gerador e rode `python tools/muscles/build_muscles.py` (requer numpy e pillow).
 
 Regiões com visão interna: joelho, ombro, cotovelo, punho e mão, quadril, tornozelo e pé, coluna cervical, torácica (costas superiores) e lombar, além de braço, antebraço, coxa e panturrilha (músculos e ossos). Cabeça, tórax e abdome acendem a região e têm condições, sem visão interna.
 
