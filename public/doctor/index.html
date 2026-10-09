@@ -1077,6 +1077,98 @@ body.light .rec-summary { color: rgba(0,0,0,0.5); }
 .timeline-body.open { display: block; }
 .no-history-msg { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.9rem; }
 
+/* ── Ficha de avaliação ── */
+#eval-overlay {
+  position: fixed; inset: 0; z-index: 1600;
+  background: #0e0e16; color-scheme: dark;
+  display: none; flex-direction: column;
+}
+#eval-overlay.visible { display: flex; }
+.ev-head {
+  display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+  padding: 0.9rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.ev-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; font-weight: 300; color: rgba(255,255,255,0.92); }
+.ev-sub { font-size: 0.8rem; color: rgba(255,255,255,0.45); }
+.ev-head .form-control { width: auto; padding: 0.5rem 0.8rem; }
+.ev-head-actions { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.ev-head-actions button { padding: 0.55rem 1.1rem; margin: 0; }
+.ev-nav {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  padding: 0.6rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ev-nav button {
+  white-space: nowrap; padding: 0.3rem 0.8rem; border-radius: 60px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.55); font-family: 'DM Sans', sans-serif; font-size: 0.75rem; cursor: pointer;
+}
+.ev-nav button:hover { color: #fff; }
+.ev-body { flex: 1; overflow-y: auto; padding: 1.5rem; }
+.ev-inner { max-width: 1000px; margin: 0 auto; }
+.ev-sec {
+  background: #16161e; border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px; margin-bottom: 1rem; scroll-margin-top: 1rem;
+}
+.ev-sec > summary {
+  cursor: pointer; list-style: none; padding: 1rem 1.2rem;
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.6); display: flex; justify-content: space-between; align-items: center;
+}
+.ev-sec > summary::-webkit-details-marker { display: none; }
+.ev-sec > summary::after { content: '▾'; opacity: 0.5; }
+.ev-sec:not([open]) > summary::after { content: '▸'; }
+.ev-sec > summary small { text-transform: none; letter-spacing: 0; opacity: 0.6; margin-left: 0.5rem; margin-right: auto; }
+.ev-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem 1rem; padding: 0 1.2rem 1.2rem; }
+@media (max-width: 700px) {
+  .ev-grid { grid-template-columns: 1fr; }
+  .ev-f { grid-column: auto !important; }
+  .ev-head, .ev-nav, .ev-body { padding-left: 1rem; padding-right: 1rem; }
+  .ev-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+}
+.ev-f .form-label { margin-bottom: 0.35rem; }
+.ev-hint { font-size: 0.75rem; color: rgba(255,255,255,0.38); font-style: italic; margin: -0.1rem 0 0.4rem; }
+.ev-ta { min-height: 72px; resize: vertical; padding-right: 2.8rem; }
+.ev-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ev-chip {
+  padding: 0.35rem 0.8rem; border-radius: 60px;
+  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.65); font-family: 'DM Sans', sans-serif; font-size: 0.8rem;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.ev-chip:hover { border-color: rgba(255,255,255,0.3); }
+.ev-chip.on { background: rgba(106,63,168,0.4); border-color: rgba(160,120,230,0.8); color: #fff; }
+.ev-scale .ev-chip { min-width: 2.3rem; text-align: center; padding: 0.35rem 0.5rem; }
+.ev-yn { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.ev-yn .form-control { flex: 1; min-width: 200px; }
+.ev-rom { overflow-x: auto; }
+.ev-rom table { width: 100%; max-width: 640px; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 1.2rem; }
+.ev-rom td:first-child, .ev-rom th:first-child { width: 22%; }
+.ev-rom th {
+  text-align: left; font-weight: 400; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4); padding: 0.4rem;
+}
+.ev-rom td { padding: 0.25rem 0.4rem; border-top: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.65); }
+.ev-rom td.ev-j { color: rgba(255,255,255,0.88); font-weight: 500; vertical-align: top; padding-top: 0.6rem; }
+.ev-rom .form-control { padding: 0.35rem 0.55rem; max-width: 120px; }
+.ev-empty { padding: 0.9rem 1rem; }
+.btn-eval {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(200,170,255,0.4);
+  color: rgba(210,190,255,0.95);
+}
+.alert-pill.ev-pill { cursor: pointer; }
+
+body.light #eval-overlay { background: #eef0f4; color-scheme: light; }
+body.light .ev-head, body.light .ev-nav { border-color: rgba(0,0,0,0.08); background: #ffffff; }
+body.light .ev-title { color: rgba(0,0,0,0.88); }
+body.light .ev-sub, body.light .ev-hint, body.light .ev-rom th { color: rgba(0,0,0,0.5); }
+body.light .ev-nav button, body.light .ev-chip { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.14); color: rgba(0,0,0,0.65); }
+body.light .ev-chip.on { background: #6a3fa8; border-color: #6a3fa8; color: #fff; }
+body.light .ev-sec { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+body.light .ev-sec > summary { color: rgba(0,0,0,0.6); }
+body.light .ev-rom td { border-color: rgba(0,0,0,0.07); color: rgba(0,0,0,0.65); }
+body.light .ev-rom td.ev-j { color: rgba(0,0,0,0.85); }
+body.light .btn-eval { background: rgba(106,63,168,0.08); border-color: rgba(106,63,168,0.4); color: #5a2f98; }
+
 /* ─────────────── MODO CLARO (item 10) ─────────────── */
 body.light { background: #eef0f4; color: #1c1e26; }
 body.light .main-header { background: #ffffff; border-bottom-color: rgba(0,0,0,0.08); }
@@ -1337,7 +1429,8 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       </div>
       <div class="hero-time" id="hero-time"></div>
     </div>
-    <div style="margin-left:auto">
+    <div style="margin-left:auto;display:flex;gap:0.6rem;flex-wrap:wrap;justify-content:flex-end">
+      <button class="btn-session-action btn-eval" id="btn-eval-dash" onclick="openDashEval()" style="display:none">📋 Ficha de avaliação</button>
       <button class="btn-consult" onclick="enterConsultMode()">◎ Anatomia 3D →</button>
     </div>
   </div>
@@ -1640,6 +1733,12 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       <button class="detail-back" style="margin:0 0 0 0.5rem" onclick="editActivePatient()">✎ Editar cadastro</button>
     </div>
   </div>
+  <div class="timeline-title" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem">
+    <span>Fichas de avaliação</span>
+    <button class="detail-back" style="margin:0" onclick="newPatientEval()">+ Nova avaliação</button>
+  </div>
+  <div class="timeline-list" id="eval-list" style="margin-bottom:2rem"></div>
+
   <div class="charts-grid">
     <div class="chart-card">
       <h4>Dor ao longo do tempo</h4>
@@ -1732,6 +1831,30 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       <button class="btn-save" onclick="savePackage()">Salvar</button>
     </div>
   </div>
+</div>
+
+<!-- Ficha de avaliação (tela cheia) — campos em /js/eval-form.js -->
+<div id="eval-overlay">
+  <div class="ev-head">
+    <div>
+      <div class="ev-title" id="ev-title">Ficha de avaliação</div>
+      <div class="ev-sub" id="ev-sub"></div>
+    </div>
+    <select class="form-control" id="ev-kind" onchange="evalDirty = true">
+      <option value="avaliacao">Avaliação inicial</option>
+      <option value="reavaliacao">Reavaliação</option>
+    </select>
+    <input type="date" class="form-control" id="ev-date" onchange="evalDirty = true">
+    <div class="ev-head-actions">
+      <button class="detail-back" id="ev-new-btn" onclick="newEvalFromOverlay()" style="display:none">+ Reavaliação</button>
+      <button class="detail-back" onclick="printEval()">🖨 Imprimir / PDF</button>
+      <button class="btn-delete" id="ev-del-btn" onclick="deleteEval()" style="display:none;padding:0.55rem 1.1rem">Excluir</button>
+      <button class="btn-cancel" onclick="closeEval()" style="padding:0.55rem 1.1rem">Fechar</button>
+      <button class="btn-save" id="ev-save-btn" onclick="saveEval()" style="padding:0.55rem 1.4rem">Salvar</button>
+    </div>
+  </div>
+  <div class="ev-nav" id="ev-nav"></div>
+  <div class="ev-body"><div class="ev-inner" id="ev-form"></div></div>
 </div>
 
 <!-- Modal de finalização de sessão -->
@@ -1921,6 +2044,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 <!-- FAB (muda conforme a aba ativa) -->
 <button class="fab" id="fab-btn" onclick="fabAction()" title="Novo" style="display:none">+</button>
 
+<script src="/js/eval-form.js"></script>
 <script>
 // ── Estado global ─────────────────────────────────────────────────────────────
 let pendingSession        = null
@@ -2766,6 +2890,7 @@ async function openPatientHistoryInDashboard(appt) {
   } catch (_) {
     document.getElementById('hero-time').textContent = 'Erro ao carregar histórico'
   }
+  refreshDashEval(appt.patient_id)
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -2820,6 +2945,7 @@ async function loadDashboard(session) {
   }
 
   renderAlerts(ans)
+  refreshDashEval(session.patient_id)
   renderDashPayBadge()
   renderSessionControls()
 }
@@ -3753,6 +3879,7 @@ async function openPatientDetail(id) {
     document.getElementById('detail-session-count').textContent = `${patient.session_count} sessão(ões) registrada(s)`
 
     loadPatientFinance(id)
+    loadPatientEvals(id)
 
     if (sessions.length === 0) {
       document.getElementById('timeline-list').innerHTML = '<div class="no-history-msg">Nenhuma sessão registrada ainda.</div>'
@@ -3990,6 +4117,246 @@ function buildTimeline(sessions, anatomyEvents) {
     item.appendChild(body)
     list.appendChild(item)
   })
+}
+
+// ── Ficha de avaliação ────────────────────────────────────────────────────────
+// Campos, montagem e impressão ficam em /js/eval-form.js; aqui só o fluxo.
+let evalCtx   = null    // { patientId, patientName, evalId, sessionId, list }
+let evalDirty = false
+let dashEvals = null    // { patientId, list } do paciente aberto no Atendimento
+const EVAL_KIND_LABEL = { avaliacao: 'Avaliação inicial', reavaliacao: 'Reavaliação' }
+const samePatient = (a, b) => a != null && b != null && String(a) === String(b)
+
+async function fetchEvals(patientId) {
+  const r = await fetch(`/api/patients/${patientId}/evaluations`)
+  if (r.status === 401) { location.href = '/login'; return null }
+  const body = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(body.error || 'Erro ao carregar as fichas de avaliação.')
+  return body
+}
+
+// Mais recente primeiro (mesma ordem da API)
+function sortEvals(list) {
+  return list.sort((a, b) => String(b.eval_date).localeCompare(String(a.eval_date)) ||
+                             String(b.created_at).localeCompare(String(a.created_at)))
+}
+
+async function loadPatientEvals(patientId) {
+  const box = document.getElementById('eval-list')
+  box.innerHTML = '<div class="no-history-msg">Carregando...</div>'
+  try {
+    const list = await fetchEvals(patientId)
+    if (!list || !samePatient(activePatientId, patientId)) return
+    if (!list.length) {
+      box.innerHTML = '<div class="no-history-msg">Nenhuma ficha de avaliação ainda.</div>'
+      return
+    }
+    box.innerHTML = ''
+    list.forEach(ev => {
+      const item = document.createElement('div')
+      item.className = 'timeline-item'
+      item.innerHTML = `
+        <div class="timeline-item-header">
+          <span class="timeline-date">${fmtDateOnly(ev.eval_date)} · ${esc(EVAL_KIND_LABEL[ev.kind] || 'Avaliação')}</span>
+          <span class="timeline-summary" style="flex:1;margin:0 1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ev.data?.queixa || '')}</span>
+          <span class="timeline-expand">Abrir →</span>
+        </div>`
+      item.onclick = () => openEval({ patientId, evaluation: ev, list })
+      box.appendChild(item)
+    })
+  } catch (err) {
+    box.innerHTML = `<div class="no-history-msg">${esc(err.message)}</div>`
+  }
+}
+
+function newPatientEval() {
+  if (activePatientId) openEval({ patientId: activePatientId })
+}
+
+// Abre a ficha. Sem `evaluation` cria uma nova (ou, com latest, abre a última).
+// Nova ficha: puxa nome/nascimento/telefone/sexo do cadastro e, se já houver
+// avaliação anterior, vira reavaliação trazendo a anamnese anterior.
+async function openEval({ patientId, evaluation = null, list = null, sessionId = null, latest = false }) {
+  if (!window.EVAL) { alert('O formulário da ficha não carregou. Recarregue a página.'); return }
+  if (evalCtx && evalDirty && !confirm('Há alterações não salvas na ficha aberta. Descartar?')) return
+
+  let patient
+  try {
+    const [p, l] = await Promise.all([
+      fetch(`/api/patients/${patientId}`).then(r => r.ok ? r.json() : {}),
+      list || fetchEvals(patientId)
+    ])
+    if (!l) return
+    patient = p
+    list = sortEvals([...l])
+  } catch (err) { alert(err.message); return }
+
+  if (latest && !evaluation) evaluation = list[0] || null
+  const idx  = evaluation ? list.findIndex(e => e.id === evaluation.id) : -1
+  const prev = evaluation ? list[idx + 1] : list[0]
+
+  let data
+  if (evaluation) {
+    data = evaluation.data || {}
+  } else {
+    data = prev ? EVAL.carryOver(prev.data || {}) : {}
+    const birth = patient.birth_date ? String(patient.birth_date).slice(0, 10) : ''
+    const fill = { nome: patient.name, nascimento: birth, telefone: patient.phone,
+                   sexo: { F: 'Feminino', M: 'Masculino' }[patient.sex], idade: EVAL.ageFrom(birth) }
+    Object.entries(fill).forEach(([k, v]) => { if (v && !data[k]) data[k] = v })
+  }
+
+  evalCtx = {
+    patientId, list,
+    patientName: patient.name || data.nome || '',
+    evalId: evaluation?.id || null,
+    sessionId: evaluation ? evaluation.session_id : sessionId
+  }
+  evalDirty = false
+
+  document.getElementById('ev-title').textContent = `Ficha de avaliação — ${evalCtx.patientName}`
+  document.getElementById('ev-kind').value = evaluation?.kind || (prev ? 'reavaliacao' : 'avaliacao')
+  document.getElementById('ev-date').value = evaluation ? String(evaluation.eval_date).slice(0, 10) : formatDate(new Date())
+  renderEvalHeader()
+
+  EVAL.render(document.getElementById('ev-form'), document.getElementById('ev-nav'), {
+    data, prev: prev?.data, onChange: () => { evalDirty = true }
+  })
+  document.getElementById('eval-overlay').classList.add('visible')
+  document.querySelector('#eval-overlay .ev-body').scrollTop = 0
+}
+
+function renderEvalHeader() {
+  const saved = !!evalCtx.evalId
+  const n = evalCtx.list.length
+  document.getElementById('ev-sub').textContent = saved
+    ? `${n} ficha(s) deste paciente`
+    : (n ? 'Nova ficha — a anamnese veio da avaliação anterior; os valores antigos aparecem como dica nos campos de medida' : 'Nova ficha — ainda não salva')
+  document.getElementById('ev-new-btn').style.display = saved ? '' : 'none'
+  document.getElementById('ev-del-btn').style.display = saved ? '' : 'none'
+}
+
+function newEvalFromOverlay() {
+  if (!evalCtx) return
+  const sessionId = currentSession && !previewPatient && samePatient(currentSession.patient_id, evalCtx.patientId)
+    ? currentSession.id : null
+  openEval({ patientId: evalCtx.patientId, list: evalCtx.list, sessionId })
+}
+
+async function saveEval() {
+  if (!evalCtx) return
+  const btn  = document.getElementById('ev-save-btn')
+  const body = {
+    data: EVAL.collect(document.getElementById('ev-form')),
+    kind: document.getElementById('ev-kind').value,
+    eval_date: document.getElementById('ev-date').value || null
+  }
+  if (!evalCtx.evalId) body.session_id = evalCtx.sessionId || null
+
+  btn.disabled = true
+  btn.textContent = 'Salvando...'
+  try {
+    const r = await fetch(evalCtx.evalId ? `/api/evaluations/${evalCtx.evalId}` : `/api/patients/${evalCtx.patientId}/evaluations`, {
+      method: evalCtx.evalId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    if (r.status === 401) { location.href = '/login'; return }
+    const saved = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(saved.error || 'Erro ao salvar a ficha.')
+
+    evalCtx.evalId = saved.id
+    evalCtx.list = sortEvals([...evalCtx.list.filter(e => e.id !== saved.id), saved])
+    evalDirty = false
+    renderEvalHeader()
+    document.getElementById('ev-sub').textContent = `Salva ✓ · ${evalCtx.list.length} ficha(s) deste paciente`
+    afterEvalChange()
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    btn.disabled = false
+    btn.textContent = 'Salvar'
+  }
+}
+
+async function deleteEval() {
+  if (!evalCtx?.evalId) return
+  if (!confirm('Excluir esta ficha de avaliação? Não dá para desfazer.')) return
+  try {
+    const r = await fetch(`/api/evaluations/${evalCtx.evalId}`, { method: 'DELETE' })
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Erro ao excluir a ficha.')
+    evalDirty = false
+    afterEvalChange()
+    closeEval()
+  } catch (err) { alert(err.message) }
+}
+
+function closeEval() {
+  if (evalDirty && !confirm('Sair sem salvar as alterações da ficha?')) return
+  stopDictation()
+  document.getElementById('eval-overlay').classList.remove('visible')
+  evalCtx = null
+  evalDirty = false
+}
+
+// Atualiza a lista do detalhe do paciente e o atalho do Atendimento
+function afterEvalChange() {
+  const pid = evalCtx?.patientId
+  if (samePatient(activePatientId, pid) && document.getElementById('patient-detail-view').classList.contains('visible')) {
+    loadPatientEvals(pid)
+  }
+  if (samePatient(dashPatientId(), pid)) refreshDashEval(pid)
+}
+
+function printEval() {
+  if (!evalCtx) return
+  const html = EVAL.printHTML({
+    data: EVAL.collect(document.getElementById('ev-form')),
+    kind: document.getElementById('ev-kind').value,
+    eval_date: document.getElementById('ev-date').value,
+    patientName: evalCtx.patientName,
+    clinic: document.querySelector('.header-clinic')?.textContent || ''
+  })
+  const w = window.open('', '_blank')
+  if (!w) { alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.'); return }
+  w.document.write(html)
+  w.document.close()
+  setTimeout(() => { w.focus(); w.print() }, 300)
+}
+
+// Paciente mostrado no Atendimento (sessão atual ou prévia vinda da agenda)
+function dashPatientId() {
+  return previewPatient ? previewPatient.id : (currentSession?.patient_id || null)
+}
+
+async function refreshDashEval(patientId) {
+  const btn = document.getElementById('btn-eval-dash')
+  document.querySelector('#alerts-row .ev-pill')?.remove()
+  btn.style.display = patientId ? '' : 'none'
+  btn.textContent = '📋 Ficha de avaliação'
+  dashEvals = null
+  if (!patientId) return
+  try {
+    const list = await fetchEvals(patientId)
+    if (!list || !samePatient(dashPatientId(), patientId)) return
+    dashEvals = { patientId, list }
+    if (list.length) return
+    btn.textContent = '📋 Preencher avaliação'
+    const pill = document.createElement('div')
+    pill.className = 'alert-pill alert-purple ev-pill'
+    pill.textContent = '📋 Sem ficha de avaliação — preencher'
+    pill.onclick = openDashEval
+    document.getElementById('alerts-row').appendChild(pill)
+  } catch (_) { /* tabela ainda não criada: o botão abre e mostra o aviso */ }
+}
+
+function openDashEval() {
+  const pid = dashPatientId()
+  if (!pid) { alert('Este atendimento não está ligado a um cadastro de paciente.'); return }
+  const list = samePatient(dashEvals?.patientId, pid) ? dashEvals.list : null
+  const sessionId = !previewPatient && currentSession ? currentSession.id : null
+  openEval({ patientId: pid, list, sessionId, latest: true })
 }
 
 // ── Utilitários ───────────────────────────────────────────────────────────────

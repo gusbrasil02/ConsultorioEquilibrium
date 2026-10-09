@@ -42,6 +42,12 @@ import {
   // settings / calibração
   getSetting,
   setSetting,
+  // ficha de avaliação
+  missingTable,
+  getPatientEvaluations,
+  createEvaluation,
+  updateEvaluation,
+  deleteEvaluation,
   // financeiro
   createPayment,
   getPatientPayments,
@@ -791,6 +797,59 @@ app.put('/api/patients/:id', requireAuth, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Erro interno ao atualizar paciente' })
   }
+})
+
+// ─── Ficha de avaliação (protegido) ───────────────────────────────────────────
+
+const EVAL_MISSING = 'A tabela de avaliações ainda não existe — rode o supabase-v6-migration.sql no Supabase.'
+const EVAL_KINDS   = ['avaliacao', 'reavaliacao']
+
+// Só aceita objeto simples em "data" (os campos da ficha)
+const evalData = d => (d && typeof d === 'object' && !Array.isArray(d)) ? d : null
+
+function evalError(res, error, msg) {
+  if (missingTable(error)) return res.status(503).json({ error: EVAL_MISSING })
+  console.error(msg, error.message)
+  res.status(500).json({ error: msg })
+}
+
+app.get('/api/patients/:id/evaluations', requireAuth, async (req, res) => {
+  try {
+    res.json(await getPatientEvaluations(req.params.id))
+  } catch (error) { evalError(res, error, 'Erro ao buscar avaliações') }
+})
+
+app.post('/api/patients/:id/evaluations', requireAuth, async (req, res) => {
+  try {
+    const data = evalData(req.body.data)
+    if (!data) return res.status(400).json({ error: 'Ficha inválida' })
+    const kind = EVAL_KINDS.includes(req.body.kind) ? req.body.kind : 'avaliacao'
+    res.status(201).json(await createEvaluation({
+      patient_id: req.params.id,
+      session_id: req.body.session_id || null,
+      kind, eval_date: req.body.eval_date || null, data
+    }))
+  } catch (error) { evalError(res, error, 'Erro ao salvar avaliação') }
+})
+
+app.put('/api/evaluations/:id', requireAuth, async (req, res) => {
+  try {
+    const updates = {}
+    if (req.body.data !== undefined) {
+      updates.data = evalData(req.body.data)
+      if (!updates.data) return res.status(400).json({ error: 'Ficha inválida' })
+    }
+    if (EVAL_KINDS.includes(req.body.kind)) updates.kind = req.body.kind
+    if (req.body.eval_date) updates.eval_date = req.body.eval_date
+    res.json(await updateEvaluation(req.params.id, updates))
+  } catch (error) { evalError(res, error, 'Erro ao salvar avaliação') }
+})
+
+app.delete('/api/evaluations/:id', requireAuth, async (req, res) => {
+  try {
+    await deleteEvaluation(req.params.id)
+    res.json({ ok: true })
+  } catch (error) { evalError(res, error, 'Erro ao excluir avaliação') }
 })
 
 // ─── Agendamentos (protegido) ─────────────────────────────────────────────────

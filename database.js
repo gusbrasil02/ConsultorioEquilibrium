@@ -701,6 +701,54 @@ async function setSetting(key, value) {
   if (error) throw error
 }
 
+// ─── Ficha de avaliação (migração v6) ─────────────────────────────────────────
+
+// Tabela ainda não criada → a rota avisa para rodar o supabase-v6-migration.sql
+const missingTable = e => e && (e.code === '42P01' || e.code === 'PGRST205' || /could not find the table|does not exist/i.test(e.message || ''))
+
+async function getPatientEvaluations(patient_id) {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('*')
+    .eq('patient_id', patient_id)
+    .order('eval_date', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+async function createEvaluation({ patient_id, session_id, kind, eval_date, data }) {
+  const { data: row, error } = await supabase
+    .from('evaluations')
+    .insert({
+      patient_id,
+      session_id: session_id || null,
+      kind: kind || 'avaliacao',
+      eval_date: eval_date || todayBR(),
+      data: data || {}
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return row
+}
+
+async function updateEvaluation(id, updates) {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+async function deleteEvaluation(id) {
+  const { error } = await supabase.from('evaluations').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ─── Financeiro (item 6) ──────────────────────────────────────────────────────
 
 async function createPayment({ patient_id, appointment_id, session_id, package_id, amount, method, status, paid_at, notes }) {
@@ -1228,6 +1276,12 @@ export {
   // Configurações
   getSetting,
   setSetting,
+  // Ficha de avaliação
+  missingTable,
+  getPatientEvaluations,
+  createEvaluation,
+  updateEvaluation,
+  deleteEvaluation,
   // Financeiro
   createPayment,
   getPatientPayments,

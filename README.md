@@ -23,6 +23,7 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
    5. `supabase-v3-migration.sql`     — livro-caixa único e agenda recorrente
    6. `supabase-v4-migration.sql`     — Pix via Mercado Pago (id do pagamento, QR, vencimento)
    7. `supabase-v5-migration.sql`     — sexo do paciente (escolhe o corpo 3D feminino/masculino)
+   8. `supabase-v6-migration.sql`     — ficha de avaliação (anamnese, exame físico, goniometria, força, bloco MTC)
 3. Vá em **Project Settings → API**
 4. Copie a **Project URL** → `SUPABASE_URL`
 5. Copie a chave **service_role** → `SUPABASE_SERVICE_KEY`
