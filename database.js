@@ -393,7 +393,8 @@ async function getTotemState() {
         patient_name: next.patient_name,
         appointment_time: apptTime,
         appointment_id: next.id,
-        patient_id: next.patient_id || null
+        patient_id: next.patient_id || null,
+        patient_sex: await getPatientSex(next.patient_id)
       }
     }
   }
@@ -416,6 +417,14 @@ async function getPatients() {
     console.error('Erro ao listar pacientes:', error.message)
     throw error
   }
+}
+
+// Só o sexo do cadastro ('F' | 'M' | null) — escolhe o corpo 3D das telas do
+// paciente. Sem a coluna (migração v5) ou sem cadastro, devolve null.
+async function getPatientSex(id) {
+  if (!id) return null
+  const { data, error } = await supabase.from('patients').select('sex').eq('id', id).maybeSingle()
+  return error ? null : (data?.sex || null)
 }
 
 // Busca paciente por ID com contagem de sessões
@@ -1259,6 +1268,7 @@ export {
   // Pacientes
   getPatients,
   getPatient,
+  getPatientSex,
   createPatient,
   updatePatient,
   searchPatients,

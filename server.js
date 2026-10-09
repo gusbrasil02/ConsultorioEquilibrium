@@ -20,6 +20,7 @@ import {
   getLatestAnatomyEvent,
   getPatients,
   getPatient,
+  getPatientSex,
   createPatient,
   updatePatient,
   searchPatients,
@@ -339,7 +340,8 @@ app.get('/api/sessions/:id', async (req, res) => {
       id: session.id,
       patient_name: firstName(session.patient_name),
       status: session.status,
-      completed: !!session.completed_at
+      completed: !!session.completed_at,
+      sex: await getPatientSex(session.patient_id)   // corpo 3D do mapa de dor
     })
   } catch (error) {
     console.error('Erro ao buscar sessão:', error.message)

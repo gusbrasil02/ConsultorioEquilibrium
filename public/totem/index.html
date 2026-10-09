@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consultório — Recepção</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+  }
+}
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -658,6 +666,7 @@ let currentSessionId  = null
 let currentPatientName = null
 let currentApptId     = null
 let currentPatientId  = null
+let currentPatientSex = null   // 'F' | 'M' do cadastro — corpo inicial do mapa de dor
 let pollingInterval   = null
 let inlineStep        = 0
 const inlineAnswers   = {}
@@ -877,6 +886,7 @@ function applyTotemState(data) {
       currentPatientName = null
       currentApptId = null
       currentPatientId = null
+      currentPatientSex = null
       currentSessionId = null   // não carrega a sessão do paciente anterior
       break
 
@@ -887,6 +897,7 @@ function applyTotemState(data) {
       currentPatientName = data.patient_name
       currentApptId      = data.appointment_id || null
       currentPatientId   = data.patient_id || null
+      currentPatientSex  = data.patient_sex || null
       document.getElementById('btn-qr').disabled = false
       document.getElementById('patient-name-display').textContent = data.patient_name
       document.getElementById('appt-time-display').textContent =
@@ -957,6 +968,9 @@ function startInlineForm() {
   QUESTIONS = BASE_QUESTIONS.slice()
   payInfo = null
   if (payPollTimer) { clearInterval(payPollTimer); payPollTimer = null }
+
+  // Corpo 3D do mapa de dor: volta à frente, sem marcações, no corpo do cadastro
+  whenPainPicker(PP => { PP.preload(currentPatientSex); PP.reset(currentPatientSex) })
 
   renderInlineStep()
   show('inline')
@@ -1072,7 +1086,41 @@ function renderInlineStep() {
 }
 
 // ── Mapa de dor no totem ─────────────────────────────────────────────────────
+// Módulo do corpo 3D (carregado à parte): chama fn quando estiver pronto
+function whenPainPicker(fn) {
+  if (window.PainPicker) fn(window.PainPicker)
+  else window.addEventListener('painpicker-ready', () => fn(window.PainPicker), { once: true })
+}
+
+// Corpo 3D realista; sem WebGL ou se falhar, cai no mapa desenhado
+let bm3dFailed = false
 function renderInlineBodyMap(q, area) {
+  if (bm3dFailed) { renderInlineBodyMapSVG(q, area); return }
+  if (inlineAnswers[q.key]) {
+    inlineAnswers[q.key].split(',').map(s => s.trim()).filter(Boolean).forEach(l => painSel.add(l))
+  }
+  area.innerHTML = '<div class="bm-chosen">Carregando o corpo…</div>'
+  const here = () => QUESTIONS[inlineStep] === q && document.querySelector('.state.active')?.id === 's-inline'
+  whenPainPicker(PP => {
+    if (!here()) return   // já saiu da pergunta
+    area.innerHTML = ''
+    const ui = PP.mount(area, {
+      selected: [...painSel], sex: currentPatientSex, big: true,
+      onChange: labels => { painSel.clear(); labels.forEach(l => painSel.add(l)); syncPainAnswer() },
+      onFail: () => { bm3dFailed = true; if (here()) renderInlineBodyMapSVG(q, area) }
+    })
+    if (!ui) return
+    const skip = document.createElement('button')
+    skip.className = 'bm-skip'
+    skip.textContent = 'Não tenho dor localizada'
+    skip.onclick = () => ui.clear()
+    area.appendChild(skip)
+    painSel.clear(); ui.labels().forEach(l => painSel.add(l))
+    syncPainAnswer()
+  })
+}
+
+function renderInlineBodyMapSVG(q, area) {
   if (inlineAnswers[q.key]) {
     inlineAnswers[q.key].split(',').map(s => s.trim()).filter(Boolean).forEach(l => painSel.add(l))
   }
@@ -1086,7 +1134,7 @@ function renderInlineBodyMap(q, area) {
     <button class="bm-skip" id="bm-skip">Não tenho dor localizada</button>
   `
   area.querySelectorAll('.bm-tog-btn').forEach(b => {
-    b.onclick = () => { bmView = b.dataset.v; renderInlineBodyMap(q, area) }
+    b.onclick = () => { bmView = b.dataset.v; renderInlineBodyMapSVG(q, area) }
   })
   area.querySelector('#bm-skip').onclick = () => { painSel.clear(); drawInlineBM(); syncPainAnswer() }
   drawInlineBM()
@@ -1314,6 +1362,12 @@ async function submitInlineForm() {
 setTheme('theme-idle')
 buildBgLayer('theme-idle')
 startTotemStream()
+</script>
+<!-- Corpo 3D do mapa de dor (mesmo corpo da Anatomia 3D) -->
+<script type="module">
+import * as PainPicker from '/js/pain-picker.js'
+window.PainPicker = PainPicker
+window.dispatchEvent(new Event('painpicker-ready'))
 </script>
 </body>
 </html>

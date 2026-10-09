@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Formulário de Chegada</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+  }
+}
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -466,6 +474,7 @@
   const answers = {}
   let sessionId = null
   let patientName = null
+  let patientSex = null   // 'F' | 'M' do cadastro — corpo inicial do mapa de dor
 
   // Lê session_id da URL
   const params = new URLSearchParams(location.search)
@@ -491,6 +500,7 @@
       if (r.ok) {
         const data = await r.json()
         if (data) patientName = data.patient_name
+        if (data?.sex) patientSex = data.sex
         if (data?.completed || data?.completed_at) {
           document.getElementById('done-patient-name').textContent = patientName || 'Tudo certo!'
           document.querySelector('.done-msg').innerHTML = 'Suas respostas já foram enviadas.<br>Pode aguardar — a profissional já foi notificada!'
@@ -517,6 +527,8 @@
     } catch (_) {}
 
     renderQuestion(0)
+    // Baixa o corpo 3D enquanto o paciente responde as primeiras perguntas
+    whenPainPicker(PP => PP.preload(patientSex))
   }
 
   init()
@@ -740,7 +752,42 @@
     enableNext()
   }
 
+  // Módulo do corpo 3D (carregado à parte): chama fn quando estiver pronto
+  function whenPainPicker(fn) {
+    if (window.PainPicker) fn(window.PainPicker)
+    else window.addEventListener('painpicker-ready', () => fn(window.PainPicker), { once: true })
+  }
+
+  // Corpo 3D realista; sem WebGL ou se falhar, cai no mapa desenhado
+  let bm3dFailed = false
   function renderBodyMap(q, area) {
+    if (bm3dFailed) { renderBodyMapSVG(q, area); return }
+    if (answers[q.key]) {
+      answers[q.key].split(',').map(s => s.trim()).filter(Boolean).forEach(l => painSel.add(l))
+    }
+    area.innerHTML = '<div class="bm-chosen">Carregando o corpo…</div>'
+    whenPainPicker(PP => {
+      if (current !== questions.indexOf(q)) return   // já saiu da pergunta
+      area.innerHTML = ''
+      const fallback = () => { bm3dFailed = true; if (current === questions.indexOf(q)) renderBodyMapSVG(q, area) }
+      const ui = PP.mount(area, {
+        selected: [...painSel], sex: patientSex,
+        onChange: labels => { painSel.clear(); labels.forEach(l => painSel.add(l)); syncPainAnswer() },
+        onFail: fallback
+      })
+      if (!ui) return
+      const skip = document.createElement('button')
+      skip.type = 'button'
+      skip.className = 'bm-skip'
+      skip.textContent = 'Não tenho dor localizada'
+      skip.onclick = () => ui.clear()
+      area.appendChild(skip)
+      painSel.clear(); ui.labels().forEach(l => painSel.add(l))
+      syncPainAnswer()
+    })
+  }
+
+  function renderBodyMapSVG(q, area) {
     if (answers[q.key]) {
       answers[q.key].split(',').map(s => s.trim()).filter(Boolean).forEach(l => painSel.add(l))
     }
@@ -754,7 +801,7 @@
       <button type="button" class="bm-skip" id="bm-skip">Não tenho dor localizada</button>
     `
     area.querySelectorAll('.bm-tog-btn').forEach(b => {
-      b.onclick = () => { bmView = b.dataset.v; renderBodyMap(q, area) }
+      b.onclick = () => { bmView = b.dataset.v; renderBodyMapSVG(q, area) }
     })
     area.querySelector('#bm-skip').onclick = () => { painSel.clear(); drawBM(); syncPainAnswer() }
     drawBM()
@@ -939,6 +986,12 @@
       d.appendChild(p)
     }
   }
+</script>
+<!-- Corpo 3D do mapa de dor (mesmo corpo da Anatomia 3D) -->
+<script type="module">
+import * as PainPicker from '/js/pain-picker.js'
+window.PainPicker = PainPicker
+window.dispatchEvent(new Event('painpicker-ready'))
 </script>
 </body>
 </html>
