@@ -429,22 +429,25 @@ class Fit:
             Q = P[m]
             if len(Q) < 12:
                 continue
-            band = Q[np.abs(Q[:, 0]) < 0.03]
-            if len(band) < 3:
-                band = Q[np.argsort(np.abs(Q[:, 0]))[:6]]
-            zf, zb = band[:, 2].max(), band[:, 2].min()
+            # frente: só a linha média (esterno — não pega as mamas); costas: faixa mais larga.
+            # Percentis em vez de mínimo/máximo: um vértice solto não faz o contorno "saltar"
+            fr = Q[np.abs(Q[:, 0]) < 0.03]
+            bk = Q[np.abs(Q[:, 0]) < 0.06]
+            if len(fr) < 4 or len(bk) < 4:
+                continue
+            zf, zb = np.percentile(fr[:, 2], 92), np.percentile(bk[:, 2], 8)
             zm = (zf + zb) / 2
             side = Q[np.abs(Q[:, 2] - zm) < max(0.25 * (zf - zb), 0.02)]
-            hw = np.percentile(np.abs(side[:, 0]), 99) if len(side) > 4 else np.percentile(np.abs(Q[:, 0]), 99)
+            hw = np.percentile(np.abs(side[:, 0]), 97) if len(side) > 4 else np.percentile(np.abs(Q[:, 0]), 97)
             prof[i] = (zf, zb, hw, zm)
-        # preenche e suaviza
+        # preenche e suaviza bem (σ = 3 cm): o tronco não tem degraus
         for k in range(4):
             col = prof[:, k]
             ok = ~np.isnan(col)
             col[~ok] = np.interp(ys[~ok], ys[ok], col[ok])
-            ker = np.exp(-0.5 * (np.arange(-4, 5) / 2.0) ** 2)
+            ker = np.exp(-0.5 * (np.arange(-9, 10) / 3.0) ** 2)
             ker /= ker.sum()
-            prof[:, k] = np.convolve(np.pad(col, 4, mode='edge'), ker, mode='valid')
+            prof[:, k] = np.convolve(np.pad(col, 9, mode='edge'), ker, mode='valid')
         return ys, prof
 
     def build(self):
@@ -598,16 +601,23 @@ class Fit:
         ys_mh, pm = self.torso_profiles(Vb, torso_mh, y_mh[0] - 0.18 * k_lo, mh_top)
         self.log(f'tronco: altura {y_bp.round(3)} → {y_mh.round(3)}')
 
+        # Ancorado nas costas: z' = costas' + (z − costas)·(profundidade'/profundidade).
+        # Uma escala só por altura (frente e costas juntas) mantém a coluna e os órgãos
+        # sem cisalhamento; as razões variam devagar com a altura (sem curvas em "S").
+        I = lambda ys, p, k: (lambda y: np.interp(y, ys, p[:, k]))
+        zbB, zbM = I(ys_bp, pb, 1), I(ys_mh, pm, 1)
+        yy = np.arange(y_bp[0] - 0.18, top_bp, 0.01)
+        rd_t = np.clip((I(ys_mh, pm, 0)(ymap(yy)) - zbM(ymap(yy))) / np.maximum(I(ys_bp, pb, 0)(yy) - zbB(yy), 1e-3), 0.75, 1.3)
+        rx_t = np.clip(I(ys_mh, pm, 2)(ymap(yy)) / np.maximum(I(ys_bp, pb, 2)(yy), 1e-3), 0.75, 1.3)
+        ker = np.exp(-0.5 * (np.arange(-12, 13) / 4.0) ** 2)
+        ker /= ker.sum()
+        rd_t = np.convolve(np.pad(rd_t, 12, mode='edge'), ker, mode='valid')
+        rx_t = np.convolve(np.pad(rx_t, 12, mode='edge'), ker, mode='valid')
+
         def torso(V):
             y2 = ymap(V[:, 1])
-            I = lambda ys, p, y, k: np.interp(y, ys, p[:, k])
-            zf, zb, hw, zm = (I(ys_bp, pb, V[:, 1], k) for k in range(4))
-            zf2, zb2, hw2, zm2 = (I(ys_mh, pm, y2, k) for k in range(4))
-            dz = V[:, 2] - zm
-            rf = np.clip((zf2 - zm2) / np.maximum(zf - zm, 1e-3), 0.6, 1.6)
-            rb = np.clip((zm2 - zb2) / np.maximum(zm - zb, 1e-3), 0.6, 1.6)
-            rx = np.clip(hw2 / np.maximum(hw, 1e-3), 0.6, 1.6)
-            z2 = zm2 + np.where(dz > 0, dz * rf, dz * rb)
+            rd, rx = np.interp(V[:, 1], yy, rd_t), np.interp(V[:, 1], yy, rx_t)
+            z2 = zbM(y2) + (V[:, 2] - zbB(V[:, 1])) * rd
             return np.stack([V[:, 0] * rx, y2, z2], 1)
         self.tf['torso'] = torso
 
@@ -814,6 +824,9 @@ class Fit:
         W[~np.isfinite(best[:, 0]), 0] = 1     # longe de tudo → tronco
         W /= W.sum(1, keepdims=True)
         W = self.arm_split(V, W, dmin)
+        # mãos e pés (dedos finos, lado a lado): marcados para só correções pequenas na pele
+        ext = np.array([n[:2] in ('ha', 'mc', 'ph', 'ft', 'mt', 'tp') for n in names])
+        self.last_ext = W[:, ext].sum(1) > 0.5
         out = np.zeros_like(V)
         used = np.where(W.max(0) > 1e-4)[0]
         for j in used:
@@ -844,7 +857,7 @@ class Fit:
         d, i = self._skin_kd.query(X, k=1)
         p, n = self._skin_pts[i], self._skin_n[i]
         s = ((X - p) * n).sum(1)
-        bad = (s > -margin) & (s < max_jump) & (d < max(max_jump, 0.015))
+        bad = (s > -margin) & (s < max_jump) & (d < np.maximum(max_jump, 0.015))
         X = X.copy()
         X[bad] -= n[bad] * (s[bad] + margin)[:, None]
         return X, bad.sum()
@@ -891,8 +904,9 @@ TENDON_ALWAYS = {'calcaneal tendon', 'intermediate tendon', 'iliotibial tract', 
 
 
 def bake_tendon(p, thin=0.0016, thick=0.0034):
-    """0 = ventre muscular … 1 = tendão: espessura local (distância até a face oposta)."""
-    X, F = p['X'], p['F']
+    """0 = ventre muscular … 1 = tendão: espessura local (distância até a face oposta),
+    medida na malha original (o encaixe pode achatar o músculo junto à pele)."""
+    X, F = p['V'], p['F']
     if p['base'] in TENDON_ALWAYS:
         return np.full(len(X), 255, np.uint8)
     if p['base'] in SHEETS:
@@ -968,15 +982,20 @@ def build(src, body):
     fit.build()
     by_layer = {}
     for p in parts:
+        fit.last_ext = None
         X = fit.map_part(p)
-        p = dict(p, X=X)
+        p = dict(p, X=X, ext=fit.last_ext)
         by_layer.setdefault(p['layer'], []).append(p)
     for layer, ps in by_layer.items():
         moved = 0
         for p in ps:
-            # músculos/tendões: só correções pequenas (um salto grande levaria um tendão
-            # do dedo para o dedo vizinho); ossos e órgãos: até 4 cm
-            p['X'], n = fit.keep_inside(p['X'], MARGIN[layer], 0.012 if layer == 'muscles' else 0.04)
+            # nas mãos e nos pés só correções pequenas (um salto grande levaria o tendão
+            # de um dedo para o dedo vizinho); no resto, até 5 cm — o que a pose do
+            # BodyParts3D deixou para fora (axila, cintura) volta para dentro da pele
+            jump = np.full(len(p['X']), 0.05)
+            if p.get('ext') is not None:
+                jump[p['ext']] = 0.012
+            p['X'], n = fit.keep_inside(p['X'], MARGIN[layer], jump)
             moved += n
         fit.log(f'{layer}: {moved} vértices puxados para dentro da pele')
     bake_ao(by_layer['bones'], by_layer['bones'])
