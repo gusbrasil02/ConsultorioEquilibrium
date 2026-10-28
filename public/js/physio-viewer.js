@@ -5,6 +5,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { PHYSIO_REGIONS, REGION_GROUPS, findRegion, regionByLabel, findCondition } from '/js/physio-data.js'
 import { buildAnatomy, hasAnatomy, sharedUniforms, KINDS } from '/js/physio-anatomy.js'
 import { MUSCLES, MUSCLE_GROUPS, muscleId, muscleFromId, findMuscle } from '/js/muscle-data.js'
+import { loadLayer, tissueMaterial as realMaterial, CREDIT } from '/js/anatomy-real.js'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { skinMaterial, studioLights } from '/js/skin-shader.js'
 
 // ─── Anatomia 3D (fisioterapia) ──────────────────────────────────────────────
 // Corpo realista com a região da dor acesa em vermelho (ondas saindo do ponto)
@@ -14,10 +17,10 @@ import { MUSCLES, MUSCLE_GROUPS, muscleId, muscleFromId, findMuscle } from '/js/
 // Usado no painel (Modo Consulta) e na TV do paciente (sequência automática:
 // corpo inteiro → aproxima na região → visão interna).
 //
-// Visão de músculos: a pele dá lugar à textura "écorché" gerada por
-// tools/muscles (cor, normais com o volume de cada músculo e um mapa com o id
-// de cada músculo por lado). O
-// mapa de ids permite clicar, destacar e isolar músculos direto no shader.
+// Visão de músculos: músculos e ossos reais (BodyParts3D, tools/anatomy) — a
+// pele se desfaz e revela cada músculo em 3D, que pode ser clicado, destacado
+// e isolado. Enquanto o 3D carrega, a pele mostra a textura "écorché" gerada
+// por tools/muscles (que também fica de reserva se o 3D falhar).
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z)
 
@@ -37,6 +40,9 @@ function selIds(list) {
   })
   return out.filter(Boolean).slice(0, MAX_SEL)
 }
+function sideKeys(list) {
+  return new Set((list || []).flatMap(s => { const [k, sd] = String(s).split(':'); return sd ? [k + ':' + sd] : [k + ':D', k + ':E'] }))
+}
 function fillSel(u, ids) {
   u.value.fill(0)
   ids.forEach((id, i) => { u.value[i] = id })
@@ -45,6 +51,21 @@ function fillSel(u, ids) {
 const KIND_LABEL = {
   bone: 'Osso', cartilage: 'Cartilagem', meniscus: 'Menisco / lábio', disc: 'Disco', ligament: 'Ligamento',
   tendon: 'Tendão', nerve: 'Nervo', fascia: 'Fáscia', muscle: 'Músculo', bursa: 'Bursa', capsule: 'Cápsula / articulação', deposit: 'Cálcio'
+}
+
+// Brilho vermelho da lesão, desenhado por cima de tudo (borda mais forte)
+function glowMaterial(shared) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uA: { value: 0 }, uFocus: shared.uFocus },
+    vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vW;
+      void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = -mv.xyz;
+        vW = (modelMatrix * vec4(position, 1.0)).xyz; gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uA; uniform vec4 uFocus; varying vec3 vN; varying vec3 vV; varying vec3 vW;
+      void main() { float fk = 1.0 - smoothstep(uFocus.w * 0.6, uFocus.w, length(vW - uFocus.xyz));
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 1.6);
+        gl_FragColor = vec4(vec3(1.0, 0.22, 0.12) * (0.18 + 0.9 * f) * uA * fk, 1.0); }`,
+    transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+  })
 }
 
 const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
@@ -112,6 +133,10 @@ function injectStyle() {
   .phy-legend span { display: inline-flex; align-items: center; gap: 5px; }
   .phy-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
   .phy-host.tv .phy-legend { left: 28px; bottom: 60px; font-size: 13px; gap: 6px 16px; }
+  .phy-credit { position: absolute; right: 12px; bottom: 8px; font-size: 9.5px; letter-spacing: .04em;
+    color: rgba(220,210,240,0.42); opacity: 0; transition: opacity .6s; }
+  .phy-credit.on { opacity: 1; }
+  .phy-host.tv .phy-credit { right: 28px; bottom: 22px; font-size: 11px; }
   .phy-corner { position: absolute; width: 26px; height: 26px; border-color: rgba(187,164,222,0.4); border-style: solid; border-width: 0; }
   .phy-corner.tl { left: 10px; top: 10px; border-left-width: 1.5px; border-top-width: 1.5px; }
   .phy-corner.tr { right: 10px; top: 10px; border-right-width: 1.5px; border-top-width: 1.5px; }
@@ -165,6 +190,29 @@ function floorTexture() {
   return t
 }
 
+// Destaques dos músculos 3D (mesmas cores da textura): selecionado (azul),
+// da condição (vermelho pulsante), sob o mouse; "isolar" vira holograma
+const MUS_FX = {
+  key: 'mus',
+  fragmentHead: 'uniform float uSelM, uHotM, uHovM, uIsoM, uTime;',
+  fragmentEnd: `
+{
+  vec3 red = vec3(1.0, 0.12, 0.07);
+  float fr = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
+  float beat = 0.5 + 0.5 * sin(uTime * 3.5);
+  outgoingLight = mix(outgoingLight, outgoingLight * vec3(1.15, 0.5, 0.45) + red * 0.3, uHotM * 0.75);
+  outgoingLight += red * uHotM * (0.2 + 0.35 * beat + 0.5 * fr);
+  outgoingLight = mix(outgoingLight, outgoingLight * 1.12, uSelM);
+  outgoingLight += vec3(0.25, 0.75, 1.0) * uSelM * (0.03 + 0.06 * beat + 0.4 * fr);
+  outgoingLight += vec3(0.3, 0.8, 1.0) * uHovM * 0.18;
+  if (uIsoM > 0.001) {
+    vec3 gh = mix(vec3(0.03, 0.08, 0.13), vec3(0.4, 0.8, 1.0), fr);
+    outgoingLight = mix(outgoingLight, gh, uIsoM);
+    diffuseColor.a = mix(diffuseColor.a, 0.04 + 0.4 * fr, uIsoM);
+  }
+}`
+}
+
 // ─── Shader da pele: região acesa + modo holograma ───────────────────────────
 function setupSkin(mat, U) {
   mat.onBeforeCompile = sh => {
@@ -174,7 +222,7 @@ function setupSkin(mat, U) {
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNrm = normalize(mat3(modelMatrix) * objectNormal);')
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-uniform float uTime, uXray, uMus, uIso, uHoverM;
+uniform float uTime, uXray, uMus, uIso, uHoverM, uHide;
 uniform vec3 uH0A, uH0B, uH0F, uH1A, uH1B, uH1F;
 uniform vec4 uH0, uH1;
 uniform sampler2D uMusMap, uIdMap, uMusNrm;
@@ -242,6 +290,14 @@ if (phyIso > 0.001) {
   vec3 phyGh = mix(vec3(0.03, 0.08, 0.13), vec3(0.4, 0.8, 1.0), phyFrM);
   gl_FragColor = vec4(mix(gl_FragColor.rgb, phyGh, phyIso), mix(gl_FragColor.a, 0.04 + 0.4 * phyFrM, phyIso));
 }
+// Músculos 3D prontos: a pele se desfaz de baixo para cima, com a borda acesa
+if (uHide > 0.001) {
+  float phyEdge = vWPos.y - (uHide * 2.3 - 0.15);
+  float phyCut = 1.0 - smoothstep(-0.06, 0.0, phyEdge);
+  vec3 phyGlow = vec3(1.0, 0.45, 0.35) * (1.0 - smoothstep(0.0, 0.06, abs(phyEdge + 0.03))) * (1.0 - uHide);
+  gl_FragColor = vec4(gl_FragColor.rgb + phyGlow, gl_FragColor.a * (1.0 - phyCut));
+  if (gl_FragColor.a < 0.01) discard;
+}
 if (uXray > 0.001) {
   vec3 phyV = normalize(vViewPosition);
   float phyFr = pow(1.0 - abs(dot(normalize(normal), phyV)), 1.8);
@@ -302,6 +358,8 @@ class PhysioViewer {
     this.isolate = false
     this._mus = 0
     this._iso = 0
+    this._m3 = 0               // músculos 3D: 0 = pele … 1 = só músculos
+    this._real = null
     this._disposed = false
     this._clock = new THREE.Clock()
     this._shared = sharedUniforms()
@@ -332,10 +390,7 @@ class PhysioViewer {
     const pmrem = new THREE.PMREMGenerator(this.renderer)
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
     pmrem.dispose()
-    this.scene.add(new THREE.HemisphereLight(0xe8f4ff, 0x10202c, 0.6))
-    const key = new THREE.DirectionalLight(0xfff4ea, 1.9); key.position.set(1.6, 3, 3.2); this.scene.add(key)
-    const rim = new THREE.DirectionalLight(0x6fd0ff, 1.6); rim.position.set(-2.4, 2.2, -3); this.scene.add(rim)
-    const rim2 = new THREE.DirectionalLight(0x9fe8ff, 0.8); rim2.position.set(2.6, 1.2, -2.6); this.scene.add(rim2)
+    this._lights = studioLights(this.scene, this.renderer, { height: this.body.height, rimColor: 0x8fd8ff, rim2Color: 0xb8e8ff })
 
     const floor = new THREE.Mesh(new THREE.CircleGeometry(0.95, 64),
       new THREE.MeshBasicMaterial({ map: floorTexture(), transparent: true, depthWrite: false, toneMapped: false }))
@@ -343,6 +398,12 @@ class PhysioViewer {
     floor.position.y = 0.002
     this.scene.add(floor)
     this._floor = floor
+    // sombra de contato dos pés no chão
+    const shadowFloor = new THREE.Mesh(new THREE.CircleGeometry(0.9, 48), new THREE.ShadowMaterial({ opacity: 0.32 }))
+    shadowFloor.rotation.x = -Math.PI / 2
+    shadowFloor.position.y = 0.003
+    shadowFloor.receiveShadow = true
+    this.scene.add(shadowFloor)
 
     this._glow = glowTexture()
     // Anel de varredura que percorre a região (visão externa)
@@ -364,6 +425,7 @@ class PhysioViewer {
       </svg><div class="phy-ret-lbl"><b></b><span></span></div>`)
     this.hudEl = this._el('phy-hud', '')
     this.legendEl = this._el('phy-legend', '')
+    this.creditEl = this._el('phy-credit', CREDIT)
     if (this.tv) ['tl', 'tr', 'bl', 'br'].forEach(c => this._el('phy-corner ' + c, ''))
     if (this.isDoctor) this.tipEl = this._el('phy-tip', '')
 
@@ -410,7 +472,7 @@ class PhysioViewer {
           m.roughness = 0.6
           m.envMapIntensity = 0.45
           this._skinU = {
-            uTime: { value: 0 }, uXray: { value: 0 }, uMus: { value: 0 }, uIso: { value: 0 }, uHoverM: { value: 0 },
+            uTime: { value: 0 }, uXray: { value: 0 }, uMus: { value: 0 }, uIso: { value: 0 }, uHoverM: { value: 0 }, uHide: { value: 0 },
             uMusMap: { value: null }, uIdMap: { value: null }, uMusNrm: { value: null },
             uSel: { value: new Float32Array(MAX_SEL) }, uSelN: { value: 0 },
             uHotM: { value: new Float32Array(MAX_SEL) }, uHotN: { value: 0 },
@@ -418,6 +480,8 @@ class PhysioViewer {
             uH1A: { value: V() }, uH1B: { value: V() }, uH1F: { value: V() }, uH1: { value: new THREE.Vector4(0.1, 0, 0, 0) }
           }
           setupSkin(m, this._skinU)
+          skinMaterial(m)
+          o.castShadow = o.receiveShadow = true
           o.renderOrder = 10
           this._bodyMesh = o
           this._skin = m
@@ -425,12 +489,14 @@ class PhysioViewer {
           if (o.name === 'hair') { m.side = THREE.DoubleSide; m.envMapIntensity = 0.3 }
           if (o.name === 'eyes') { m.roughness = 0.15; m.envMapIntensity = 0.9 }
           if (['eyebrows', 'eyelashes', 'hair'].includes(o.name)) o.renderOrder = 2
+          if (o.name === 'hair') o.castShadow = true
           this._others.push(o)
         }
       })
       if (!this._bodyMesh) throw new Error('malha do corpo não encontrada')
       this.scene.add(gltf.scene)
       gltf.scene.updateMatrixWorld(true)
+      this._lights.update()
     } catch (err) {
       console.error('[PhysioViewer] Erro ao carregar o corpo:', err)
       this.loadingEl.textContent = 'Não foi possível carregar o corpo 3D.'
@@ -505,6 +571,7 @@ class PhysioViewer {
     this.marks = new Set()
     this._internal = false
     if (r) {
+      if (r.model) this._loadRealAll()
       this._geo = this._regionGeo(r)
       const U = this._skinU
       U.uH0A.value.copy(this._geo.a)
@@ -540,6 +607,12 @@ class PhysioViewer {
 
   setInternal(on) {
     if (!this.ready) { this._whenReady(() => this.setInternal(on)); return }
+    if (on && this.hasInternal() && !this._realMap && !this._realFailed) {
+      this._wantInternal = true
+      this._loadRealAll().then(() => { if (this._wantInternal) this.setInternal(true) })
+      return
+    }
+    this._wantInternal = false
     on = !!on && this.hasInternal()
     if (on && !this._ensureAnatomy()) on = false
     if (on === this._internal) { if (on) this.focusInternal(); return }
@@ -553,18 +626,34 @@ class PhysioViewer {
   }
   isInternal() { return this._internal }
 
+  // Ossos e músculos reais para a visão interna (índice por nome|lado)
+  _loadRealAll() {
+    if (this._realAllP) return this._realAllP
+    this._realAllP = Promise.all([loadLayer(this.modelKey, 'bones'), loadLayer(this.modelKey, 'muscles')])
+      .then(([bon, mus]) => {
+        const map = new Map(), list = []
+        ;[...bon.parts, ...mus.parts].forEach(p => { map.set(p.base + '|' + (p.side || ''), p); list.push(p) })
+        this._realMap = map
+        this._realList = list
+        // a anatomia montada antes (procedural) é refeita com as peças reais
+        if (this.anatomy && !this._internal) this._disposeAnatomy()
+      })
+      .catch(err => { console.error('[PhysioViewer] Anatomia real indisponível:', err); this._realFailed = true })
+    return this._realAllP
+  }
+
   setLabels(on) { this.labelsOn = !!on }
 
   // Estruturas do modelo interno (para a lista do painel)
   getParts() {
     if (!this.anatomy) return []
-    return this.anatomy.parts.filter(p => !p.extra).map(p => ({ id: p.id, label: p.label, kind: p.kind, minor: p.minor }))
+    return this.anatomy.parts.filter(p => !p.extra && !p.id.startsWith('ctx:')).map(p => ({ id: p.id, label: p.label, kind: p.kind, minor: p.minor }))
   }
 
   // ── Visão de músculos ──────────────────────────────────────────────────────
   setSkin(mode) {
     this.skinMode = mode === 'muscle' ? 'muscle' : 'skin'
-    if (this.skinMode === 'muscle') this._loadMuscles()
+    if (this.skinMode === 'muscle') { this._loadMuscles(); this._loadReal() }
     this._updateHud()
   }
   getSkin() { return this.skinMode }
@@ -608,6 +697,49 @@ class PhysioViewer {
     return this._musLoading
   }
 
+  // Músculos e ossos reais (carregados na primeira vez)
+  _loadReal() {
+    if (this._realLoading) return this._realLoading
+    this._realLoading = Promise.all([loadLayer(this.modelKey, 'muscles'), loadLayer(this.modelKey, 'bones')])
+      .then(([mus, bon]) => new Promise(res => this._whenReady(() => { if (!this._disposed) this._buildReal(mus, bon); res() })))
+      .catch(err => { console.error('[PhysioViewer] Erro ao carregar a anatomia real:', err); this._realLoading = null })
+    return this._realLoading
+  }
+  _buildReal(mus, bon) {
+    const g = new THREE.Group()
+    g.visible = false
+    const T = this._skinU.uTime
+    const fxU = () => ({ uSelM: { value: 0 }, uHotM: { value: 0 }, uHovM: { value: 0 }, uIsoM: { value: 0 }, uTime: T })
+    const muscles = mus.parts.map(p => {
+      const u = fxU()
+      const m = new THREE.Mesh(p.geometry, realMaterial(p.kind, { axis: p.axis, uniforms: u, extra: MUS_FX }))
+      m.castShadow = m.receiveShadow = true
+      m.userData = { real: p, u, st: { sel: 0, hot: 0, hov: 0, iso: 0 }, iso: false }
+      g.add(m)
+      return m
+    })
+    // Ossos: uma malha por tecido (na visão de músculos só servem de fundo; sem dentes)
+    const byKind = {}
+    bon.parts.forEach(p => { if (p.kind !== 'tooth' && p.kind !== 'gum') (byKind[p.kind] ||= []).push(p.geometry) })
+    const bones = Object.entries(byKind).map(([k, geos]) => {
+      const u = fxU()
+      const m = new THREE.Mesh(mergeGeometries(geos), realMaterial(k, { uniforms: u, extra: MUS_FX }))
+      m.castShadow = m.receiveShadow = true
+      m.userData = { u, st: { sel: 0, hot: 0, hov: 0, iso: 0 }, iso: false, bone: true }
+      g.add(m)
+      return m
+    })
+    this.scene.add(g)
+    this._real = { group: g, muscles, bones }
+    this._updateMuscleUniforms()
+  }
+  // Músculo 3D sob o cursor
+  _pickReal(cx, cy) {
+    if (!this._real || this._m3 < 0.5) return null
+    const hit = this._raycaster(cx, cy).intersectObjects(this._real.muscles, false)[0]
+    return hit ? hit.object : null
+  }
+
   setMuscles(list, { focus = false } = {}) {
     if (!this.ready) { this._whenReady(() => this.setMuscles(list, { focus })); return }
     this.muscles = [...new Set(list || [])]
@@ -630,6 +762,9 @@ class PhysioViewer {
     const sel = selIds(this.muscles), hot = selIds(this._condMuscles())
     fillSel(U.uSel, sel); U.uSelN.value = sel.length
     fillSel(U.uHotM, hot); U.uHotN.value = hot.length
+    // músculos 3D: 'biceps' acende os dois lados, 'biceps:D' só um
+    this._selK = sideKeys(this.muscles)
+    this._hotK = sideKeys(this._condMuscles())
   }
 
   // Músculo (id) no ponto do corpo sob o cursor
@@ -648,6 +783,20 @@ class PhysioViewer {
 
   // Enquadra os músculos selecionados (centro e normal médios do mapa)
   focusMuscles(list = this.muscles) {
+    const ks = sideKeys(list)
+    const ms = this._real ? this._real.muscles.filter(m => m.userData.real.key && ks.has(m.userData.real.key + ':' + m.userData.real.side)) : []
+    if (ms.length) {
+      const box = new THREE.Box3()
+      ms.forEach(m => m.geometry.boundingSphere && box.union(new THREE.Box3().setFromBufferAttribute(m.geometry.attributes.position)))
+      const c = box.getCenter(V()), r = box.getSize(V()).length() / 2
+      // os músculos da frente são vistos de frente, os de trás por trás; nos
+      // membros, um pouco de lado (do lado do músculo)
+      const back = c.z < this._bodyZ(c.y) - 0.01
+      const lat = Math.abs(c.x) > 0.07 ? Math.sign(c.x) * THREE.MathUtils.clamp((Math.abs(c.x) - 0.05) * 3, 0, 0.7) : 0
+      const dir = V(lat, 0.12, back ? -1 : 1).normalize()
+      this._goto(c, dir, THREE.MathUtils.clamp(this._fitDist(Math.max(r, 0.07)), 0.3, 3.2))
+      return
+    }
     if (!this._musInfo) { this._loadMuscles()?.then(() => this.focusMuscles(list)); return }
     const ids = selIds(list).filter(id => this._musInfo[id])
     if (!ids.length) return
@@ -664,6 +813,12 @@ class PhysioViewer {
     this._goto(c, dir, THREE.MathUtils.clamp(this._fitDist(Math.max(r * 1.25, 0.07)), 0.3, 3.2))
   }
 
+  // Profundidade média do corpo numa altura (centro entre frente e costas)
+  _bodyZ(y) {
+    const f = this._ray(V(0.0001, y, -0.05), V(0, 0, 1)), b = this._ray(V(0.0001, y, -0.05), V(0, 0, -1))
+    return f != null && b != null ? -0.05 + (f - b) / 2 : -0.05
+  }
+
   // ── Visão interna ──────────────────────────────────────────────────────────
   _ensureAnatomy() {
     if (this.anatomy) return this.anatomy
@@ -674,7 +829,8 @@ class PhysioViewer {
       Jopt: n => (this._joints[n] ? this.J(n) : null),
       ray: (o, d) => this._ray(o, d),
       fit: (p, y, z) => this._fit(p, y, z, r.sx),
-      pre: r.pre, sx: r.sx, H: this.body.height, region: r, shared: this._shared
+      pre: r.pre, sx: r.sx, H: this.body.height, region: r, shared: this._shared,
+      side: r.side || null, real: this._realMap || null, realList: this._realList || []
     }
     let A
     try { A = buildAnatomy(r.model, ctx) } catch (err) {
@@ -775,8 +931,22 @@ class PhysioViewer {
       tg.shift = e?.shift || 0
       tg.vis = p.extra ? (e?.show ? 1 : 0) : 1
       tg.dim = any && !e ? 0.6 : 0
-      // A estrutura afetada é desenhada por último: aparece mesmo atrás de ossos
-      p.meshes.forEach(m => { m.renderOrder = e ? 8 : KINDS[p.kind].order })
+      // A estrutura afetada é desenhada por último e ganha um brilho que
+      // atravessa os ossos (aparece mesmo atrás deles)
+      p.meshes.forEach(m => {
+        m.renderOrder = e ? 8 : KINDS[p.kind].order
+        const want = !!e && (e.lesion > 0 || e.show)
+        if (want && !m.userData.glow) {
+          const g = new THREE.Mesh(m.geometry, glowMaterial(this._shared))
+          g.renderOrder = 22
+          m.add(g)
+          m.userData.glow = g
+        } else if (!want && m.userData.glow) {
+          m.remove(m.userData.glow)
+          m.userData.glow.material.dispose()
+          m.userData.glow = null
+        }
+      })
     })
     Object.keys(A.custom).forEach(name => { A.custom[name]._tg = customs[name] || 0 })
     this._rebuildFx()
@@ -921,9 +1091,16 @@ class PhysioViewer {
         return
       }
       // Visão de músculos: o clique escolhe o músculo (Ctrl/Shift soma à seleção)
-      if (this.skinMode === 'muscle' && this._musReady) {
-        const info = muscleFromId(this._pickMuscle(e.clientX, e.clientY))
-        const k = info ? `${info.muscle.key}:${info.side}` : null
+      if (this.skinMode === 'muscle' && (this._musReady || this._m3 > 0.5)) {
+        let k = null
+        if (this._m3 > 0.5) {
+          const m = this._pickReal(e.clientX, e.clientY)
+          if (m && !m.userData.real.key) return     // músculo sem ficha: só mostra o nome
+          if (m) k = `${m.userData.real.key}:${m.userData.real.side}`
+        } else {
+          const info = muscleFromId(this._pickMuscle(e.clientX, e.clientY))
+          k = info ? `${info.muscle.key}:${info.side}` : null
+        }
         let sel = this.muscles
         if (!k) sel = e.ctrlKey || e.shiftKey ? sel : []
         else if (e.ctrlKey || e.shiftKey) sel = sel.includes(k) ? sel.filter(x => x !== k) : [...sel, k]
@@ -941,7 +1118,7 @@ class PhysioViewer {
       if (!this._hoverRaf) this._hoverRaf = requestAnimationFrame(() => { this._hoverRaf = null; this._doHover() })
     })
     el.addEventListener('pointerleave', () => {
-      this._hoverXY = null; this._setHoverRegion(null); this._setHoverPart(null)
+      this._hoverXY = null; this._setHoverRegion(null); this._setHoverPart(null); this._hovReal = null
       if (this._skinU) this._skinU.uHoverM.value = 0
     })
   }
@@ -988,6 +1165,12 @@ class PhysioViewer {
       const p = this._pickPart(x, y)
       this._setHoverPart(p)
       if (p) text = `${p.label}${this.isDoctor ? ' · clique para marcar' : ''}`
+    } else if (this.skinMode === 'muscle' && this._m3 > 0.5) {
+      this._setHoverPart(null)
+      this._setHoverRegion(null)
+      const m = this._pickReal(x, y)
+      this._hovReal = m
+      if (m) text = m.userData.real.label
     } else if (this.skinMode === 'muscle' && this._musReady) {
       this._setHoverPart(null)
       this._setHoverRegion(null)
@@ -1095,14 +1278,27 @@ class PhysioViewer {
     if (this._iso < 0.002) this._iso = 0
     U.uIso.value = this._iso
     this._skin.envMapIntensity = 0.45 + 0.4 * this._mus     // músculos mais brilhantes que a pele
-    const trans = this._xray > 0 || this._iso > 0
+    // Músculos 3D: a pele se desfaz e eles assumem (fora da visão interna)
+    const want3 = this.skinMode === 'muscle' && !!this._real && !this._internal
+    this._m3 = approach(this._m3, want3 ? 1 : 0, want3 ? 1.1 : 3, dt)
+    if (Math.abs(this._m3 - (want3 ? 1 : 0)) < 0.002) this._m3 = want3 ? 1 : 0
+    U.uHide.value = this._m3
+    if (this._real) this._stepReal(dt)
+    this.creditEl.classList.toggle('on', this._m3 > 0.5 || !!this._revealed)
+    const trans = this._xray > 0 || this._iso > 0 || this._m3 > 0
     if (this._skin.transparent !== trans) {
       this._skin.transparent = trans
       this._skin.depthWrite = !trans
       this._skin.needsUpdate = true
     }
     // cabelo, sobrancelhas e cílios saem na visão de músculos (os olhos ficam)
-    this._others.forEach(o => { o.visible = this._xray < 0.3 && this._iso < 0.3 && (o.name === 'eyes' || this._mus < 0.35) })
+    this._others.forEach(o => { o.visible = this._xray < 0.3 && (this._iso < 0.3 || this._m3 > 0.5) && (o.name === 'eyes' || this._mus < 0.35) })
+    this._bodyMesh.visible = this._m3 < 0.999
+    // a pele em raio-X ou se desfazendo não faz sombra; a sombra (corpo parado)
+    // só é refeita quando esse estado muda
+    this._bodyMesh.castShadow = this._xray < 0.05 && this._m3 < 0.5
+    const shKey = `${this._bodyMesh.castShadow}|${this._m3 > 0.5}|${this._others.map(o => +o.visible).join('')}|${!!this._real?.group.visible}`
+    if (shKey !== this._shKey || (this._m3 > 0 && this._m3 < 1)) { this._shKey = shKey; this._lights.update() }
     this._floor.material.opacity = 1 - this._xray * 0.5
 
     // Materialização da anatomia
@@ -1128,7 +1324,11 @@ class PhysioViewer {
           u.uDim.value = s.dim
           u.uHover.value = s.hover
           // Estrutura esmaecida não esconde a lesão que está atrás dela
-          m.material.depthWrite = !!KINDS[p.kind].depthWrite && s.dim < 0.25
+          m.material.depthWrite = (!!KINDS[p.kind].depthWrite || m.material.userData.opacity > 0.8) && (s.dim < 0.25 || u.uDimA.value === 0)
+          if (m.userData.glow) {
+            const pulse = 0.75 + 0.25 * Math.sin(t * 4)
+            m.userData.glow.material.uniforms.uA.value = s.lesion * (p.extra ? s.vis : 1) * (this._revealed ? 1 : 0.4) * pulse * 0.5
+          }
           m.visible = !p.extra || s.vis > 0.02
           m.scale.set(s.sx * grow, s.sy * grow, s.sz * grow)
           m.position.set(p.anchor.x * (1 - m.scale.x), p.anchor.y * (1 - m.scale.y), p.anchor.z * (1 - m.scale.z))
@@ -1171,6 +1371,35 @@ class PhysioViewer {
       this._scan.scale.setScalar(g.r * 1.02 * (1 - 0.25 * s * s))
       if (m.opacity < 0.01) this._scan.visible = false
     }
+  }
+
+  // Destaques e "isolar" dos músculos 3D
+  _stepReal(dt) {
+    const R = this._real
+    R.group.visible = this._m3 > 0.001
+    if (!R.group.visible) return
+    const iso = this._iso
+    const anySel = this._selK?.size || this._hotK?.size
+    const upd = (m, sel, hot, hov, isoT) => {
+      const st = m.userData.st, u = m.userData.u
+      st.sel = approach(st.sel, sel, 6, dt); st.hot = approach(st.hot, hot, 6, dt)
+      st.hov = approach(st.hov, hov, 10, dt); st.iso = approach(st.iso, isoT, 4, dt)
+      u.uSelM.value = st.sel; u.uHotM.value = st.hot; u.uHovM.value = st.hov; u.uIsoM.value = st.iso
+      const ghost = st.iso > 0.01
+      if (ghost !== m.userData.iso) {
+        m.userData.iso = ghost
+        m.material.transparent = ghost
+        m.material.depthWrite = !ghost
+        m.material.needsUpdate = true
+        m.renderOrder = ghost ? 12 : 0
+      }
+    }
+    R.muscles.forEach(m => {
+      const p = m.userData.real, k = p.key ? p.key + ':' + p.side : null
+      const sel = k && this._selK?.has(k) ? 1 : 0, hot = k && this._hotK?.has(k) ? 1 : 0
+      upd(m, sel, hot, this._hovReal === m ? 1 : 0, anySel ? iso * (1 - Math.max(sel, hot)) : 0)
+    })
+    R.bones.forEach(m => upd(m, 0, 0, 0, anySel ? iso * 0.75 : 0))
   }
 
   // Retículo de mira, rótulos e legenda (DOM)
@@ -1239,6 +1468,11 @@ class PhysioViewer {
     cancelAnimationFrame(this._animId)
     this._ro?.disconnect()
     this._disposeAnatomy()
+    if (this._real) {
+      this.scene.remove(this._real.group)
+      this._real.muscles.forEach(m => m.material.dispose())
+      this._real.bones.forEach(m => { m.material.dispose(); m.geometry.dispose() })
+    }
     this.controls.dispose()
     this.renderer.dispose()
     this.renderer.domElement.remove()

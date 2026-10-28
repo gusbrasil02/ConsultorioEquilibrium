@@ -521,12 +521,14 @@ let acuSharedViewer = null
 let pendingAcu = null
 
 function showAcupunctureState(event) {
-  // Formato: lista de ids (antigo) ou { points, model } — model = corpo escolhido
-  let points = [], model = 'female'
+  // Formato: lista de ids (antigo) ou { points, model, layer, needle } — model = corpo
+  // escolhido; layer = pele / músculos / esqueleto / órgãos; needle = agulhas com profundidade
+  let points = [], model = 'female', layer = 'skin', needle = false
   try {
     const v = JSON.parse(event.problem || '[]')
     points = Array.isArray(v) ? v : (v.points || [])
     if (!Array.isArray(v) && v.model === 'male') model = 'male'
+    if (!Array.isArray(v)) { layer = v.layer || 'skin'; needle = !!v.needle }
   } catch (_) {}
 
   // Lista vazia = a profissional limpou a TV
@@ -558,6 +560,8 @@ function showAcupunctureState(event) {
       model
     })
   }
+  acuSharedViewer.setLayer(layer)
+  acuSharedViewer.setNeedle(needle)
   acuSharedViewer.setSelectedPoints(points, { focus: true })
   _renderAcuInfoPanel(points)
 }

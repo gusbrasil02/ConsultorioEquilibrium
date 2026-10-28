@@ -305,6 +305,14 @@ body {
 .acu-tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.12); margin: 0 0.2rem; }
 .acu-models { display: inline-flex; gap: 0.25rem; }
 .acu-tb-btn.acu-model.on { background: rgba(160,130,255,0.22); border-color: rgba(180,160,255,0.6); color: #e2d8ff; }
+.acu-layers { display: inline-flex; border-radius: 60px; overflow: hidden; border: 1px solid rgba(187,164,222,0.22); }
+.acu-layers .acu-tb-btn { border: none; border-radius: 0; }
+.acu-layers .acu-tb-btn.on { background: linear-gradient(135deg, rgba(160,130,255,0.35), rgba(90,60,170,0.3)); color: #fff; }
+.acu-tb-btn.acu-needle.on { background: rgba(92,255,176,0.14); border-color: rgba(92,255,176,0.5); color: #c8ffe4; }
+.acu-info .dp { margin-top: 0.35rem; padding: 0.35rem 0.5rem; border-radius: 8px; background: rgba(92,255,176,0.07); border: 1px solid rgba(92,255,176,0.2); }
+.acu-info .dp.warn { background: rgba(255,120,100,0.08); border-color: rgba(255,140,120,0.3); }
+.acu-info .dp small { display: block; color: #ffb4a8; margin-top: 0.15rem; }
+.acu-info .dp small.tip { color: rgba(200,255,228,0.8); }
 .acu-tb-btn.acu-clear.on { background: rgba(255,190,90,0.16); border-color: rgba(255,200,120,0.55); color: #ffe2b0; }
 .acu-modal-close {
   width: 34px; height: 34px; border-radius: 50%;
@@ -2370,6 +2378,14 @@ textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
         <button class="acu-tb-btn" id="acu-tg-only" onclick="acuToggle('only')" title="Mostrar só os meridianos dos pontos selecionados">Só ativos</button>
         <button class="acu-tb-btn on" id="acu-tg-hair" onclick="acuToggle('hair')" title="Ocultar o cabelo para ver os pontos da cabeça e da nuca">Cabelo</button>
         <button class="acu-tb-btn acu-clear" id="acu-clear-all" onclick="acuClearAll()" title="Tirar do corpo todos os meridianos, pontos e protocolos exibidos">⊘ Limpar corpo</button>
+        <span class="acu-tb-sep"></span>
+        <span class="acu-layers" title="O que aparece por dentro (a TV mostra o mesmo)">
+          <button class="acu-tb-btn on" data-l="skin" onclick="acuSetLayer('skin')">Pele</button>
+          <button class="acu-tb-btn" data-l="muscles" onclick="acuSetLayer('muscles')">Músculos</button>
+          <button class="acu-tb-btn" data-l="bones" onclick="acuSetLayer('bones')">Esqueleto</button>
+          <button class="acu-tb-btn" data-l="organs" onclick="acuSetLayer('organs')" title="Órgãos Zang-Fu: o órgão do meridiano escolhido acende">Órgãos</button>
+        </span>
+        <button class="acu-tb-btn acu-needle" id="acu-tg-needle" onclick="acuToggle('needle')" title="Mostrar a agulha com a profundidade de referência nos pontos selecionados">💉 Agulha</button>
         <span class="acu-tb-sep"></span>
         <span class="acu-models" title="Corpo exibido (a TV mostra o mesmo)">
           <button class="acu-tb-btn acu-model" data-m="female" onclick="acuSetModel('female')">♀ Feminino</button>
@@ -5813,6 +5829,8 @@ function createAcuViewer(model) {
   hidden.forEach(id => acuViewer.setMeridianVisible(id, false))
   acuViewer.setOnlyActive(document.getElementById('acu-tg-only').classList.contains('on'))
   acuViewer.setHairVisible(document.getElementById('acu-tg-hair').classList.contains('on'))
+  acuViewer.setLayer(acuLayer)
+  acuViewer.setNeedle(document.getElementById('acu-tg-needle').classList.contains('on'))
   if (sel.length) acuViewer.setSelectedPoints(sel, { focus: true })
   document.querySelectorAll('.acu-model').forEach(b => b.classList.toggle('on', b.dataset.m === model))
 }
@@ -5856,14 +5874,22 @@ function closeAcuModal() {
 }
 
 function acuView(v) { acuViewer?.setView(v) }
+// Camada interna: pele, músculos, esqueleto ou órgãos (Zang-Fu)
+let acuLayer = 'skin'
+function acuSetLayer(l) {
+  acuLayer = l
+  document.querySelectorAll('.acu-layers .acu-tb-btn').forEach(b => b.classList.toggle('on', b.dataset.l === l))
+  acuViewer?.setLayer(l)
+}
 function acuFocus() { acuViewer?.focusPoints() }
 function acuToggle(what) {
   if (!acuViewer) return
-  const btn = document.getElementById({ labels: 'acu-tg-labels', only: 'acu-tg-only', hair: 'acu-tg-hair' }[what])
+  const btn = document.getElementById({ labels: 'acu-tg-labels', only: 'acu-tg-only', hair: 'acu-tg-hair', needle: 'acu-tg-needle' }[what])
   const on = !btn.classList.contains('on')
   btn.classList.toggle('on', on)
   if (what === 'labels') acuViewer.setLabels(on)
   else if (what === 'hair') acuViewer.setHairVisible(on)
+  else if (what === 'needle') { acuViewer.setNeedle(on); if (on && acuViewer.getSelectedPoints().length) acuViewer.focusPoints() }
   else acuViewer.setOnlyActive(on)
 }
 function acuTab(tab) {
@@ -5998,7 +6024,9 @@ function renderAcuInfo(info) {
     <div class="pt">${esc(info.pt)} — ${esc(m.name)}${m.element && m.element !== 'Extra' ? ` (${esc(m.element)})` : ''}${lado}</div>
     ${info.cat ? `<span class="cat">${esc(info.cat)}</span>` : ''}
     <div><b>Localização:</b> ${esc(info.loc)}</div>
-    <div><b>Indicações:</b> ${esc(info.ind)}</div>`
+    <div><b>Indicações:</b> ${esc(info.ind)}</div>
+    ${info.depth ? `<div class="dp${info.depth.warn ? ' warn' : ''}"><b>Agulha:</b> ${esc(info.depth.text)} · ${esc(info.depth.angleLabel)}
+      ${info.depth.note ? `<small${info.depth.warn ? '' : ' class="tip"'}>${info.depth.warn ? '⚠ ' : ''}${esc(info.depth.note)}</small>` : ''}</div>` : ''}`
 }
 
 // Lista de selecionados agrupada por ponto, com os lados D/E
@@ -6094,7 +6122,8 @@ async function sendAcuToTV() {
     const r = await fetch('/api/acupuncture/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSession.id, points, model: acuModel || 'female' })
+      body: JSON.stringify({ session_id: currentSession.id, points, model: acuModel || 'female', layer: acuLayer,
+        needle: document.getElementById('acu-tg-needle').classList.contains('on') })
     })
     if (r.status === 401) { location.href = '/login'; return }
     if (!r.ok) throw new Error()

@@ -3,6 +3,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { ACU_MERIDIANS, ACU_PROTOCOLS } from '/js/acu-data.js'
+import { ACU_DEPTH, depthInfo } from '/js/acu-depth.js'
+import { loadLayer, tissueMaterial as realMaterial, CREDIT } from '/js/anatomy-real.js'
+import { skinMaterial, studioLights } from '/js/skin-shader.js'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 // ─── Dados ────────────────────────────────────────────────────────────────────
 // As posições vêm de /js/acu-data.js, gerado por tools/acupoints/build.mjs a
@@ -17,11 +21,87 @@ const isLeftId = id => /-E$/.test(String(id))
 const POINT_INDEX = new Map()
 ACU_MERIDIANS.forEach(m => m.points.forEach(p => POINT_INDEX.set(p.id, { ...p, meridian: m })))
 
-// Informações de um ponto (aceita id com ou sem "-E")
+// Informações de um ponto (aceita id com ou sem "-E"); depth = profundidade de referência
 function findPoint(id) {
   const p = POINT_INDEX.get(baseId(id))
   if (!p) return null
-  return { ...p, fullId: id, side: p.pl ? (isLeftId(id) ? 'E' : 'D') : null }
+  return { ...p, fullId: id, side: p.pl ? (isLeftId(id) ? 'E' : 'D') : null, depth: depthInfo(p.id) }
+}
+
+// ─── Camadas internas ─────────────────────────────────────────────────────────
+// 'skin'    pele (a agulha abre uma "janela" na pele em volta do ponto)
+// 'muscles' sem pele: músculos e ossos reais, com os pontos e meridianos por cima
+// 'bones'   pele em holograma, esqueleto
+// 'organs'  pele em holograma, esqueleto apagado e os órgãos Zang-Fu — o órgão
+//           do meridiano ativo acende na cor dele
+const LAYERS = ['skin', 'muscles', 'bones', 'organs']
+const MAX_HOLES = 4
+
+// Destaques das peças reais: brilho do órgão (cor do meridiano) e "fantasma"
+const REAL_FX = {
+  key: 'acu',
+  fragmentHead: `uniform float uGlow, uGhost, uTime; uniform vec3 uGlowColor;
+uniform vec4 uClip[${MAX_HOLES}]; uniform int uClipN;`,
+  fragmentEnd: `
+// com a pele por cima, só aparece o que está dentro das janelas das agulhas
+if (uClipN > 0) {
+  float keep = 0.0;
+  for (int i = 0; i < ${MAX_HOLES}; i++) { if (i >= uClipN) break; keep = max(keep, step(length(vWPosT - uClip[i].xyz), uClip[i].w)); }
+  if (keep < 0.5) discard;
+}
+{
+  float fr = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
+  float beat = 0.75 + 0.25 * sin(uTime * 2.6);
+  outgoingLight = mix(outgoingLight, outgoingLight * 0.55 + uGlowColor * 0.55, uGlow * 0.6);
+  outgoingLight += uGlowColor * uGlow * (0.18 + 0.9 * fr) * beat;
+  if (uGhost > 0.001) {
+    vec3 gh = mix(vec3(0.05, 0.06, 0.12), vec3(0.75, 0.8, 1.0), fr);
+    outgoingLight = mix(outgoingLight, gh, uGhost);
+    diffuseColor.a = mix(diffuseColor.a, 0.05 + 0.45 * fr, uGhost);
+  }
+}`
+}
+
+// Pele: holograma (camadas internas), desfazer (músculos) e janelas (agulha)
+function setupAcuSkin(mat, U) {
+  const prev = mat.onBeforeCompile
+  mat.onBeforeCompile = (sh, r) => {
+    Object.assign(sh.uniforms, U)
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vAcuW;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvAcuW = (modelMatrix * vec4(transformed, 1.0)).xyz;')
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform float uXray, uHide, uTime;
+uniform vec4 uHoles[${MAX_HOLES}];
+uniform int uHoleN;
+varying vec3 vAcuW;`)
+      .replace('#include <opaque_fragment>', `#include <opaque_fragment>
+float acuRim = 0.0;
+for (int i = 0; i < ${MAX_HOLES}; i++) {
+  if (i >= uHoleN) break;
+  float d = length(vAcuW - uHoles[i].xyz), r = uHoles[i].w;
+  if (d < r * 0.82) discard;
+  acuRim = max(acuRim, 1.0 - smoothstep(r * 0.82, r, d));
+}
+gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.78, 0.62), acuRim * 0.55);
+if (uHide > 0.001) {
+  float e = vAcuW.y - (uHide * 2.3 - 0.15);
+  float cut = 1.0 - smoothstep(-0.06, 0.0, e);
+  gl_FragColor.rgb += vec3(0.75, 0.6, 1.0) * (1.0 - smoothstep(0.0, 0.06, abs(e + 0.03))) * (1.0 - uHide);
+  gl_FragColor.a *= 1.0 - cut;
+  if (gl_FragColor.a < 0.01) discard;
+}
+if (uXray > 0.001) {
+  float fr = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 1.8);
+  float scan = 0.85 + 0.15 * sin(vAcuW.y * 300.0 - uTime * 2.0);
+  vec3 holo = mix(vec3(0.03, 0.03, 0.09), vec3(0.62, 0.58, 1.0), fr) * scan;
+  gl_FragColor = vec4(mix(gl_FragColor.rgb, holo, uXray), mix(gl_FragColor.a, clamp((0.025 + 0.42 * fr) * scan, 0.0, 1.0), uXray));
+}`)
+    prev?.(sh, r)
+  }
+  mat.customProgramCacheKey = () => 'acu-skin'
+  mat.needsUpdate = true
 }
 // Ids dos dois lados de um ponto (ou só um, se for da linha média)
 function sideIds(base) {
@@ -57,6 +137,19 @@ function injectStyle() {
   .acu-tip .t2 { opacity: .65; font-style: italic; }
   .acu-tip .t3 { margin-top: 3px; font-size: 11px; opacity: .8; }
   .acu-tip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .acu-credit { position: absolute; right: 12px; bottom: 8px; font-size: 9.5px; color: rgba(220,210,240,0.42);
+    opacity: 0; transition: opacity .6s; }
+  .acu-credit.on { opacity: 1; }
+  .acu-host.tv .acu-credit { right: 28px; bottom: 22px; font-size: 11px; }
+  .acu-lbl .dp { display: block; margin-top: 1px; font-size: 10px; opacity: .85; }
+  .acu-lbl .dp.warn { color: #ffb4a8; }
+  .acu-host.tv .acu-lbl .dp { font-size: 12px; }
+  .acu-org { position: absolute; left: 0; top: 0; white-space: nowrap; padding: 3px 10px; border-radius: 20px;
+    background: rgba(8,8,18,0.72); border: 1px solid var(--c, #fff); color: #fff; font-size: 11px; letter-spacing: .04em;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--c) 45%, transparent); transition: opacity .3s; will-change: transform; }
+  .acu-host.tv .acu-org { font-size: 14px; padding: 4px 12px; }
+  .acu-tip .t4 { margin-top: 4px; font-size: 11px; color: #cfe6ff; }
+  .acu-tip .t5 { font-size: 10.5px; color: #ffb4a8; }
   .acu-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: rgba(255,255,255,0.45); font-size: 13px; letter-spacing: .06em; }
   `
@@ -142,6 +235,15 @@ class AcupunctureViewer {
     this._flows = []
     this._halos = new Map()
     this._labels = new Map()
+    this.layer = LAYERS.includes(options.layer) ? options.layer : 'skin'
+    this.needle = !!options.needle
+    this._real = {}            // camada → { group, meshes }
+    this._realLoading = {}
+    this._xr = 0; this._hide = 0
+    this._needles = new Map()
+    this._organLabels = new Map()
+    this.cun = this.model.height / 75      // 1 cun ≈ 1/75 da altura (proporção óssea clássica)
+    this._clipU = { uClip: { value: Array.from({ length: MAX_HOLES }, () => new THREE.Vector4()) }, uClipN: { value: 0 } }
 
     injectStyle()
     this._init()
@@ -170,10 +272,7 @@ class AcupunctureViewer {
     const pmrem = new THREE.PMREMGenerator(this.renderer)
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
     pmrem.dispose()
-    this.scene.add(new THREE.HemisphereLight(0xfff1e6, 0x302040, 0.65))
-    const key = new THREE.DirectionalLight(0xfff4ea, 2.0); key.position.set(1.6, 3, 3.2); this.scene.add(key)
-    const rim = new THREE.DirectionalLight(0x9fb8ff, 1.3); rim.position.set(-2.4, 2.2, -3); this.scene.add(rim)
-    const rim2 = new THREE.DirectionalLight(0xffc49a, 0.8); rim2.position.set(2.6, 1.2, -2.6); this.scene.add(rim2)
+    this._lights = studioLights(this.scene, this.renderer, { height: this.model.height, rimColor: 0x9fb8ff, rim2Color: 0xffc49a })
 
     this._addFloor()
 
@@ -185,6 +284,10 @@ class AcupunctureViewer {
     this.loadingEl.className = 'acu-loading'
     this.loadingEl.textContent = 'Carregando modelo 3D…'
     this.overlay.appendChild(this.loadingEl)
+    this.creditEl = document.createElement('div')
+    this.creditEl.className = 'acu-credit'
+    this.creditEl.textContent = CREDIT
+    this.overlay.appendChild(this.creditEl)
     if (this.isDoctor) {
       this.tipEl = document.createElement('div')
       this.tipEl.className = 'acu-tip'
@@ -231,6 +334,11 @@ class AcupunctureViewer {
     floor.rotation.x = -Math.PI / 2
     floor.position.y = 0.001
     this.scene.add(floor)
+    const sf = new THREE.Mesh(new THREE.CircleGeometry(0.9, 48), new THREE.ShadowMaterial({ opacity: 0.3 }))
+    sf.rotation.x = -Math.PI / 2
+    sf.position.y = 0.002
+    sf.receiveShadow = true
+    this.scene.add(sf)
   }
 
   // Geometria dos pontos → corpo
@@ -269,23 +377,32 @@ class AcupunctureViewer {
         // Mantêm a textura; só ajustamos o acabamento
         const m = o.material
         if (o.name === 'body') {
-          m.roughness = 0.6
           m.envMapIntensity = 0.45
+          this._skinU = { uXray: { value: 0 }, uHide: { value: 0 }, uTime: { value: 0 },
+            uHoles: { value: Array.from({ length: MAX_HOLES }, () => new THREE.Vector4()) }, uHoleN: { value: 0 } }
+          skinMaterial(m)
+          setupAcuSkin(m, this._skinU)
+          o.castShadow = o.receiveShadow = true
+          this._skin = m
           this._bodyMeshes.push(o)
         } else if (o.name === 'hair') {
           m.side = THREE.DoubleSide
           m.envMapIntensity = 0.3
           o.visible = this.hairVisible
+          o.castShadow = true
           this._hairMeshes.push(o)
         } else if (o.name === 'eyes') {
           m.roughness = 0.15
           m.envMapIntensity = 0.9
         }
         if (o.name === 'eyebrows' || o.name === 'eyelashes' || o.name === 'hair') o.renderOrder = 2
+        if (o.name !== 'body' && o.name !== 'hair') (this._faceMeshes ||= []).push(o)
       })
       this.scene.add(model)
       model.updateMatrixWorld(true)
       this.body = model
+      this._lights.update()
+      this._ensureLayers()
     } catch (err) {
       console.error('[AcupunctureViewer] Erro ao carregar o modelo:', err)
       this.loadingEl.textContent = 'Não foi possível carregar o modelo 3D.'
@@ -476,12 +593,254 @@ class AcupunctureViewer {
         el.style.setProperty('--c', pt.meridian.color)
         const side = pt.info.pl ? (isLeftId(id) ? ' E' : ' D') : ''
         const nome = pt.info.name === pt.base ? pt.info.pt : pt.info.name   // extras: id já é o nome
-        el.innerHTML = `<b>${pt.base}</b><span>${nome}${side}</span>`
+        el.innerHTML = `<b>${pt.base}</b><span>${nome}${side}</span><i class="dp"></i>`
         this.overlay.appendChild(el)
         this._labels.set(id, el)
       }
+      const el = this._labels.get(id)
+      if (el) {
+        const di = this.needle ? depthInfo(pt.base, this.cun) : null
+        const dp = el.querySelector('.dp')
+        dp.textContent = di ? `${di.text} · ${di.angleLabel}` : ''
+        dp.classList.toggle('warn', !!di?.warn)
+        dp.title = di?.note || ''
+        dp.style.display = di ? '' : 'none'
+        el._w = 0
+      }
     })
     if (!this.labelsOn) { this._labels.forEach(el => el.remove()); this._labels.clear() }
+    this._refreshNeedles()
+    this._refreshOrgans()
+  }
+
+  // ── Agulhas (profundidade de referência) ─────────────────────────────────
+  // Uma agulha por ponto selecionado (até 12); a pele abre uma janela em volta
+  // dos 4 primeiros para ver a agulha atravessando os músculos.
+  _needleDir(pt, d) {
+    const n = pt.nrm.clone().negate()
+    if (d.angle === 'p' || d.angle === 'x') return n
+    const note = d.note || ''
+    let t
+    if (/coluna/.test(note)) t = new THREE.Vector3(-Math.sign(pt.pos.x) || 0, 0, 0)
+    else if (/para cima/.test(note)) t = new THREE.Vector3(0, 1, 0)
+    else if (/para baixo/.test(note)) t = new THREE.Vector3(0, -1, 0)
+    else if (/para fora/.test(note)) t = new THREE.Vector3(Math.sign(pt.pos.x) || 1, 0, 0)
+    else if (/nariz|queixo/.test(note)) t = new THREE.Vector3(0, -0.2, 1)
+    else {
+      // no sentido do meridiano (para o ponto seguinte do mesmo lado)
+      const list = pt.meridian.points
+      const k = list.findIndex(q => q.id === pt.base)
+      const nb = list[k + 1] || list[k - 1]
+      const j = nb ? this.pointById.get(nb.id + (isLeftId(pt.id) && nb.pl ? '-E' : '')) : null
+      t = j != null ? this.points[j].pos.clone().sub(pt.pos) : new THREE.Vector3(0, 1, 0)
+    }
+    t.addScaledVector(pt.nrm, -t.dot(pt.nrm))
+    if (t.lengthSq() < 1e-8) return n
+    t.normalize()
+    const ang = d.angle === 't' ? 75 : 45            // a partir da perpendicular
+    return n.multiplyScalar(Math.cos(ang * Math.PI / 180)).addScaledVector(t, Math.sin(ang * Math.PI / 180)).normalize()
+  }
+  _refreshNeedles() {
+    const want = new Set(this.needle ? [...this.selected].slice(0, 12) : [])
+    for (const [id, g] of this._needles) if (!want.has(id)) { this.scene.remove(g); g.traverse(o => { o.geometry?.dispose(); o.material?.dispose?.() }); this._needles.delete(id) }
+    want.forEach(id => {
+      if (this._needles.has(id)) return
+      const i = this.pointById.get(id)
+      if (i == null) return
+      const pt = this.points[i], d = depthInfo(pt.base, this.cun)
+      if (!d || d.angle === 'm') return
+      const dir = this._needleDir(pt, d)
+      const L = Math.max(0.1, d.max) * this.cun, L0 = d.min * this.cun
+      const g = new THREE.Group()
+      const R = this.tv ? 0.0009 : 0.0007      // um pouco mais grossa que a real, para ser vista
+      const steel = new THREE.MeshStandardMaterial({ color: 0xe6eaef, metalness: 1, roughness: 0.2, envMapIntensity: 1.6 })
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L + 0.004, 12), steel)
+      shaft.position.y = -(L + 0.004) / 2 + 0.004
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(R, 0.003, 12), steel)
+      tip.rotation.x = Math.PI
+      tip.position.y = -L - 0.0015 + 0.004
+      // o trecho dentro do corpo também aparece através do tecido (raio-X)
+      const ghostM = new THREE.MeshBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, toneMapped: false })
+      const ghost = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.9, R * 0.9, L, 10), ghostM)
+      ghost.position.y = -L / 2
+      ghost.renderOrder = 30
+      // cabo espiralado acima da pele
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(R * 2.2, R * 2.2, 0.024, 14), new THREE.MeshStandardMaterial({ color: 0xc9a46a, metalness: 0.9, roughness: 0.35 }))
+      handle.position.y = 0.004 + 0.012
+      const coil = new THREE.Mesh(new THREE.TorusGeometry(R * 2.5, R * 0.45, 6, 18), handle.material)
+      // faixa da profundidade indicada (mín → máx) em verde
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(R * 2, R * 2, Math.max(0.0015, L - L0), 12),
+        new THREE.MeshBasicMaterial({ color: 0x5cffb0, transparent: true, opacity: 0.65, depthTest: false, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }))
+      band.position.y = -(L0 + L) / 2
+      band.renderOrder = 31
+      g.add(shaft, tip, ghost, handle, band)
+      for (let k = 0; k < 5; k++) { const c = coil.clone(); c.rotation.x = Math.PI / 2; c.position.y = 0.006 + k * 0.0042; g.add(c) }
+      g.position.copy(pt.pos)
+      g.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir)
+      g.userData = { band, t0: Math.random() * 6 }
+      this.scene.add(g)
+      this._needles.set(id, g)
+    })
+    // janelas na pele (só na camada da pele)
+    const U = this._skinU
+    if (U) {
+      const ids = this.layer === 'skin' ? [...this._needles.keys()].slice(0, MAX_HOLES) : []
+      ids.forEach((id, k) => {
+        const pt = this.points[this.pointById.get(id)]
+        U.uHoles.value[k].set(pt.pos.x, pt.pos.y, pt.pos.z, 0.028)
+        this._clipU.uClip.value[k].set(pt.pos.x, pt.pos.y, pt.pos.z, 0.032)
+      })
+      U.uHoleN.value = ids.length
+      this._clipU.uClipN.value = ids.length
+    }
+    if (this._needles.size) this._ensureLayers()
+  }
+
+  // ── Camadas internas (anatomia real) ─────────────────────────────────────
+  _need() {
+    const L = new Set()
+    if (this.layer === 'muscles' || (this.needle && this.selected.size)) { L.add('muscles'); L.add('bones') }
+    if (this.layer === 'bones') L.add('bones')
+    if (this.layer === 'organs') { L.add('organs'); L.add('bones') }
+    return L
+  }
+  _ensureLayers() {
+    if (!this.ready && !this._skinU) return
+    this._need().forEach(l => {
+      if (this._real[l] || this._realLoading[l]) return
+      this._realLoading[l] = loadLayer(this.modelKey, l).then(d => {
+        if (this._disposed) return
+        this._buildLayer(l, d)
+      }).catch(err => { console.error('[AcupunctureViewer] Camada indisponível:', l, err); delete this._realLoading[l] })
+    })
+  }
+  _buildLayer(layer, d) {
+    const g = new THREE.Group()
+    g.visible = false
+    const T = this._skinU.uTime
+    const fx = () => ({ uGlow: { value: 0 }, uGhost: { value: 0 }, uTime: T, uGlowColor: { value: new THREE.Color(1, 1, 1) },
+      uClip: this._clipU.uClip, uClipN: this._clipU.uClipN })
+    const meshes = []
+    if (layer === 'bones') {
+      // ossos fundidos por tecido (sem dentes na visão de músculos)
+      const by = {}
+      d.parts.forEach(p => (by[p.kind] ||= []).push(p.geometry))
+      Object.entries(by).forEach(([k, geos]) => {
+        const u = fx()
+        const m = new THREE.Mesh(mergeGeometries(geos), realMaterial(k, { uniforms: u, extra: REAL_FX }))
+        m.castShadow = m.receiveShadow = true
+        m.userData = { u, kind: k, ghost: false, st: { glow: 0, ghost: 0 } }
+        g.add(m); meshes.push(m)
+      })
+    } else {
+      d.parts.forEach(p => {
+        const u = fx()
+        const m = new THREE.Mesh(p.geometry, realMaterial(p.kind, { axis: p.axis, uniforms: u, extra: REAL_FX }))
+        m.castShadow = m.receiveShadow = layer === 'muscles'
+        m.userData = { u, part: p, ghost: false, st: { glow: 0, ghost: 0 } }
+        g.add(m); meshes.push(m)
+      })
+    }
+    this.scene.add(g)
+    this._real[layer] = { group: g, meshes }
+    this._refreshOrgans()
+  }
+
+  // Órgãos dos meridianos ativos (pontos selecionados ou meridiano em destaque)
+  _organTargets() {
+    const act = this.highlighted ? new Set([this.highlighted]) : this._activeMeridians()
+    const out = new Map()      // mesh → { glow, color }
+    const O = this._real.organs
+    if (!O || this.layer !== 'organs') return out
+    O.meshes.forEach(m => {
+      const p = m.userData.part
+      let best = null
+      act.forEach(id => {
+        const M = ACU_MERIDIANS.find(x => x.id === id)
+        if (!M) return
+        let g = 0
+        if (p.mer === id) g = 1
+        else if (id === 'PC' && p.mer === 'HT' && p.kind === 'heart') g = 1      // pericárdio: o envoltório do coração
+        else if (id === 'TE' && !['artery', 'vein'].includes(p.kind)) g = 0.55    // triplo aquecedor: as três cavidades
+        if (g && (!best || g > best.glow)) best = { glow: g, color: M.color, mer: M }
+      })
+      if (best) out.set(m, best)
+    })
+    return out
+  }
+  _refreshOrgans() {
+    this._orgT = this._organTargets()
+    // um rótulo por órgão aceso (nome em português, sem repetir lobos/partes)
+    const MAIN = ['lung', 'heart', 'liver', 'stomach', 'spleen', 'kidney', 'bladder', 'gallbladder', 'smallint', 'colon']
+    const want = new Map()
+    this._orgT.forEach((t, m) => {
+      if (t.glow < 0.9) return
+      const p = m.userData.part
+      if (!MAIN.includes(p.kind) || p.base === 'esophagus') return   // o esôfago acende com o Estômago, mas o rótulo é do estômago
+      const name = t.mer.id === 'PC' ? 'Pericárdio' : p.name.replace(/ \(.*\)$/, '')
+      const key = t.mer.id                  // um rótulo por meridiano (o maior órgão dele)
+      const cur = want.get(key)
+      if (!cur || p.r > cur.r) want.set(key, { name, r: p.r, c: p.c, color: t.color })
+    })
+    for (const [k, el] of this._organLabels) if (!want.has(k)) { el.remove(); this._organLabels.delete(k) }
+    want.forEach((w, k) => {
+      let el = this._organLabels.get(k)
+      if (!el) {
+        el = document.createElement('div')
+        el.className = 'acu-org'
+        this.overlay.appendChild(el)
+        this._organLabels.set(k, el)
+      }
+      el.style.setProperty('--c', w.color)
+      if (el.textContent !== w.name) { el.textContent = w.name; el._w = 0 }
+      el._pos = w.c.clone()
+    })
+  }
+
+  // Passo das camadas: pele (holograma / desfazer), visibilidade e destaques
+  _stepLayers(dt, t) {
+    const U = this._skinU
+    if (!U) return
+    U.uTime.value = t
+    const L = this.layer
+    const has = l => !!this._real[l]
+    const xr = (L === 'bones' && has('bones')) || (L === 'organs' && has('organs')) ? 1 : 0
+    const hide = L === 'muscles' && has('muscles') ? 1 : 0
+    const ap = (c, g, r) => c + (g - c) * Math.min(1, r * dt)
+    this._xr = ap(this._xr, xr, 3); if (Math.abs(this._xr - xr) < 0.003) this._xr = xr
+    this._hide = ap(this._hide, hide, hide ? 1.1 : 3); if (Math.abs(this._hide - hide) < 0.003) this._hide = hide
+    U.uXray.value = this._xr
+    U.uHide.value = this._hide
+    const trans = this._xr > 0 || this._hide > 0
+    if (this._skin.transparent !== trans) { this._skin.transparent = trans; this._skin.depthWrite = !trans; this._skin.needsUpdate = true }
+    this._bodyMeshes.forEach(b => { b.visible = this._hide < 0.999; b.castShadow = this._xr < 0.05 && this._hide < 0.5 })
+    const inner = this._xr > 0.3 || this._hide > 0.3
+    ;(this._hairMeshes || []).forEach(h => { h.visible = this.hairVisible && !inner })
+    ;(this._faceMeshes || []).forEach(f => { f.visible = this._xr < 0.3 })
+    const holes = U.uHoleN.value > 0
+    const vis = {
+      muscles: has('muscles') && ((L === 'muscles' && this._hide > 0.001) || (L === 'skin' && holes)),
+      bones: has('bones') && (L !== 'skin' || holes) && (L !== 'bones' || this._xr > 0.001) && (L !== 'organs' || this._xr > 0.001),
+      organs: has('organs') && L === 'organs' && this._xr > 0.001
+    }
+    Object.entries(this._real).forEach(([l, R]) => { R.group.visible = !!vis[l] })
+    // órgãos acendem; ossos viram "fantasma" na camada dos órgãos
+    const step = (m, glow, ghost, color) => {
+      const st = m.userData.st, u = m.userData.u
+      st.glow = ap(st.glow, glow, 4); st.ghost = ap(st.ghost, ghost, 4)
+      u.uGlow.value = st.glow; u.uGhost.value = st.ghost
+      if (color) u.uGlowColor.value.set(color)
+      const gh = st.ghost > 0.01
+      if (gh !== m.userData.ghost) { m.userData.ghost = gh; m.material.transparent = gh; m.material.depthWrite = !gh; m.material.needsUpdate = true; m.renderOrder = gh ? 3 : 0 }
+    }
+    if (this._real.bones) this._real.bones.meshes.forEach(m => step(m, 0, L === 'organs' ? 0.82 : 0))
+    if (this._real.organs) this._real.organs.meshes.forEach(m => { const o = this._orgT?.get(m); step(m, o ? o.glow : 0, 0, o?.color) })
+    this.creditEl.classList.toggle('on', Object.values(this._real).some(R => R.group.visible))
+    // sombra refeita quando algo muda de visibilidade
+    const key = `${L}|${this._bodyMeshes.map(b => +b.castShadow).join('')}|${Object.values(this._real).map(R => +R.group.visible).join('')}|${this.hairVisible}`
+    if (key !== this._shKey || (this._hide > 0 && this._hide < 1)) { this._shKey = key; this._lights.update() }
+    // agulhas: a faixa da profundidade "respira"
+    this._needles.forEach(g => { g.userData.band.material.opacity = 0.45 + 0.25 * Math.sin(t * 3 + g.userData.t0) })
   }
 
   _refreshAll() {
@@ -538,7 +897,9 @@ class AcupunctureViewer {
         this.tipEl.innerHTML =
           `<div class="t1"><span class="dot" style="background:${info.meridian.color}"></span>${info.id} · ${info.name}</div>` +
           `<div class="t2">${info.pt}</div>` +
-          `<div class="t3">${info.meridian.name}${side}</div>`
+          `<div class="t3">${info.meridian.name}${side}</div>` +
+          (info.depth ? `<div class="t4">Agulha: ${info.depth.text} · ${info.depth.angleLabel}</div>` +
+            (info.depth.note ? `<div class="${info.depth.warn ? 't5' : 't3'}">${info.depth.warn ? '⚠ ' : ''}${info.depth.note}</div>` : '') : '')
         this.tipEl.classList.add('show')
       } else this.tipEl.classList.remove('show')
     }
@@ -628,6 +989,8 @@ class AcupunctureViewer {
       // Pontos em lados opostos (ex.: frente e costas): mantém a direção atual
       dir = new THREE.Vector3().subVectors(this.camera.position, this.controls.target).normalize()
     }
+    // com a agulha, olha de lado (de frente ela some): gira ~55° em volta da vertical
+    if (this.needle && pts.length <= 4) dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), (pts[0].pos.x < 0 ? -1 : 1) * 0.95)
     dir.y = Math.max(-0.2, Math.min(0.45, dir.y + 0.12))
     dir.normalize()
     const vfov = this.camera.fov * Math.PI / 180
@@ -663,14 +1026,25 @@ class AcupunctureViewer {
     this.highlighted = id || null
     this._refreshPoints()
     this._refreshMeridians()
+    this._refreshOrgans()
   }
   setLabels(on) { this.labelsOn = !!on; if (this.points) this._refreshSelectionFx() }
   // Oculta o cabelo (corpos realistas) para ver os pontos da cabeça e da nuca
   setHairVisible(on) {
     this.hairVisible = !!on
-    ;(this._hairMeshes || []).forEach(h => { h.visible = this.hairVisible })
+    ;(this._hairMeshes || []).forEach(h => { h.visible = this.hairVisible && this._xr < 0.3 && this._hide < 0.3 })
   }
   hasHair() { return true }
+  // Camada: 'skin' | 'muscles' | 'bones' | 'organs'
+  setLayer(name) {
+    this.layer = LAYERS.includes(name) ? name : 'skin'
+    this._ensureLayers()
+    if (this.points) { this._refreshNeedles(); this._refreshOrgans() }
+  }
+  getLayer() { return this.layer }
+  // Agulhas com a profundidade de referência nos pontos selecionados
+  setNeedle(on) { this.needle = !!on; if (this.points) this._refreshSelectionFx() }
+  getNeedle() { return this.needle }
   getModel() { return this.modelKey }
   setAutoRotate(on) { this.autoRotate = !!on }
 
@@ -715,8 +1089,40 @@ class AcupunctureViewer {
     const pulse = 1 + Math.sin(t * 3.2) * 0.22
     this._halos.forEach(sp => sp.scale.setScalar((this.tv ? 0.05 : 0.04) * pulse))
 
+    if (this._skinU) this._stepLayers(dt, t)
     this.renderer.render(this.scene, this.camera)
     this._updateLabels()
+    this._updateOrganLabels()
+  }
+
+  _updateOrganLabels() {
+    if (!this._organLabels.size) return
+    const W = this.renderer.domElement.clientWidth, H = this.renderer.domElement.clientHeight, v = new THREE.Vector3()
+    const on = this.layer === 'organs' && this._xr > 0.6
+    const items = []
+    this._organLabels.forEach(el => {
+      v.copy(el._pos).project(this.camera)
+      const ok = on && v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05
+      el.style.opacity = ok ? '1' : '0'
+      if (!ok) return
+      if (!el._w) { el._w = el.offsetWidth || 70; el._h = el.offsetHeight || 22 }
+      items.push({ el, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H })
+    })
+    // sem sobrepor: cada rótulo desce ou sobe em degraus até achar espaço
+    items.sort((a, b) => a.y - b.y)
+    const placed = []
+    items.forEach(it => {
+      const w = it.el._w, h = it.el._h
+      let box = null
+      for (const k of [0, 1, -1, 2, -2, 3, -3, 4]) {
+        const t = it.y - h / 2 + k * (h + 4)
+        const bx = { l: it.x - w / 2, r: it.x + w / 2, t, b: t + h }
+        if (!placed.some(q => bx.l < q.r && bx.r > q.l && bx.t < q.b && bx.b > q.t)) { box = bx; break }
+      }
+      box ||= { l: it.x - w / 2, r: it.x + w / 2, t: it.y - h / 2, b: it.y + h / 2 }
+      placed.push(box)
+      it.el.style.transform = `translate(${box.l}px, ${box.t}px)`
+    })
   }
 
   _updateLabels() {
@@ -764,6 +1170,8 @@ class AcupunctureViewer {
   destroy() {
     this._disposed = true
     cancelAnimationFrame(this._animId)
+    Object.values(this._real).forEach(R => { this.scene.remove(R.group); R.meshes.forEach(m => { m.material.dispose(); if (!m.userData.part) m.geometry.dispose() }) })
+    this._needles.forEach(g => g.traverse(o => { o.geometry?.dispose() }))
     this._ro?.disconnect()
     this.controls.dispose()
     this.renderer.dispose()
@@ -772,4 +1180,4 @@ class AcupunctureViewer {
   }
 }
 
-export { AcupunctureViewer, ACU_MERIDIANS, ACU_PROTOCOLS, MODELS, findPoint, sideIds, baseId }
+export { AcupunctureViewer, ACU_MERIDIANS, ACU_PROTOCOLS, ACU_DEPTH, MODELS, LAYERS, findPoint, sideIds, baseId, depthInfo }

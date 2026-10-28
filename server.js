@@ -195,6 +195,14 @@ app.get(['/doctor', '/doctor/', '/doctor/index.html'], requireAuthPage, (req, re
   res.sendFile(path.join(__dirname, 'public', 'doctor', 'index.html'))
 })
 
+// Anatomia real (tools/anatomy): os .bin já são gzip — o navegador descomprime sozinho
+app.use('/models', (req, res, next) => {
+  if (/^\/anatomy-[a-z]+-[a-z]+\.bin$/.test(req.path)) {
+    res.set('Content-Encoding', 'gzip')
+    res.type('application/octet-stream')
+  }
+  next()
+})
 app.use(express.static(path.join(__dirname, 'public')))
 
 // ─── Sessões ────────────────────────────────────────────────────────────────
@@ -715,11 +723,14 @@ app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
       .slice(0, 120)
     // Corpo exibido (a TV mostra o mesmo que a profissional escolheu)
     const model = ['male', 'female'].includes(req.body.model) ? req.body.model : 'female'
+    // Camada interna exibida e agulha com a profundidade de referência
+    const layer = ['skin', 'muscles', 'bones', 'organs'].includes(req.body.layer) ? req.body.layer : 'skin'
+    const needle = req.body.needle === true
     if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
     await saveAnatomyEvent({
       session_id,
       region: '__acupuncture__',
-      problem: JSON.stringify({ points, model }),
+      problem: JSON.stringify({ points, model, layer, needle }),
       ai_explanation: ''
     })
     pollSoon()
