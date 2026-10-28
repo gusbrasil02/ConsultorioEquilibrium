@@ -722,7 +722,7 @@ class AcupunctureViewer {
       uClip: this._clipU.uClip, uClipN: this._clipU.uClipN })
     const meshes = []
     if (layer === 'bones') {
-      // ossos fundidos por tecido (sem dentes na visão de músculos)
+      // ossos fundidos por tecido (dentes e gengiva à parte: somem na camada de músculos)
       const by = {}
       d.parts.forEach(p => (by[p.kind] ||= []).push(p.geometry))
       Object.entries(by).forEach(([k, geos]) => {
@@ -833,8 +833,12 @@ class AcupunctureViewer {
       const gh = st.ghost > 0.01
       if (gh !== m.userData.ghost) { m.userData.ghost = gh; m.material.transparent = gh; m.material.depthWrite = !gh; m.material.needsUpdate = true; m.renderOrder = gh ? 3 : 0 }
     }
-    if (this._real.bones) this._real.bones.meshes.forEach(m => step(m, 0, L === 'organs' ? 0.82 : 0))
-    if (this._real.organs) this._real.organs.meshes.forEach(m => { const o = this._orgT?.get(m); step(m, o ? o.glow : 0, 0, o?.color) })
+    if (this._real.bones) this._real.bones.meshes.forEach(m => {
+      m.visible = !(L === 'muscles' && (m.userData.kind === 'tooth' || m.userData.kind === 'gum'))
+      step(m, 0, L === 'organs' ? 0.82 : 0)
+    })
+    // o diafragma (músculo em cúpula) fica quase transparente: não esconde fígado e estômago
+    if (this._real.organs) this._real.organs.meshes.forEach(m => { const o = this._orgT?.get(m); step(m, o ? o.glow : 0, m.userData.part.kind === 'diaphragm' ? 0.88 : 0, o?.color) })
     this.creditEl.classList.toggle('on', Object.values(this._real).some(R => R.group.visible))
     // sombra refeita quando algo muda de visibilidade
     const key = `${L}|${this._bodyMeshes.map(b => +b.castShadow).join('')}|${Object.values(this._real).map(R => +R.group.visible).join('')}|${this.hairVisible}`

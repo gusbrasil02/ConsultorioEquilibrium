@@ -718,7 +718,8 @@ class PhysioViewer {
       g.add(m)
       return m
     })
-    // Ossos: uma malha por tecido (na visão de músculos só servem de fundo; sem dentes)
+    // Ossos: uma malha por tecido (na visão de músculos só servem de fundo; os
+    // dentes e a gengiva ficam atrás dos lábios e não entram)
     const byKind = {}
     bon.parts.forEach(p => { if (p.kind !== 'tooth' && p.kind !== 'gum') (byKind[p.kind] ||= []).push(p.geometry) })
     const bones = Object.entries(byKind).map(([k, geos]) => {

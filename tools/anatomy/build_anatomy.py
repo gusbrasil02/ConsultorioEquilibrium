@@ -64,7 +64,7 @@ BODIES = ['female', 'male']
 # Triângulos por camada (o total é dividido entre as peças pela área^0,8)
 BUDGET = {'bones': 150_000, 'muscles': 260_000, 'organs': 60_000}
 MIN_TRIS = {'bones': 80, 'muscles': 120, 'organs': 120}
-MARGIN = {'bones': 0.004, 'muscles': 0.0015, 'organs': 0.008}   # folga mínima até a pele (m)
+MARGIN = {'bones': 0.0055, 'muscles': 0.0025, 'organs': 0.008}   # folga mínima até a pele (m)
 
 
 # ─── Entrada ─────────────────────────────────────────────────────────────────
@@ -619,13 +619,70 @@ class Fit:
             rd, rx = np.interp(V[:, 1], yy, rd_t), np.interp(V[:, 1], yy, rx_t)
             z2 = zbM(y2) + (V[:, 2] - zbB(V[:, 1])) * rd
             return np.stack([V[:, 0] * rx, y2, z2], 1)
-        self.tf['torso'] = torso
+        # Cabeça: encaixe próprio por marcos (olhos, dentes, nariz, nuca, topo). As
+        # fatias do tronco distorcem o rosto; aqui o crânio e a face mudam só de escala.
+        head = self.head_map()
+        if head:
+            hf, y0, y1 = head
+
+            def torso_head(V, torso=torso):
+                X = torso(V)
+                w = np.clip((V[:, 1] - y0) / (y1 - y0), 0, 1)
+                w = w * w * (3 - 2 * w)
+                m = w > 0
+                if m.any():
+                    X[m] = X[m] * (1 - w[m, None]) + hf(V[m]) * w[m, None]
+                return X
+            self.tf['torso'] = torso_head
+        else:
+            self.tf['torso'] = torso
 
         # espessura dos membros: razão entre as peles em volta do eixo
         self.radial = {}
         for side, pre, sx in SIDES:
             for sid in ('th', 'lg', 'ua', 'fas'):
                 self.radial[sid + side] = self.radial_ratio(sid + side, bone_pts, bone_lab, torso_mh)
+
+    def head_map(self):
+        """Mapa afim da cabeça: x pela distância entre os olhos e a largura da cabeça;
+        y por trechos (dentes de baixo → dentes de cima → olhos → topo); z entre a
+        nuca e a ponta do nariz. Retorna (função, início e fim da transição no pescoço)."""
+        J, Vb, S = self.J, self.Vb, self.skin_bp
+        eye_p = getattr(self, 'eye_pts', None)
+        need = [('upper central secondary incisor tooth', 'D'), ('lower central secondary incisor tooth', 'D'),
+                ('fourth cervical vertebra', None), ('parietal bone', 'D')]
+        if eye_p is None or not all(k in self.by for k in need):
+            return None
+        eR, eL = eye_p[eye_p[:, 0] < 0].mean(0), eye_p[eye_p[:, 0] > 0].mean(0)
+        E1, E2 = (eR + eL) / 2, (J['r-eye'] + J['l-eye']) / 2
+        ut = np.r_[self.P('upper central secondary incisor tooth', 'D'), self.P('upper central secondary incisor tooth', 'E')].mean(0)
+        lt = np.r_[self.P('lower central secondary incisor tooth', 'D'), self.P('lower central secondary incisor tooth', 'E')].mean(0)
+
+        def nose_back(P, ey, my):
+            band = P[(np.abs(P[:, 0]) < 0.015) & (P[:, 1] > my) & (P[:, 1] < ey)]
+            back = P[(np.abs(P[:, 0]) < 0.03) & (np.abs(P[:, 1] - ey) < 0.01)]
+            side = P[(np.abs(P[:, 1] - ey) < 0.01) & (P[:, 2] < band[:, 2].max() - 0.03)]
+            return band[:, 2].max(), back[:, 2].min(), np.percentile(np.abs(side[:, 0]), 97)
+        n1, b1, w1 = nose_back(S, E1[1], ut[1])
+        n2, b2, w2 = nose_back(Vb, E2[1], J['helper-upper-teeth'][1])
+        sx = 0.5 * (np.linalg.norm(J['l-eye'] - J['r-eye']) / np.linalg.norm(eL - eR)) + 0.5 * (w2 / w1)
+        sz = (n2 - b2) / (n1 - b1)
+        top1 = max(self.P('parietal bone', 'D')[:, 1].max(), self.P('parietal bone', 'E')[:, 1].max())
+        top2 = Vb[:, 1].max() - (S[:, 1].max() - top1) * (n2 - b2) / (n1 - b1)    # mesma espessura do couro cabeludo
+        ys1 = np.array([lt[1], ut[1], E1[1], top1])
+        ys2 = np.array([J['helper-lower-teeth'][1], J['helper-upper-teeth'][1], E2[1], top2])
+        k_lo = (ys2[2] - ys2[0]) / (ys1[2] - ys1[0])
+        self.log(f'cabeça: x×{sx:.2f}  z×{sz:.2f}  altura {ys1.round(3)} → {ys2.round(3)}')
+
+        def hf(V):
+            y = np.interp(V[:, 1], ys1, ys2)
+            lo = V[:, 1] < ys1[0]
+            y[lo] = ys2[0] + (V[lo, 1] - ys1[0]) * k_lo
+            hi = V[:, 1] > ys1[-1]
+            y[hi] = ys2[-1] + (V[hi, 1] - ys1[-1]) * (ys2[-1] - ys2[-2]) / (ys1[-1] - ys1[-2])
+            return np.stack([E2[0] + (V[:, 0] - E1[0]) * sx, y, b2 + (V[:, 2] - b1) * sz], 1)
+        c4 = self.P('fourth cervical vertebra')[:, 1].mean()
+        return hf, c4, lt[1] - 0.005
 
     # amostras dos ossos (para pesos e classificação da pele)
     def bone_samples(self):
@@ -739,7 +796,7 @@ class Fit:
         k = 1 + (v - 1) * fade * w
         return X + rv * (k - 1)[:, None]
 
-    def arm_split(self, V, W, dmin):
+    def arm_split(self, V, W, dmin, F=None):
         """Perto do ombro os pesos pelo osso mais próximo falham: no BodyParts3D o
         braço está caído junto ao tórax e no corpo de destino está aberto. Quem
         está dentro do "cilindro" do braço (ombro → cotovelo → punho) segue só os
@@ -748,7 +805,8 @@ class Fit:
         names = self.tf_names
         leg = np.array([n[:2] in ('th', 'lg', 'ft', 'mt', 'tp') for n in names])
         best = np.argmin(dmin, 1)
-        for side, _, _ in SIDES:
+        self._blend = []
+        for side, pre, _ in SIDES:
             L = self.L[side]
             arm = np.array([n.endswith(side) and n[:2] in ('ua', 'fa', 'ra', 'ha', 'mc', 'ph') for n in names])
             S, E, Wr = L['shoulder'], L['elbow'], L['wrist']
@@ -764,8 +822,24 @@ class Fit:
             d = np.minimum(d, segd(Wr, np.mean([L['mc'][i][1] for i in (2, 3, 4, 5)], 0)))
             r_in, r_out = 0.048, 0.066
             wa = np.clip((t + 0.04) / 0.16, 0, 1) * np.clip((r_out - d) / (r_out - r_in), 0, 1)
-            wa = wa * wa * (3 - 2 * wa)
+            # quem está mais perto do tronco (costelas, escápula) do que do úmero fica no
+            # tronco: com o braço caído junto ao tórax, o grande dorsal e o redondo maior
+            # caem dentro do cilindro do braço e subiriam com ele (a "asa" na axila)
+            ua_i = names.index('ua' + side)
+            dt_, dh_ = dmin[:, 0], dmin[:, ua_i]
+            near = np.where(np.isfinite(dt_) & (t < 0.7), np.clip((dt_ - dh_) / 0.025 + 0.5, 0, 1), 1)
+            wa = wa * near
             wa[leg[best]] = 0
+            # suaviza o peso pela própria malha: vizinhos seguem juntos (sem espinhos)
+            if F is not None and len(F):
+                for _ in range(8):
+                    acc = np.zeros(len(V)); cnt = np.zeros(len(V))
+                    for k in range(3):
+                        np.add.at(acc, F[:, k], wa[F[:, (k + 1) % 3]] + wa[F[:, (k + 2) % 3]])
+                        np.add.at(cnt, F[:, k], 2)
+                    wa = 0.4 * wa + 0.6 * acc / np.maximum(cnt, 1)
+                wa[leg[best]] = 0
+            wa = wa * wa * (3 - 2 * wa)
             m = wa > 0
             if not m.any():
                 continue
@@ -777,6 +851,10 @@ class Fit:
             st = Wt.sum(1, keepdims=True)
             Wt = np.where(st > 1e-6, Wt / np.maximum(st, 1e-9), np.eye(len(names))[0])
             W[m] = wa[m, None] * Wa + (1 - wa[m, None]) * Wt
+            # o arco só vale na altura do ombro (no resto do braço a mistura é radial)
+            part = (wa[m] > 1e-3) & (wa[m] < 0.999) & (t[m] < 0.6)
+            if part.any():
+                self._blend.append((self.J[pre + 'shoulder'], np.where(m)[0][part], wa[m][part], Wa[part], Wt[part]))
             # fora do cilindro, nada segue o braço
             far = ~m & (W[:, arm].sum(1) > 0) & (t < 0.6)
             if far.any():
@@ -823,34 +901,58 @@ class Fit:
         W[~np.isfinite(best[:, 0])] = 0
         W[~np.isfinite(best[:, 0]), 0] = 1     # longe de tudo → tronco
         W /= W.sum(1, keepdims=True)
-        W = self.arm_split(V, W, dmin)
+        W = self.arm_split(V, W, dmin, p.get('F'))
         # mãos e pés (dedos finos, lado a lado): marcados para só correções pequenas na pele
         ext = np.array([n[:2] in ('ha', 'mc', 'ph', 'ft', 'mt', 'tp') for n in names])
         self.last_ext = W[:, ext].sum(1) > 0.5
         out = np.zeros_like(V)
         used = np.where(W.max(0) > 1e-4)[0]
+        cache = {}
         for j in used:
             tid = names[j]
             tid = self.soft_tf.get(tid, tid)
-            out += W[:, j:j + 1] * self.tf[tid](V)
+            cache[j] = self.tf[tid](V)
+            out += W[:, j:j + 1] * cache[j]
+        # Ombro: entre "segue o tronco" e "segue o braço" a passagem gira em arco em
+        # volta da articulação (a mistura em linha reta virava uma placa na axila)
+        def mix(Wm, idx):
+            X = np.zeros((len(idx), 3))
+            for j in np.where(Wm.max(0) > 0)[0]:
+                if j not in cache:
+                    cache[j] = self.tf[self.soft_tf.get(names[j], names[j])](V)
+                X += Wm[:, j:j + 1] * cache[j][idx]
+            return X
+        for S2, idx, wa, Wa, Wt in self._blend:
+            Xa, Xt = mix(Wa, idx), mix(Wt, idx)
+            a, b = Xt - S2, Xa - S2
+            la, lb = np.linalg.norm(a, axis=1), np.linalg.norm(b, axis=1)
+            ua, ub = a / np.maximum(la, 1e-9)[:, None], b / np.maximum(lb, 1e-9)[:, None]
+            cos = np.clip((ua * ub).sum(1), -1, 1)
+            th = np.arccos(cos)
+            sn = np.maximum(np.sin(th), 1e-6)
+            k0 = np.where(th > 1e-4, np.sin((1 - wa) * th) / sn, 1 - wa)
+            k1 = np.where(th > 1e-4, np.sin(wa * th) / sn, wa)
+            dirv = ua * k0[:, None] + ub * k1[:, None]
+            dirv /= np.maximum(np.linalg.norm(dirv, axis=1), 1e-9)[:, None]
+            out[idx] = S2 + dirv * (la * (1 - wa) + lb * wa)[:, None]
         for j in used:
             sid = self.soft_tf.get(names[j], names[j])
             if sid in self.radial:
                 out = self.apply_radial(sid, out, W[:, j])
         return out
 
-    def keep_inside(self, X, margin, max_jump=0.04):
+    def keep_inside(self, X, margin, max_jump=0.04, F=None):
         if not hasattr(self, '_skin_kd'):
             # pele densa: amostras dos triângulos + normais
-            V, F = self.Vb, self.Fb
-            n = vnormals(V, F)
+            V, Fs = self.Vb, self.Fb
+            n = vnormals(V, Fs)
             rng = np.random.default_rng(1)
-            a = rng.random((len(F) * 12, 2))
+            a = rng.random((len(Fs) * 12, 2))
             m = a.sum(1) > 1
             a[m] = 1 - a[m]
-            fi = np.repeat(np.arange(len(F)), 12)
-            P = V[F[fi, 0]] * (1 - a.sum(1))[:, None] + V[F[fi, 1]] * a[:, :1] + V[F[fi, 2]] * a[:, 1:]
-            N = n[F[fi, 0]] * (1 - a.sum(1))[:, None] + n[F[fi, 1]] * a[:, :1] + n[F[fi, 2]] * a[:, 1:]
+            fi = np.repeat(np.arange(len(Fs)), 12)
+            P = V[Fs[fi, 0]] * (1 - a.sum(1))[:, None] + V[Fs[fi, 1]] * a[:, :1] + V[Fs[fi, 2]] * a[:, 1:]
+            N = n[Fs[fi, 0]] * (1 - a.sum(1))[:, None] + n[Fs[fi, 1]] * a[:, :1] + n[Fs[fi, 2]] * a[:, 1:]
             self._skin_pts = np.r_[V, P]
             self._skin_n = np.r_[n, N / np.linalg.norm(N, axis=1, keepdims=True)]
             self._skin_kd = cKDTree(self._skin_pts)
@@ -858,9 +960,21 @@ class Fit:
         p, n = self._skin_pts[i], self._skin_n[i]
         s = ((X - p) * n).sum(1)
         bad = (s > -margin) & (s < max_jump) & (d < np.maximum(max_jump, 0.015))
-        X = X.copy()
-        X[bad] -= n[bad] * (s[bad] + margin)[:, None]
-        return X, bad.sum()
+        D = np.zeros_like(X)
+        D[bad] = -n[bad] * (s[bad] + margin)[:, None]
+        if F is not None and bad.any():
+            # espalha o empurrão pela malha: sem "degrau" entre a parte empurrada e a vizinha
+            for _ in range(10):
+                acc = np.zeros_like(D); cnt = np.zeros(len(D))
+                for k in range(3):
+                    np.add.at(acc, F[:, k], D[F[:, (k + 1) % 3]] + D[F[:, (k + 2) % 3]])
+                    np.add.at(cnt, F[:, k], 2)
+                Ds = acc / np.maximum(cnt, 1)[:, None]
+                # nunca menos que o necessário para entrar na pele
+                keep = (D * D).sum(1) > (Ds * Ds).sum(1)
+                D = np.where(keep[:, None], D, Ds)
+            return self.keep_inside(X + D, margin, max_jump)[0], bad.sum()
+        return X + D, bad.sum()
 
 
 # ─── Oclusão ambiente ────────────────────────────────────────────────────────
@@ -909,7 +1023,7 @@ def bake_tendon(p, thin=0.0016, thick=0.0034):
     X, F = p['V'], p['F']
     if p['base'] in TENDON_ALWAYS:
         return np.full(len(X), 255, np.uint8)
-    if p['base'] in SHEETS:
+    if p['base'] in SHEETS or p.get('key') == 'musculosFace':      # mímica: lâminas finas de músculo
         return np.zeros(len(X), np.uint8)
     n = vnormals(X, F)
     kd = cKDTree(X)
@@ -978,7 +1092,8 @@ def build(src, body):
     parts, skin = load_source(src)
     fit = Fit(parts, skin, read_body(body))
     eye = os.path.join(src, 'stl', EYE_ID + '.stl')
-    fit.eye_y = read_stl(eye)[0][:, 1].mean() if os.path.exists(eye) else None
+    fit.eye_pts = read_stl(eye)[0] if os.path.exists(eye) else None
+    fit.eye_y = fit.eye_pts[:, 1].mean() if fit.eye_pts is not None else None
     fit.build()
     by_layer = {}
     for p in parts:
@@ -995,7 +1110,10 @@ def build(src, body):
             jump = np.full(len(p['X']), 0.05)
             if p.get('ext') is not None:
                 jump[p['ext']] = 0.012
-            p['X'], n = fit.keep_inside(p['X'], MARGIN[layer], jump)
+            # lâminas (trato iliotibial, aponeuroses) ficam rentes; o músculo embaixo
+            # um pouco mais fundo — sem os dois disputarem a mesma superfície
+            margin = 0.0012 if p['kind'] == 'tendon' else MARGIN[layer]
+            p['X'], n = fit.keep_inside(p['X'], margin, jump, p['F'] if layer == 'muscles' else None)
             moved += n
         fit.log(f'{layer}: {moved} vértices puxados para dentro da pele')
     bake_ao(by_layer['bones'], by_layer['bones'])
