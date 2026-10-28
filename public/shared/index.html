@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consultório — Tela do Paciente</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+<title>Equilibrium · Tela do Paciente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/brand.css">
+<link rel="icon" type="image/png" href="/img/favicon.png">
 <script type="importmap">
 {
   "imports": {
@@ -18,8 +22,8 @@
 
 body {
   width:100vw; height:100vh; overflow:hidden;
-  font-family:'DM Sans', sans-serif;
-  color:#fff;
+  font-family:var(--font);
+  color: var(--ink);
   transition: background 1s ease;
 }
 
@@ -61,17 +65,17 @@ body.bg-default  { background: #0c0c14; }
 
 .idle-clinic {
   position:relative;
-  font-family:'Playfair Display', serif;
+  font-family:var(--font);
   font-size:clamp(2.5rem, 5vw, 4rem);
   font-weight:300;
   letter-spacing:0.06em;
-  color:rgba(255,255,255,0.8);
+  color: rgb(var(--fg) / 0.80);
   margin-bottom:1rem;
   text-align:center;
 }
 .idle-welcome {
   font-size:clamp(1rem, 2vw, 1.4rem);
-  color:rgba(255,255,255,0.35);
+  color: rgb(var(--fg) / 0.60);
   letter-spacing:0.12em;
   text-transform:uppercase;
 }
@@ -114,17 +118,17 @@ body.bg-default  { background: #0c0c14; }
   animation: explBlink 1.2s ease-in-out infinite; }
 @keyframes explBlink { 50% { opacity:0.35; } }
 .explanation-title {
-  font-family:'Cormorant Garamond', serif;
+  font-family:var(--font);
   font-size:clamp(1.7rem, 2.8vw, 2.5rem);
   font-weight:300;
-  color:rgba(255,255,255,0.93);
+  color: rgb(var(--fg) / 0.93);
   margin-bottom:1.2rem;
   line-height:1.2;
 }
 .explanation-text {
   font-size:clamp(1rem, 1.35vw, 1.2rem);
   line-height:1.75;
-  color:rgba(255,255,255,0.74);
+  color: rgb(var(--fg) / 0.74);
   white-space:pre-line;
 }
 .expl-block {
@@ -148,9 +152,9 @@ body.bg-default  { background: #0c0c14; }
   position:fixed; bottom:0; left:0; right:0;
   display:flex; justify-content:space-between;
   padding:0.8rem 2rem;
-  border-top:1px solid rgba(255,255,255,0.04);
+  border-top: 1px solid rgba(106,74,160,0.22);
   font-size:0.75rem;
-  color:rgba(255,255,255,0.2);
+  color: rgb(var(--fg) / 0.60);
   z-index:20;
   letter-spacing:0.05em;
 }
@@ -168,7 +172,7 @@ body.bg-default  { background: #0c0c14; }
 .acu-info-col {
   display:flex; flex-direction:column;
   padding:2.6rem 2.2rem 3.5rem;
-  border-left:1px solid rgba(255,255,255,0.05);
+  border-left: 1px solid rgba(106,74,160,0.22);
   background:linear-gradient(180deg, rgba(20,18,40,0.6), rgba(5,5,10,0.9));
   overflow:hidden;
 }
@@ -177,16 +181,16 @@ body.bg-default  { background: #0c0c14; }
   color:rgba(160,230,210,0.55); margin-bottom:0.9rem;
 }
 .acu-info-title {
-  font-family:'Cormorant Garamond', serif;
+  font-family:var(--font);
   font-size:clamp(1.6rem, 2.6vw, 2.3rem); font-weight:300;
-  color:rgba(255,255,255,0.92); line-height:1.2;
+  color: rgb(var(--fg) / 0.92); line-height:1.2;
 }
-.acu-info-sub { margin-top:0.5rem; font-size:0.95rem; color:rgba(255,255,255,0.5); line-height:1.5; }
+.acu-info-sub { margin-top:0.5rem; font-size:0.95rem; color: rgb(var(--fg) / 0.60); line-height:1.5; }
 .acu-mer-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:1rem; }
 .acu-mer-tag {
   display:inline-flex; align-items:center; gap:0.4rem;
   padding:0.25rem 0.75rem; border-radius:60px; font-size:0.82rem;
-  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.78);
+  background: rgba(255,255,255,0.63); border: 1px solid rgba(106,74,160,0.22); color: rgb(var(--fg) / 0.78);
 }
 .acu-mer-tag i { width:8px; height:8px; border-radius:50%; display:inline-block; }
 .acu-sep { height:1px; background:linear-gradient(90deg,rgba(120,200,180,0.3),transparent); margin:1.3rem 0; flex-shrink:0; }
@@ -195,20 +199,64 @@ body.bg-default  { background: #0c0c14; }
 .acu-pt-item {
   display:flex; align-items:flex-start; gap:0.75rem;
   padding:0.75rem 0.95rem;
-  background:rgba(255,255,255,0.035);
-  border:1px solid rgba(255,255,255,0.07);
-  border-left:3px solid var(--c, #fff);
+  background: rgba(255,255,255,0.60);
+  border: 1px solid rgba(106,74,160,0.22);
+  border-left: 3px solid var(--c, #fff);
   border-radius:12px;
   animation: fadeInUp 0.45s ease both;
 }
 @keyframes fadeInUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
 .acu-pt-texts { display:flex; flex-direction:column; gap:0.18rem; min-width:0; }
 .acu-pt-top { display:flex; gap:0.55rem; align-items:baseline; flex-wrap:wrap; }
-.acu-pt-code { font-size:1rem; font-weight:600; color:#fff; }
-.acu-pt-pinyin { font-size:0.95rem; color:rgba(255,255,255,0.75); }
-.acu-pt-side { font-size:0.72rem; color:rgba(255,255,255,0.4); }
-.acu-pt-name-pt { font-size:0.85rem; color:rgba(255,255,255,0.45); font-style:italic; }
-.acu-pt-ind { font-size:0.85rem; color:rgba(255,255,255,0.62); line-height:1.45; margin-top:0.15rem; }
+.acu-pt-code { font-size:1rem; font-weight:600; color: var(--ink); }
+.acu-pt-pinyin { font-size:0.95rem; color: rgb(var(--fg) / 0.75); }
+.acu-pt-side { font-size:0.72rem; color: rgb(var(--fg) / 0.60); }
+.acu-pt-name-pt { font-size:0.85rem; color: rgb(var(--fg) / 0.60); font-style:italic; }
+.acu-pt-ind { font-size:0.85rem; color: rgb(var(--fg) / 0.62); line-height:1.45; margin-top:0.15rem; }
+
+  /* ── Tema claro lilás (identidade do cartão) ── */
+  body { color: var(--ink); }
+  body.bg-default {
+    background:
+      radial-gradient(1100px 600px at 85% -10%, rgba(187,164,222,0.5), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(233,225,244,1), transparent 60%),
+      var(--bg);
+  }
+  .idle-glow { background: radial-gradient(circle, rgba(148,117,198,0.22) 0%, transparent 70%); }
+  .idle-particle { background: rgba(148,117,198,0.45); }
+  .idle-brand { position: relative; display: flex; flex-direction: column; align-items: center; }
+  .idle-brand .brand-mark { width: 120px; height: 120px; border-radius: 34px; margin-bottom: 2rem; }
+  .idle-clinic { color: var(--ink); font-weight: 400; letter-spacing: -0.01em; }
+  .idle-welcome { color: var(--brand-700); letter-spacing: 0.3em; font-weight: 500; }
+  .idle-rule { width: 56px; height: 3px; border-radius: 3px; background: var(--rule); margin: 1.4rem auto 0; }
+
+  /* Corpo 3D em palco roxo-escuro (os brilhos dos pontos precisam de fundo escuro) */
+  #active-screen { background: #120D1C; }
+  #acu-screen { background: radial-gradient(ellipse at 40% 45%, #241a38 0%, #160f24 55%, #0d0916 100%); }
+
+  /* Coluna de explicação: painel claro, legível de longe */
+  .explanation-col, .acu-info-col {
+    background: var(--surface); border-left: 1px solid var(--line);
+    box-shadow: -20px 0 60px rgba(13,9,22,0.35);
+  }
+  .explanation-header, .acu-info-label { color: var(--brand-700); font-weight: 500; }
+  .expl-region { color: #B23F37; background: rgba(201,86,78,0.08); border-color: rgba(201,86,78,0.35); }
+  .explanation-title, .acu-info-title { font-family: var(--font); color: var(--ink); font-weight: 500; letter-spacing: -0.01em; }
+  .explanation-text { color: #4A4452; }
+  .expl-block { background: var(--brand-50); border-color: var(--line-strong); }
+  .expl-block-t { color: var(--brand-700); font-weight: 500; }
+  .expl-block div:last-child { color: #4A4452; }
+  .expl-tag { background: rgba(201,86,78,0.08); border-color: rgba(201,86,78,0.35); color: #B23F37; }
+  .acu-info-sub { color: var(--muted); }
+  .acu-mer-tag { background: var(--surface-2); border-color: var(--line); color: var(--ink); }
+  .acu-sep { background: linear-gradient(90deg, var(--brand-300), transparent); }
+  .acu-pt-item { background: var(--surface-2); border-color: var(--line); }
+  .acu-pt-code { color: var(--ink); }
+  .acu-pt-pinyin { color: #4A4452; }
+  .acu-pt-side, .acu-pt-name-pt { color: var(--muted); }
+  .acu-pt-ind { color: #4A4452; }
+
+  .shared-footer { color: var(--subtle); border-top: none; background: none; }
 </style>
 </head>
 <body class="bg-default">
@@ -217,8 +265,12 @@ body.bg-default  { background: #0c0c14; }
 <div id="idle-screen">
   <div class="idle-glow"></div>
   <div class="idle-particles" id="idle-particles"></div>
-  <div class="idle-clinic">Consultório de Fisioterapia</div>
-  <div class="idle-welcome">Bem-vindo à sua sessão</div>
+  <div class="idle-brand">
+    <span class="brand-mark"><img src="/img/simbolo-branco.png" alt=""></span>
+    <div class="idle-clinic">Consultório Equilibrium</div>
+    <div class="idle-welcome">Bem-vindo(a) à sua sessão</div>
+    <div class="idle-rule"></div>
+  </div>
 </div>
 
 <!-- Ativo -->
@@ -253,7 +305,7 @@ body.bg-default  { background: #0c0c14; }
 </div>
 
 <div class="shared-footer">
-  <span>Consultório de Fisioterapia &amp; Acupuntura</span>
+  <span>Consultório Equilibrium · Dra. Juliane Brasil Lopes</span>
   <span id="footer-clock"></span>
 </div>
 

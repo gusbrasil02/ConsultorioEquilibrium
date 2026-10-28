@@ -3,71 +3,126 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Acesso — Painel da Profissional</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<title>Acesso · Consultório Equilibrium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/brand.css">
+<link rel="icon" type="image/png" href="/img/favicon.png">
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    min-height:100vh; display:flex; align-items:center; justify-content:center;
-    font-family:'DM Sans', sans-serif; color:#fff; padding:1.5rem;
-    background: linear-gradient(135deg, #1a0533, #0d1f45, #0d3b5e, #1a1240);
-    background-size:400% 400%; animation:bg 16s ease infinite;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+    background:
+      radial-gradient(900px 500px at 85% -10%, rgba(187,164,222,0.45), transparent 60%),
+      radial-gradient(700px 400px at -10% 110%, rgba(233,225,244,1), transparent 60%),
+      var(--bg);
   }
-  @keyframes bg { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
-  .card {
-    width:100%; max-width:400px;
-    background:rgba(20,20,30,0.72); backdrop-filter:blur(14px);
-    border:1px solid rgba(255,255,255,0.1); border-radius:24px;
-    padding:2.5rem 2rem; box-shadow:0 30px 80px rgba(0,0,0,0.5);
+  .shell {
+    width: 100%; max-width: 880px; display: grid; grid-template-columns: 1fr 1.1fr;
+    background: var(--surface); border-radius: 28px; overflow: hidden;
+    box-shadow: var(--shadow-lg); border: 1px solid var(--line);
   }
-  .brand { font-family:'Playfair Display', serif; font-weight:300; font-size:1.6rem; text-align:center; margin-bottom:0.3rem; }
-  .sub { text-align:center; color:rgba(255,255,255,0.45); font-size:0.85rem; margin-bottom:2rem; letter-spacing:0.04em; }
-  .field { margin-bottom:1rem; }
-  label { display:block; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em; color:rgba(255,255,255,0.4); margin-bottom:0.4rem; }
+  /* Lado da marca — como a frente do cartão de visita */
+  .brand-side {
+    position: relative; overflow: hidden; color: #fff; padding: 2.6rem 2.2rem;
+    background: var(--grad); display: flex; flex-direction: column; justify-content: space-between; min-height: 480px;
+  }
+  .brand-side::before {
+    content: ''; position: absolute; right: -70px; top: -40px; bottom: -40px; width: 120px;
+    background: var(--brand-100); transform: skewX(-10deg); opacity: 0.9;
+  }
+  .brand-side::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 15% 10%, rgba(255,255,255,0.22), transparent 55%);
+  }
+  .brand-side > * { position: relative; z-index: 1; }
+  .symbol { height: 150px; width: auto; align-self: flex-start; filter: drop-shadow(0 4px 10px rgba(40,20,80,0.35)); }
+  .pre { font-size: 0.72rem; letter-spacing: 0.34em; opacity: 0.85; }
+  .name { font-size: 1.6rem; font-weight: 500; line-height: 1.1; margin: 0.35rem 0 0.8rem; }
+  .rule { width: 40px; height: 3px; border-radius: 3px; background: rgba(255,255,255,0.7); margin-bottom: 0.8rem; }
+  .role { font-size: 0.74rem; letter-spacing: 0.3em; }
+  .reg { font-size: 0.72rem; letter-spacing: 0.14em; opacity: 0.75; margin-top: 0.3rem; }
+
+  .form-side { padding: 3rem 2.6rem; display: flex; flex-direction: column; justify-content: center; }
+  .eyebrow { margin-bottom: 0.5rem; }
+  h1 { font-size: 1.7rem; font-weight: 500; letter-spacing: -0.015em; }
+  .sub { color: var(--muted); font-size: 0.92rem; margin: 0.35rem 0 1.8rem; }
+  .field { margin-bottom: 1rem; }
+  label { display: block; font-size: 0.74rem; font-weight: 500; color: var(--muted); margin-bottom: 0.4rem; }
   input {
-    width:100%; padding:0.8rem 1rem; border-radius:12px; color:#fff;
-    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14);
-    font-family:'DM Sans', sans-serif; font-size:0.95rem; outline:none; transition:border-color 0.2s;
+    width: 100%; padding: 0.85rem 1rem; border-radius: 12px; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    font-family: var(--font); font-size: 0.96rem; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   }
-  input:focus { border-color:rgba(255,255,255,0.35); }
+  input:focus { border-color: var(--brand-500); background: #fff; box-shadow: 0 0 0 4px rgba(148,117,198,0.16); }
   .btn {
-    width:100%; padding:0.9rem; margin-top:0.6rem; border:none; border-radius:60px;
-    background:linear-gradient(135deg,#7b3fa0,#3a6fa8); color:#fff;
-    font-family:'DM Sans', sans-serif; font-size:1rem; font-weight:500; cursor:pointer;
-    transition:opacity 0.2s, transform 0.15s;
+    width: 100%; padding: 0.95rem; margin-top: 0.6rem; border: none; border-radius: 12px;
+    background: var(--grad); color: #fff; box-shadow: var(--glow);
+    font-family: var(--font); font-size: 1rem; font-weight: 500; cursor: pointer;
+    transition: transform 0.15s, filter 0.2s;
   }
-  .btn:hover { opacity:0.92; transform:translateY(-1px); }
-  .btn:disabled { opacity:0.5; cursor:default; transform:none; }
-  .msg { min-height:1.2em; text-align:center; font-size:0.85rem; margin-top:1rem; }
-  .msg.err { color:#f0a0a0; }
-  .setup-note { background:rgba(120,80,200,0.14); border:1px solid rgba(120,80,200,0.3); color:#c9b8ef; border-radius:12px; padding:0.7rem 0.9rem; font-size:0.8rem; line-height:1.5; margin-bottom:1.5rem; }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+  .btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+  .msg { min-height: 1.2em; text-align: center; font-size: 0.86rem; margin-top: 1rem; }
+  .msg.err { color: var(--danger); }
+  .setup-note {
+    background: var(--brand-50); border: 1px solid var(--line-strong); color: var(--brand-900);
+    border-radius: 12px; padding: 0.75rem 0.95rem; font-size: 0.84rem; line-height: 1.5; margin-bottom: 1.4rem;
+  }
+  .foot { margin-top: 1.6rem; font-size: 0.76rem; color: var(--subtle); text-align: center; }
+
+  @media (max-width: 760px) {
+    .shell { grid-template-columns: 1fr; max-width: 440px; }
+    .brand-side { min-height: 0; padding: 1.8rem; flex-direction: row; align-items: center; gap: 1.2rem; justify-content: flex-start; }
+    .brand-side::before { display: none; }
+    .symbol { height: 74px; }
+    .name { font-size: 1.25rem; margin-bottom: 0.4rem; }
+    .rule, .reg { display: none; }
+    .form-side { padding: 2rem 1.6rem; }
+  }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="brand">Consultório de Fisioterapia</div>
-    <div class="sub" id="mode-sub">Acesso da profissional</div>
-
-    <div class="setup-note" id="setup-note" style="display:none">
-      Primeiro acesso — crie a conta da profissional. As próximas vezes serão só login.
+  <div class="shell">
+    <div class="brand-side">
+      <img class="symbol" src="/img/simbolo-branco.png" alt="">
+      <div>
+        <div class="pre">DRA.</div>
+        <div class="name">Juliane Brasil Lopes</div>
+        <div class="rule"></div>
+        <div class="role">FISIOTERAPEUTA</div>
+        <div class="reg">CREFITO-8 328931-F</div>
+      </div>
     </div>
 
-    <form id="form">
-      <div class="field" id="name-field" style="display:none">
-        <label>Nome</label>
-        <input type="text" id="name" autocomplete="name" placeholder="Seu nome">
+    <div class="form-side">
+      <div class="eyebrow">Consultório Equilibrium</div>
+      <h1 id="mode-title">Bem-vinda de volta</h1>
+      <div class="sub" id="mode-sub">Acesse o painel da profissional</div>
+
+      <div class="setup-note" id="setup-note" style="display:none">
+        Primeiro acesso — crie a conta da profissional. Nas próximas vezes será só o login.
       </div>
-      <div class="field">
-        <label>E-mail</label>
-        <input type="email" id="email" autocomplete="username" placeholder="voce@exemplo.com" required>
-      </div>
-      <div class="field">
-        <label>Senha</label>
-        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required>
-      </div>
-      <button class="btn" id="submit" type="submit">Entrar</button>
-    </form>
-    <div class="msg" id="msg"></div>
+
+      <form id="form">
+        <div class="field" id="name-field" style="display:none">
+          <label for="name">Nome</label>
+          <input type="text" id="name" autocomplete="name" placeholder="Seu nome">
+        </div>
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" autocomplete="username" placeholder="voce@exemplo.com" required>
+        </div>
+        <div class="field">
+          <label for="password">Senha</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <button class="btn" id="submit" type="submit">Entrar</button>
+      </form>
+      <div class="msg" id="msg"></div>
+      <div class="foot">Fisioterapia · Acupuntura · Pilates</div>
+    </div>
   </div>
 
 <script>
@@ -86,7 +141,8 @@ async function init() {
 function applyMode() {
   document.getElementById('name-field').style.display  = needsSetup ? 'block' : 'none'
   document.getElementById('setup-note').style.display  = needsSetup ? 'block' : 'none'
-  document.getElementById('mode-sub').textContent      = needsSetup ? 'Criar conta' : 'Acesso da profissional'
+  document.getElementById('mode-sub').textContent      = needsSetup ? 'Crie a conta da profissional' : 'Acesse o painel da profissional'
+  document.getElementById('mode-title').textContent    = needsSetup ? 'Primeiro acesso' : 'Bem-vinda de volta'
   document.getElementById('submit').textContent        = needsSetup ? 'Criar conta e entrar' : 'Entrar'
   document.getElementById('password').setAttribute('autocomplete', needsSetup ? 'new-password' : 'current-password')
 }

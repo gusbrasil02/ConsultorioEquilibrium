@@ -3,8 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel da Profissional</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+<title>Equilibrium · Painel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/brand.css">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/icon-180.png">
 <!-- Chart.js via CDN para os gráficos de histórico do paciente -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="importmap">
@@ -16,208 +21,263 @@
 }
 </script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-
 body {
-  background: #0e0e16;
-  color: #fff;
-  font-family: 'DM Sans', sans-serif;
   min-height: 100vh;
+  background:
+    radial-gradient(1200px 520px at 100% -10%, rgba(187,164,222,0.28), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(233,225,244,0.9), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
 }
 
-/* ── Modal de notificação ── */
+/* ── Botões base (reaproveitados em todas as abas) ── */
+.btn-primary, .btn-save {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  padding: 0.72rem 1.6rem; border: none; border-radius: 12px;
+  background: var(--grad); color: #fff;
+  font-family: var(--font); font-size: 0.92rem; font-weight: 500; letter-spacing: 0.01em;
+  cursor: pointer; box-shadow: var(--glow);
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+}
+.btn-primary:hover, .btn-save:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 26px rgba(106,74,160,0.38); }
+.btn-primary:disabled, .btn-save:disabled { opacity: 0.45; cursor: default; transform: none; box-shadow: none; }
+.btn-ghost, .btn-cancel {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.72rem 1.3rem; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  color: var(--brand-700); font-family: var(--font); font-size: 0.9rem; font-weight: 500;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover, .btn-cancel:hover { background: var(--brand-50); border-color: var(--brand-300); }
+
+/* ── Modal de notificação de chegada ── */
 #notification-overlay {
   position: fixed; inset: 0; z-index: 2000;
-  background: rgba(0,0,0,0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(45,32,70,0.38);
+  backdrop-filter: blur(10px);
   display: flex; align-items: center; justify-content: center;
   padding: 1.5rem;
   opacity: 0; pointer-events: none;
-  transition: opacity 0.4s;
+  transition: opacity 0.3s;
 }
 #notification-overlay.visible { opacity: 1; pointer-events: all; }
+#notification-overlay.visible .modal-card { transform: none; }
 
 .modal-card {
-  background: #16161e;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 24px;
-  padding: 2.5rem;
+  position: relative; overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 2.2rem;
   max-width: 500px; width: 100%;
-  box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(10px); transition: transform 0.3s;
+}
+.modal-card::before {
+  content: ''; position: absolute; left: 0; top: 0; right: 0; height: 4px; background: var(--grad);
 }
 .modal-icon {
-  width: 64px; height: 64px;
-  background: linear-gradient(135deg,#6a3fa8,#3a6fa8);
-  border-radius: 50%;
+  width: 56px; height: 56px;
+  background: var(--grad);
+  border-radius: 16px;
   display: flex; align-items: center; justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.2rem; box-shadow: var(--glow);
 }
-.modal-icon svg { width: 32px; height: 32px; }
-.modal-title {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.8rem; font-weight: 400;
-  margin-bottom: 0.4rem;
-}
-.modal-subtitle { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 1.8rem; }
-.modal-summary { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+.modal-icon svg { width: 28px; height: 28px; }
+.modal-title { font-size: 1.6rem; font-weight: 500; letter-spacing: -0.01em; margin-bottom: 0.25rem; }
+.modal-subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+.modal-summary { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.8rem; }
 .summary-row {
   display: flex; align-items: center; gap: 0.75rem;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 0.85rem 1rem;
+  padding: 0.7rem 0.95rem;
 }
-.summary-icon { font-size: 1.1rem; flex-shrink: 0; }
-.summary-label { color: rgba(255,255,255,0.45); font-size: 0.8rem; min-width: 60px; }
-.summary-value { color: rgba(255,255,255,0.9); font-size: 0.95rem; }
+.summary-icon { font-size: 1rem; flex-shrink: 0; }
+.summary-label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; min-width: 78px; }
+.summary-value { color: var(--ink); font-size: 0.95rem; }
 .modal-btn-row { display: flex; gap: 0.75rem; }
 .btn-acknowledge {
-  flex: 1; padding: 1rem;
-  border: none; border-radius: 60px;
-  color: #fff; font-family: 'DM Sans', sans-serif;
-  font-size: 1rem; font-weight: 500;
-  cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+  flex: 1; padding: 0.95rem;
+  border: none; border-radius: 14px;
+  font-family: var(--font); font-size: 1rem; font-weight: 500;
+  cursor: pointer; transition: transform 0.15s, filter 0.2s;
 }
-.btn-acknowledge:hover { opacity: 0.9; transform: translateY(-1px); }
-.btn-wait  { flex: 1; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
-.btn-enter { flex: 1.4; background: linear-gradient(135deg, #6a3fa8, #3a6fa8); }
+.btn-acknowledge:hover { transform: translateY(-1px); }
+.btn-wait  { flex: 1; background: var(--brand-50); border: 1px solid var(--line-strong); color: var(--brand-700); }
+.btn-enter { flex: 1.4; background: var(--grad); color: #fff; box-shadow: var(--glow); }
 
-/* ── Controle de sessão no dashboard ── */
+/* ── Controle de sessão (barra de passos do atendimento) ── */
 #session-control {
-  display: flex; align-items: center; gap: 1rem;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.015);
-  flex-wrap: wrap;
+  margin: 1.5rem 2rem 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem 1.25rem;
 }
 #session-control.hidden { display: none; }
+.sc-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.sc-row + .sc-row { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px dashed var(--line-strong); }
 #session-timer {
-  font-size: 2rem; font-weight: 300;
+  font-size: 1.7rem; font-weight: 300;
   font-variant-numeric: tabular-nums;
-  color: rgba(255,255,255,0.75);
-  letter-spacing: 0.05em;
+  color: var(--brand-700);
+  letter-spacing: 0.04em;
   min-width: 90px;
 }
 .btn-session-action {
-  padding: 0.65rem 1.4rem;
-  border-radius: 60px; border: none;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
-  cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.62rem 1.25rem;
+  border-radius: 12px; border: 1px solid transparent;
+  font-family: var(--font); font-size: 0.88rem; font-weight: 500;
+  cursor: pointer; transition: transform 0.15s, filter 0.2s, background 0.2s;
   white-space: nowrap;
 }
-.btn-session-action:hover { opacity: 0.85; transform: translateY(-1px); }
-.btn-can-enter { background: linear-gradient(135deg, #6a3fa8, #3a6fa8); color: #fff; }
-.btn-start     { background: rgba(60,180,100,0.2); border: 1px solid rgba(60,180,100,0.5); color: #70e0a0; }
-.btn-finish    { background: rgba(200,60,60,0.2); border: 1px solid rgba(200,60,60,0.5); color: #f08888; }
+.btn-session-action:hover { transform: translateY(-1px); filter: brightness(1.03); }
+.btn-can-enter, .btn-start { background: var(--grad); color: #fff; box-shadow: var(--glow); }
+.btn-finish { background: var(--ink); color: #fff; box-shadow: 0 6px 18px rgba(45,40,52,0.25); }
 .session-status-label {
-  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.35);
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.18em; font-weight: 500;
+  color: var(--muted);
 }
+.sc-tools { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .pay-badge {
-  font-size: 0.8rem; font-weight: 500; padding: 0.35rem 0.9rem; border-radius: 60px;
+  font-size: 0.78rem; font-weight: 500; padding: 0.32rem 0.85rem; border-radius: 60px;
   white-space: nowrap;
 }
-.pay-badge.paid    { background: rgba(60,180,120,0.18); border: 1px solid rgba(60,180,120,0.45); color: #7ad4a4; }
-.pay-badge.pending { background: rgba(220,150,60,0.16); border: 1px solid rgba(220,150,60,0.45); color: #f0b070; }
+.pay-badge.paid    { background: var(--ok-bg);   border: 1px solid var(--ok-line);   color: var(--ok); }
+.pay-badge.pending { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn); }
+
+/* Passos numerados (Chegada → Chamado → Atendimento → Fechamento) */
+.flow-steps { display: flex; align-items: center; gap: 0; flex: 1; min-width: 280px; }
+.flow-step {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.8rem; color: var(--subtle); white-space: nowrap;
+}
+.flow-step .n {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 600;
+  border: 1.5px solid var(--line-strong); color: var(--subtle); background: var(--surface);
+}
+.flow-step.done { color: var(--muted); }
+.flow-step.done .n { background: var(--brand-100); border-color: var(--brand-100); color: var(--brand-700); }
+.flow-step.now { color: var(--ink); font-weight: 500; }
+.flow-step.now .n { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 0 0 4px rgba(148,117,198,0.18); }
+.flow-line { flex: 1; min-width: 14px; height: 1.5px; margin: 0 0.55rem; background: var(--line-strong); }
+.flow-line.done { background: var(--brand-300); }
+@media (max-width: 760px) { .flow-step .t { display: none; } }
 
 /* ── Fila da recepção ── */
 #queue-bar {
   display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
-  padding: 0.55rem 2rem; background: rgba(220,180,60,0.07);
-  border-bottom: 1px solid rgba(220,180,60,0.2); font-size: 0.82rem;
+  padding: 0.55rem 2rem; font-size: 0.84rem;
+  background: linear-gradient(90deg, rgba(210,169,63,0.13), rgba(210,169,63,0.04));
+  border-bottom: 1px solid var(--warn-line);
 }
-#queue-bar .q-label { text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem; color: rgba(240,200,110,0.8); }
+#queue-bar .q-label { text-transform: uppercase; letter-spacing: 0.2em; font-size: 0.66rem; font-weight: 600; color: var(--warn); }
 #queue-bar .q-chip {
-  display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.35rem 0.25rem 0.8rem;
-  border-radius: 60px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.35rem 0.25rem 0.85rem;
+  border-radius: 60px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow-sm);
 }
-#queue-bar .q-chip.called { border-color: rgba(90,200,140,0.5); background: rgba(90,200,140,0.1); }
-#queue-bar .q-st { color: rgba(255,255,255,0.45); font-size: 0.74rem; }
+#queue-bar .q-chip.called { border-color: var(--ok-line); background: #F3FBF7; }
+#queue-bar .q-st { color: var(--muted); font-size: 0.74rem; }
 #queue-bar button {
-  padding: 0.2rem 0.7rem; border-radius: 60px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.74rem;
-  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.8);
+  padding: 0.22rem 0.75rem; border-radius: 60px; cursor: pointer; font-family: var(--font); font-size: 0.74rem; font-weight: 500;
+  background: var(--brand-50); border: 1px solid var(--line-strong); color: var(--brand-700);
 }
-#queue-bar button:hover { background: rgba(255,255,255,0.16); color: #fff; }
-body.light #queue-bar .q-chip { background: #fff; border-color: rgba(0,0,0,0.12); }
-body.light #queue-bar .q-st { color: rgba(0,0,0,0.5); }
-body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.15); color: rgba(0,0,0,0.7); }
+#queue-bar button:hover { background: var(--brand-100); }
 
-/* ── Header com tabs ── */
+/* ── Cabeçalho ── */
 .main-header {
   display: grid; grid-template-columns: 1fr auto 1fr;
-  align-items: center;
+  align-items: center; gap: 1rem;
   padding: 0 2rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.02);
-  height: 54px;
+  height: 68px;
   position: sticky; top: 0; z-index: 100;
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--line);
 }
+.header-brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.header-brand .brand-mark { width: 38px; height: 38px; border-radius: 11px; }
+.header-clinic { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.header-clinic b { font-weight: 600; font-size: 0.98rem; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; }
+.header-clinic span { font-size: 0.64rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--brand-500); white-space: nowrap; }
 .main-header .header-tabs { justify-self: center; }
-.header-clinic {
-  font-family: 'Playfair Display', serif;
-  font-size: 0.95rem; font-weight: 300;
-  color: rgba(255,255,255,0.4);
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
 .header-tabs {
-  display: flex; gap: 0.25rem;
+  display: flex; gap: 0.2rem; padding: 0.25rem;
+  background: var(--brand-50); border: 1px solid var(--line); border-radius: 14px;
 }
 .tab-btn {
-  padding: 0.45rem 1.1rem;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 1rem;
   background: transparent;
-  border: none; border-radius: 60px;
-  color: rgba(255,255,255,0.4);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.82rem; font-weight: 500;
-  letter-spacing: 0.06em; text-transform: uppercase;
+  border: none; border-radius: 10px;
+  color: var(--muted);
+  font-family: var(--font);
+  font-size: 0.86rem; font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
-.tab-btn:hover { color: rgba(255,255,255,0.7); }
-.tab-btn.active {
-  background: rgba(255,255,255,0.08);
-  color: #fff;
+.tab-btn:hover { color: var(--brand-700); }
+.tab-btn.active { background: var(--surface); color: var(--brand-700); box-shadow: 0 1px 2px rgba(45,30,80,0.08), 0 4px 12px rgba(74,47,126,0.08); }
+.tab-btn .live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+  box-shadow: 0 0 0 0 rgba(47,143,103,0.5); animation: live 1.8s infinite;
 }
-.header-right { justify-self: end; display: flex; align-items: center; gap: 0.75rem; }
+@keyframes live { 0% { box-shadow: 0 0 0 0 rgba(47,143,103,0.45); } 70%,100% { box-shadow: 0 0 0 7px rgba(47,143,103,0); } }
+.header-right { justify-self: end; display: flex; align-items: center; gap: 0.5rem; }
 .header-clock {
-  font-size: 1.4rem; font-weight: 300;
-  color: rgba(255,255,255,0.6);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  font-size: 1.15rem; font-weight: 300; margin-right: 0.4rem;
+  color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .header-icon-btn {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
-  color: rgba(255,255,255,0.6); font-size: 0.95rem; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background 0.2s, color 0.2s;
+  height: 36px; min-width: 36px; padding: 0 0.7rem; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line);
+  color: var(--brand-700); font-family: var(--font); font-size: 0.8rem; font-weight: 500; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  transition: background 0.2s, border-color 0.2s;
 }
-.header-icon-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
-
+.header-icon-btn:hover { background: var(--brand-50); border-color: var(--line-strong); }
+.header-icon-btn svg { width: 17px; height: 17px; }
+@media (max-width: 1180px) {
+  .header-icon-btn .lbl { display: none; }
+  .header-clinic span { display: none; }
+}
+@media (max-width: 900px) {
+  .main-header { grid-template-columns: auto 1fr auto; padding: 0 1rem; gap: 0.6rem; }
+  .header-clinic, .header-clock { display: none; }
+  .main-header .header-tabs { justify-self: stretch; overflow-x: auto; scrollbar-width: none; }
+  .tab-btn { padding: 0.45rem 0.7rem; font-size: 0.8rem; }
+}
 
 /* ── Views principais ── */
 .view { display: none; }
-.view.visible { display: block; }
+.view.visible { display: block; animation: view-in 0.25s ease both; }
+@keyframes view-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* ── Botão acupuntura na barra de sessão ── */
-.btn-acu {
-  background: linear-gradient(135deg, rgba(120,80,200,0.25), rgba(40,140,120,0.25));
-  border: 1px solid rgba(120,200,180,0.4);
-  color: rgba(120,220,200,0.9);
+/* Cabeçalho de página: rótulo + título + filete */
+.page-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.page-head .eyebrow { margin-bottom: 0.35rem; }
+.page-title { font-size: 1.75rem; font-weight: 500; letter-spacing: -0.015em; line-height: 1.1; }
+.page-head .brand-rule { margin-top: 0.7rem; }
+.page-head .spacer { flex: 1; }
+.page-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.35rem; }
+
+/* ── Botões de ferramentas 3D na barra de sessão ── */
+.btn-acu, .btn-phy {
+  background: var(--surface); border: 1px solid var(--line-strong); color: var(--brand-700);
 }
-.btn-acu:hover { background: linear-gradient(135deg, rgba(120,80,200,0.45), rgba(40,140,120,0.45)) !important; }
-.btn-phy {
-  background: linear-gradient(135deg, rgba(255,70,60,0.2), rgba(40,150,220,0.25));
-  border: 1px solid rgba(120,210,255,0.45);
-  color: rgba(170,230,255,0.95);
-}
-.btn-phy:hover { background: linear-gradient(135deg, rgba(255,70,60,0.35), rgba(40,150,220,0.42)) !important; }
+.btn-acu:hover, .btn-phy:hover { background: var(--brand-50) !important; }
 
 /* ── Atlas de Acupuntura 3D (modal) ── */
+#acu-overlay, #consult-mode { --fg: 255 255 255; color-scheme: dark; }
 #acu-overlay {
   position: fixed; inset: 0; z-index: 3000;
-  background: #06060d;
+  background: #120D1C;
   display: none; flex-direction: column;
 }
 .acu-modal { display: flex; flex-direction: column; width: 100%; height: 100%; color: #fff; }
@@ -229,7 +289,7 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
   flex-shrink: 0;
 }
 .acu-modal-title {
-  font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 300;
+  font-family: var(--font); font-size: 1.1rem; font-weight: 300;
   color: rgba(255,255,255,0.88); letter-spacing: 0.03em;
 }
 .acu-patient { font-size: 0.8rem; color: rgba(255,255,255,0.45); margin-left: 0.6rem; }
@@ -237,11 +297,11 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .acu-tb-btn {
   padding: 0.38rem 0.8rem; border-radius: 60px; cursor: pointer;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.7); font-family: 'DM Sans', sans-serif; font-size: 0.76rem;
+  color: rgba(255,255,255,0.7); font-family: var(--font); font-size: 0.76rem;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .acu-tb-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
-.acu-tb-btn.on { background: rgba(120,200,180,0.18); border-color: rgba(120,220,200,0.5); color: #a8f0dc; }
+.acu-tb-btn.on { background: rgba(187,164,222,0.18); border-color: rgba(187,164,222,0.5); color: #d9c9f2; }
 .acu-tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.12); margin: 0 0.2rem; }
 .acu-models { display: inline-flex; gap: 0.25rem; }
 .acu-tb-btn.acu-model.on { background: rgba(160,130,255,0.22); border-color: rgba(180,160,255,0.6); color: #e2d8ff; }
@@ -256,22 +316,22 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .acu-modal-body { display: grid; grid-template-columns: 1fr 360px; flex: 1; min-height: 0; }
 #acu-canvas-doctor { width: 100%; height: 100%; min-height: 0; }
 .acu-sidebar {
-  border-left: 1px solid rgba(255,255,255,0.07); background: #0b0b15;
+  border-left: 1px solid rgba(255,255,255,0.07); background: #171124;
   display: flex; flex-direction: column; min-height: 0;
 }
 .acu-search-wrap { padding: 0.8rem 0.9rem 0.5rem; }
 .acu-search {
   width: 100%; padding: 0.55rem 0.9rem; border-radius: 60px; outline: none;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.84rem;
+  color: #fff; font-family: var(--font); font-size: 0.84rem;
 }
 .acu-search::placeholder { color: rgba(255,255,255,0.3); }
-.acu-search:focus { border-color: rgba(120,220,200,0.5); }
+.acu-search:focus { border-color: rgba(187,164,222,0.5); }
 .acu-tabs { display: flex; gap: 0.3rem; padding: 0 0.9rem 0.5rem; }
 .acu-tab {
   flex: 1; padding: 0.4rem; border-radius: 8px; cursor: pointer;
   background: transparent; border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.5); font-family: 'DM Sans', sans-serif; font-size: 0.76rem;
+  color: rgba(255,255,255,0.5); font-family: var(--font); font-size: 0.76rem;
   text-transform: uppercase; letter-spacing: 0.08em;
 }
 .acu-tab.active { background: rgba(255,255,255,0.08); color: #fff; }
@@ -287,7 +347,7 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .acu-mer-dot, .acu-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .acu-mer-name { flex: 1; font-size: 0.82rem; color: rgba(255,255,255,0.8); }
 .acu-mer-name small { color: rgba(255,255,255,0.35); margin-left: 0.3rem; }
-.acu-mer-count { font-size: 0.7rem; color: #a8f0dc; min-width: 1em; text-align: right; }
+.acu-mer-count { font-size: 0.7rem; color: #d9c9f2; min-width: 1em; text-align: right; }
 .acu-eye {
   background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 0 0.2rem;
   color: rgba(255,255,255,0.55); line-height: 1;
@@ -300,16 +360,16 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
   border-radius: 7px; cursor: pointer; font-size: 0.78rem; color: rgba(255,255,255,0.65);
 }
 .acu-pt:hover { background: rgba(255,255,255,0.06); color: #fff; }
-.acu-pt.sel { background: rgba(120,220,200,0.12); color: #c8fff0; }
+.acu-pt.sel { background: rgba(187,164,222,0.12); color: #efe7ff; }
 .acu-pt b { font-weight: 600; min-width: 3.4em; color: rgba(255,255,255,0.9); }
 .acu-pt span { opacity: 0.55; font-size: 0.72rem; }
 .acu-proto {
   display: block; width: 100%; text-align: left; cursor: pointer; margin-bottom: 0.4rem;
   padding: 0.6rem 0.75rem; border-radius: 10px;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.85); font-family: 'DM Sans', sans-serif; font-size: 0.84rem;
+  color: rgba(255,255,255,0.85); font-family: var(--font); font-size: 0.84rem;
 }
-.acu-proto:hover { background: rgba(120,220,200,0.08); border-color: rgba(120,220,200,0.35); }
+.acu-proto:hover { background: rgba(187,164,222,0.08); border-color: rgba(187,164,222,0.35); }
 .acu-proto small { display: block; margin-top: 0.2rem; color: rgba(255,255,255,0.4); font-size: 0.72rem; }
 .acu-info {
   margin: 0 0.9rem 0.6rem; padding: 0.7rem 0.85rem; border-radius: 12px; min-height: 64px;
@@ -328,7 +388,7 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .acu-mini {
   padding: 0.25rem 0.6rem; border-radius: 60px; cursor: pointer;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.6); font-family: 'DM Sans', sans-serif; font-size: 0.7rem;
+  color: rgba(255,255,255,0.6); font-family: var(--font); font-size: 0.7rem;
 }
 .acu-mini:hover { background: rgba(255,255,255,0.12); color: #fff; }
 #acu-selected-list { max-height: 26vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
@@ -343,16 +403,16 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .side-chip {
   padding: 0.05rem 0.4rem; border-radius: 5px; font-size: 0.66rem; cursor: pointer;
   border: 1px solid rgba(255,255,255,0.18); color: rgba(255,255,255,0.35); background: none;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font);
 }
-.side-chip.on { background: rgba(120,220,200,0.22); border-color: rgba(120,220,200,0.6); color: #c8fff0; }
+.side-chip.on { background: rgba(187,164,222,0.22); border-color: rgba(187,164,222,0.6); color: #efe7ff; }
 .selected-pt-remove { background: none; border: none; color: rgba(255,90,90,0.6); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0.1rem; }
 .selected-pt-remove:hover { color: #ff6b6b; }
 .acu-hint { font-size: 0.72rem; color: rgba(255,255,255,0.3); text-align: center; padding: 0.4rem 0; }
 .btn-acu-send {
   width: 100%; padding: 0.75rem 1rem; border-radius: 12px; border: none;
-  background: linear-gradient(135deg, #4a9a7a, #2a7a6a); color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  background: var(--grad); color: #fff;
+  font-family: var(--font); font-size: 0.9rem; font-weight: 500;
   cursor: pointer; transition: opacity 0.2s, transform 0.15s;
 }
 .btn-acu-send:hover { opacity: 0.9; transform: translateY(-1px); }
@@ -362,117 +422,129 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
   .acu-sidebar { border-left: none; border-top: 1px solid rgba(255,255,255,0.07); }
 }
 
-/* ─────────────── DASHBOARD ─────────────── */
+/* ─────────────── ATENDIMENTO (paciente em foco) ─────────────── */
+#dashboard-view { padding-bottom: 2.5rem; }
 .hero {
-  padding: 2.5rem 2rem 1.5rem;
-  display: flex; align-items: flex-start; gap: 2rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin: 1.25rem 2rem 1.25rem;
+  padding: 1.6rem 1.75rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+}
+.hero::after {
+  content: ''; position: absolute; right: -60px; top: -60px; width: 240px; height: 240px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(187,164,222,0.35), transparent 70%); pointer-events: none;
 }
 .avatar {
-  width: 80px; height: 80px; flex-shrink: 0;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+  width: 72px; height: 72px; flex-shrink: 0;
+  border-radius: 20px;
+  background: var(--grad);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.8rem; font-weight: 500;
-  color: rgba(255,255,255,0.9);
+  font-size: 1.55rem; font-weight: 500;
+  color: #fff; box-shadow: var(--glow);
 }
-.hero-info { flex: 1; }
+.hero-info { flex: 1; min-width: 220px; }
 .patient-name {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2.8rem; font-weight: 300; line-height: 1.1;
-  margin-bottom: 0.5rem; color: rgba(255,255,255,0.95);
+  font-size: 2rem; font-weight: 500; line-height: 1.1; letter-spacing: -0.015em;
+  margin-bottom: 0.55rem; color: var(--ink);
 }
-.badge-row { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+.badge-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.55rem; }
 .badge {
-  padding: 0.3rem 0.9rem; border-radius: 60px;
-  font-size: 0.78rem; font-weight: 500; letter-spacing: 0.04em;
+  padding: 0.28rem 0.8rem; border-radius: 60px;
+  font-size: 0.75rem; font-weight: 500; letter-spacing: 0.02em;
 }
-.badge-session { background: rgba(100,80,180,0.2); border: 1px solid rgba(100,80,180,0.4); color: #b8a8e8; }
-.badge-first   { background: rgba(60,160,100,0.2); border: 1px solid rgba(60,160,100,0.4); color: #88d4aa; }
-.hero-time { color: rgba(255,255,255,0.35); font-size: 0.85rem; }
+.badge-session { background: var(--brand-50); border: 1px solid var(--line-strong); color: var(--brand-700); }
+.badge-first   { background: rgba(210,169,63,0.12); border: 1px solid var(--warn-line); color: var(--warn); }
+.hero-time { color: var(--muted); font-size: 0.85rem; }
+.hero-actions { margin-left: auto; display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: flex-end; position: relative; z-index: 1; }
 
 .alerts-row {
-  display: flex; gap: 0.6rem; flex-wrap: wrap;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0 2rem; margin-bottom: 1.25rem;
 }
+.alerts-row:empty { display: none; }
 .alert-pill {
-  padding: 0.35rem 1rem; border-radius: 60px;
+  padding: 0.35rem 0.9rem; border-radius: 60px;
   font-size: 0.8rem; font-weight: 500;
 }
-.alert-red    { background: rgba(200,50,50,0.2);   border: 1px solid rgba(200,50,50,0.4);   color: #f08080; }
-.alert-orange { background: rgba(200,120,30,0.2);  border: 1px solid rgba(200,120,30,0.4);  color: #f0b070; }
-.alert-green  { background: rgba(50,180,100,0.2);  border: 1px solid rgba(50,180,100,0.4);  color: #70e0a0; }
-.alert-purple { background: rgba(140,80,200,0.2);  border: 1px solid rgba(140,80,200,0.4);  color: #c0a0e8; }
-.alert-blue   { background: rgba(50,120,200,0.2);  border: 1px solid rgba(50,120,200,0.4);  color: #90c0f0; }
+.alert-red    { background: var(--danger-bg); border: 1px solid var(--danger-line); color: var(--danger); }
+.alert-orange { background: var(--warn-bg);   border: 1px solid var(--warn-line);   color: var(--warn); }
+.alert-green  { background: var(--ok-bg);     border: 1px solid var(--ok-line);     color: var(--ok); }
+.alert-purple { background: var(--brand-50);  border: 1px solid var(--line-strong); color: var(--brand-700); }
+.alert-blue   { background: var(--info-bg);   border: 1px solid var(--info-line);   color: var(--info); }
 
 .metrics-grid {
   display: grid; grid-template-columns: repeat(3,1fr) 1.4fr;
-  gap: 1rem; padding: 1.5rem 2rem;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  gap: 1rem; padding: 0 2rem; margin-bottom: 1.75rem;
 }
 @media (max-width: 900px) { .metrics-grid { grid-template-columns: 1fr 1fr; } }
 .metric-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 16px; padding: 1.2rem 1.4rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 1.15rem 1.3rem;
+  box-shadow: var(--shadow-sm);
 }
 .metric-label {
-  font-size: 0.72rem; text-transform: uppercase;
-  letter-spacing: 0.1em; color: rgba(255,255,255,0.35); margin-bottom: 0.6rem;
+  font-size: 0.66rem; text-transform: uppercase; font-weight: 500;
+  letter-spacing: 0.2em; color: var(--brand-500); margin-bottom: 0.6rem;
 }
-.metric-value { font-size: 1.3rem; font-weight: 400; color: rgba(255,255,255,0.9); margin-bottom: 0.8rem; }
+.metric-value { font-size: 1.35rem; font-weight: 500; color: var(--ink); margin-bottom: 0.6rem; font-variant-numeric: tabular-nums; }
 .sleep-dots { display: flex; gap: 5px; }
-.sleep-dot  { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.15); }
-.sleep-dot.active { background: rgba(180,140,255,0.8); }
+.sleep-dot  { width: 10px; height: 10px; border-radius: 50%; background: var(--brand-100); }
+.sleep-dot.active { background: var(--brand-500); }
 .pain-bar {
-  height: 6px; border-radius: 3px;
-  background: linear-gradient(90deg, #4caf86, #f0c040, #e05050);
+  height: 6px; border-radius: 3px; margin-top: 0.4rem;
+  background: linear-gradient(90deg, #5DB48C, #E2B84A, #D9534A);
   position: relative; overflow: visible;
 }
 .pain-marker {
   position: absolute; top: 50%; transform: translate(-50%,-50%);
-  width: 14px; height: 14px;
-  background: #fff; border-radius: 50%;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  width: 16px; height: 16px;
+  background: #fff; border: 3px solid var(--brand-700); border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(45,30,80,0.25);
 }
-.pain-display { font-size: 1.8rem; font-weight: 300; color: rgba(255,255,255,0.9); }
-.metric-reason { font-style: italic; color: rgba(255,255,255,0.7); font-size: 0.95rem; line-height: 1.5; }
-.reason-quotes { font-size: 2rem; line-height: 0.5; color: rgba(255,255,255,0.15); font-family: Georgia,serif; }
+.pain-display { font-size: 1.9rem; font-weight: 400; color: var(--ink); }
+.pain-display span:last-child { color: var(--subtle) !important; }
+.metric-reason { color: var(--ink); font-size: 0.95rem; line-height: 1.5; }
+.reason-quotes { font-size: 2rem; line-height: 0.5; color: var(--brand-300); font-family: Georgia, serif; }
 
-.history-section { padding: 1.5rem 2rem 2rem; }
+.history-section { padding: 0 2rem 1rem; }
 .section-title {
-  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em;
-  color: rgba(255,255,255,0.3); margin-bottom: 1rem;
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.24em; font-weight: 500;
+  color: var(--brand-700); margin-bottom: 0.9rem;
+  display: flex; align-items: center; gap: 0.75rem;
 }
-.history-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-strong), transparent); }
+.history-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .history-item {
-  display: flex; align-items: center; gap: 1.5rem;
-  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px; padding: 0.9rem 1.2rem;
-  font-size: 0.85rem; color: rgba(255,255,255,0.55);
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 0.8rem 1.1rem;
+  font-size: 0.86rem; color: var(--muted);
 }
-.history-date { color: rgba(255,255,255,0.4); min-width: 100px; }
+.history-date { color: var(--ink); font-weight: 500; min-width: 100px; }
 .history-metric { display: flex; gap: 0.3rem; align-items: center; }
-.history-metric span { color: rgba(255,255,255,0.65); }
-.no-history { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.9rem; }
+.history-metric span { color: var(--ink); }
+.no-history { color: var(--subtle); font-size: 0.9rem; padding: 0.5rem 0; }
 
-/* Botão Modo Consulta no dashboard */
+/* Botão Anatomia 3D no topo do atendimento */
 .btn-consult {
-  padding: 0.6rem 1.2rem;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 60px;
-  color: rgba(255,255,255,0.7);
-  font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.62rem 1.2rem;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 12px; color: var(--brand-700);
+  font-family: var(--font); font-size: 0.88rem; font-weight: 500;
   cursor: pointer; transition: background 0.2s;
 }
-.btn-consult:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.btn-consult:hover { background: var(--brand-50); }
 
 /* ── Modo Consulta: Anatomia 3D (tela cheia) ── */
 #consult-mode {
   display: none; position: fixed; inset: 0; z-index: 1400;
-  background: #03060b; color: #fff;
+  background: #120D1C; color: #fff;
 }
 #consult-mode.visible { display: grid; grid-template-columns: 1fr 400px; }
 @media (max-width: 900px) { #consult-mode.visible { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; } }
@@ -480,55 +552,55 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 #phy-canvas { position: relative; flex: 1; min-height: 0; }
 .phy-toolbar {
   display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; flex-shrink: 0;
-  padding: 0.6rem 0.9rem; background: #050b12; border-bottom: 1px solid rgba(120,220,255,0.08);
+  padding: 0.6rem 0.9rem; background: #171124; border-bottom: 1px solid rgba(187,164,222,0.08);
 }
 .phy-tb {
   padding: 0.38rem 0.8rem; border-radius: 60px; cursor: pointer;
-  background: rgba(6,20,32,0.72); border: 1px solid rgba(120,220,255,0.22);
-  color: rgba(210,240,255,0.78); font-family: 'DM Sans', sans-serif; font-size: 0.76rem;
+  background: rgba(22,15,36,0.72); border: 1px solid rgba(187,164,222,0.22);
+  color: rgba(230,222,245,0.78); font-family: var(--font); font-size: 0.76rem;
   backdrop-filter: blur(6px); transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.phy-tb:hover { background: rgba(40,110,150,0.35); color: #fff; }
-.phy-tb.on { background: rgba(60,190,255,0.2); border-color: rgba(120,220,255,0.65); color: #d8f6ff; }
+.phy-tb:hover { background: rgba(106,74,160,0.35); color: #fff; }
+.phy-tb.on { background: rgba(148,117,198,0.2); border-color: rgba(187,164,222,0.65); color: #efe7ff; }
 .phy-tb:disabled { opacity: 0.35; cursor: default; }
-.phy-tb.phy-int.on { background: linear-gradient(135deg, rgba(255,70,60,0.28), rgba(60,190,255,0.22)); border-color: rgba(255,120,110,0.7); color: #fff; }
-.phy-tb-sep { width: 1px; height: 20px; background: rgba(120,220,255,0.2); margin: 0 0.15rem; }
-.phy-hint { margin-left: auto; font-size: 0.7rem; color: rgba(160,220,245,0.4); letter-spacing: 0.03em; }
+.phy-tb.phy-int.on { background: linear-gradient(135deg, rgba(255,70,60,0.28), rgba(148,117,198,0.22)); border-color: rgba(255,120,110,0.7); color: #fff; }
+.phy-tb-sep { width: 1px; height: 20px; background: rgba(187,164,222,0.2); margin: 0 0.15rem; }
+.phy-hint { margin-left: auto; font-size: 0.7rem; color: rgba(205,190,235,0.4); letter-spacing: 0.03em; }
 .phy-panel {
   display: flex; flex-direction: column; min-height: 0;
-  background: linear-gradient(180deg, #08121c, #05090f); border-left: 1px solid rgba(120,220,255,0.1);
+  background: linear-gradient(180deg, #1B1429, #130E1E); border-left: 1px solid rgba(187,164,222,0.1);
 }
 .phy-panel-head {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 0.8rem;
-  padding: 1.1rem 1.2rem 0.9rem; border-bottom: 1px solid rgba(120,220,255,0.08);
+  padding: 1.1rem 1.2rem 0.9rem; border-bottom: 1px solid rgba(187,164,222,0.08);
 }
-.phy-title { font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 300; color: rgba(255,255,255,0.9); }
-.phy-patient { font-size: 0.78rem; color: rgba(160,220,245,0.55); margin-top: 0.2rem; }
+.phy-title { font-family: var(--font); font-size: 1.15rem; font-weight: 300; color: rgba(255,255,255,0.9); }
+.phy-patient { font-size: 0.78rem; color: rgba(205,190,235,0.55); margin-top: 0.2rem; }
 .btn-back-dash {
   padding: 0.45rem 0.9rem; flex-shrink: 0;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
   border-radius: 60px; color: rgba(255,255,255,0.6);
-  font-size: 0.78rem; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem; cursor: pointer; font-family: var(--font);
 }
 .btn-back-dash:hover { color: #fff; background: rgba(255,255,255,0.12); }
 .phy-body { flex: 1; overflow-y: auto; padding: 0.4rem 1.2rem 1rem; }
 .phy-body::-webkit-scrollbar { width: 5px; }
-.phy-body::-webkit-scrollbar-thumb { background: rgba(120,220,255,0.15); border-radius: 3px; }
+.phy-body::-webkit-scrollbar-thumb { background: rgba(187,164,222,0.15); border-radius: 3px; }
 .phy-sec { padding: 0.9rem 0 0.4rem; }
-.phy-sec + .phy-sec { border-top: 1px solid rgba(120,220,255,0.07); }
+.phy-sec + .phy-sec { border-top: 1px solid rgba(187,164,222,0.07); }
 .phy-sec-t {
-  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(140,220,255,0.6); margin-bottom: 0.65rem;
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.16em; color: rgba(200,182,235,0.6); margin-bottom: 0.65rem;
 }
 .phy-sec-t small { text-transform: none; letter-spacing: 0; color: rgba(255,255,255,0.3); margin-left: 0.4rem; font-size: 0.72rem; }
 .phy-select {
   width: 100%; padding: 0.6rem 0.9rem; border-radius: 12px; outline: none; cursor: pointer;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(120,220,255,0.2); color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(187,164,222,0.2); color: #fff;
+  font-family: var(--font); font-size: 0.88rem;
 }
-.phy-select option, .phy-select optgroup { background: #0b1520; color: #fff; }
+.phy-select option, .phy-select optgroup { background: #1B1429; color: #fff; }
 .phy-pain { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; align-items: center; font-size: 0.72rem; color: rgba(255,255,255,0.4); }
 .phy-chip {
-  padding: 0.32rem 0.75rem; border-radius: 60px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.78rem;
+  padding: 0.32rem 0.75rem; border-radius: 60px; cursor: pointer; font-family: var(--font); font-size: 0.78rem;
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.75);
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
@@ -538,7 +610,7 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .phy-conds { display: flex; flex-direction: column; gap: 0.35rem; }
 .phy-cond {
   display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left; cursor: pointer;
-  padding: 0.55rem 0.75rem; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 0.84rem;
+  padding: 0.55rem 0.75rem; border-radius: 10px; font-family: var(--font); font-size: 0.84rem;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
 }
 .phy-cond::before { content: ''; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.35); flex-shrink: 0; }
@@ -547,54 +619,54 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .phy-cond.on::before { background: #ff4a3d; border-color: #ff4a3d; box-shadow: 0 0 8px #ff4a3d; }
 .phy-card {
   margin-top: 0.7rem; padding: 0.8rem 0.9rem; border-radius: 12px; font-size: 0.8rem; line-height: 1.55;
-  background: rgba(60,190,255,0.05); border: 1px solid rgba(120,220,255,0.14); color: rgba(255,255,255,0.72);
+  background: rgba(148,117,198,0.05); border: 1px solid rgba(187,164,222,0.14); color: rgba(255,255,255,0.72);
 }
-.phy-card b { color: rgba(170,230,255,0.9); font-weight: 500; }
+.phy-card b { color: rgba(215,200,245,0.9); font-weight: 500; }
 .phy-card p + p { margin-top: 0.45rem; }
 .phy-parts { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .phy-part { font-size: 0.74rem; padding: 0.26rem 0.65rem; }
 .phy-part i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
 .phy-muted { font-size: 0.78rem; color: rgba(255,255,255,0.35); font-style: italic; }
-.phy-actions { padding: 0.9rem 1.2rem 1.1rem; border-top: 1px solid rgba(120,220,255,0.08); display: flex; flex-direction: column; gap: 0.45rem; }
+.phy-actions { padding: 0.9rem 1.2rem 1.1rem; border-top: 1px solid rgba(187,164,222,0.08); display: flex; flex-direction: column; gap: 0.45rem; }
 .phy-actions .btn-send-tv { display: block; }
 .phy-clear-tv {
-  background: none; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif;
+  background: none; border: none; cursor: pointer; font-family: var(--font);
   font-size: 0.76rem; color: rgba(255,255,255,0.4);
 }
 .phy-clear-tv:hover { color: rgba(255,255,255,0.75); }
-.phy-skin { display: inline-flex; border-radius: 60px; overflow: hidden; border: 1px solid rgba(120,220,255,0.22); }
+.phy-skin { display: inline-flex; border-radius: 60px; overflow: hidden; border: 1px solid rgba(187,164,222,0.22); }
 .phy-skin .phy-tb { border: none; border-radius: 0; }
 .phy-skin .phy-tb.on { background: linear-gradient(135deg, rgba(210,80,65,0.45), rgba(120,40,35,0.35)); color: #fff; }
 .phy-search {
   width: 100%; padding: 0.5rem 0.85rem; border-radius: 60px; outline: none; margin-bottom: 0.6rem;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(120,220,255,0.2); color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(187,164,222,0.2); color: #fff;
+  font-family: var(--font); font-size: 0.82rem;
 }
 .phy-search::placeholder { color: rgba(255,255,255,0.3); }
 .phy-mus-list { display: flex; flex-direction: column; gap: 0.15rem; max-height: 260px; overflow-y: auto; padding-right: 0.2rem; }
 .phy-mus-list::-webkit-scrollbar { width: 4px; }
-.phy-mus-list::-webkit-scrollbar-thumb { background: rgba(120,220,255,0.15); border-radius: 3px; }
+.phy-mus-list::-webkit-scrollbar-thumb { background: rgba(187,164,222,0.15); border-radius: 3px; }
 .phy-mus-g { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.14em; color: rgba(255,255,255,0.32); margin: 0.5rem 0 0.2rem; }
 .phy-mus {
   display: flex; align-items: center; gap: 0.5rem; width: 100%; text-align: left; cursor: pointer;
   padding: 0.38rem 0.6rem; border-radius: 8px; border: 1px solid transparent; background: none;
-  font-family: 'DM Sans', sans-serif; font-size: 0.8rem; color: rgba(255,255,255,0.75);
+  font-family: var(--font); font-size: 0.8rem; color: rgba(255,255,255,0.75);
 }
 .phy-mus:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .phy-mus i { width: 8px; height: 8px; border-radius: 2px; background: #c95442; flex-shrink: 0; }
 .phy-mus i.w { background: #e8dccb; }
-.phy-mus.on { background: rgba(60,190,255,0.12); border-color: rgba(120,220,255,0.45); color: #fff; }
+.phy-mus.on { background: rgba(148,117,198,0.12); border-color: rgba(187,164,222,0.45); color: #fff; }
 .phy-mus.hot { color: #ffc9c4; }
 .phy-mus.hot i { background: #ff4a3d; box-shadow: 0 0 6px #ff4a3d; }
 .phy-mus-sel { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.5rem; }
 .phy-mus-sel .phy-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.74rem; padding: 0.24rem 0.6rem;
-  border-color: rgba(120,220,255,0.5); background: rgba(60,190,255,0.12); color: #e0f7ff; }
+  border-color: rgba(187,164,222,0.5); background: rgba(148,117,198,0.12); color: #efe7ff; }
 .phy-mus-sel .phy-chip b { font-weight: 400; opacity: 0.7; cursor: pointer; }
 .problem-input {
   width: 100%; padding: 0.9rem 1rem;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
   border-radius: 12px; color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+  font-family: var(--font); font-size: 0.9rem;
   resize: vertical; min-height: 90px; outline: none;
   margin-bottom: 1rem; transition: border-color 0.2s;
 }
@@ -602,9 +674,9 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
 .problem-input:focus { border-color: rgba(255,255,255,0.3); }
 .btn-generate-ai {
   width: 100%; padding: 0.85rem;
-  background: linear-gradient(135deg, #6a3fa8, #3a6fa8);
+  background: var(--grad);
   border: none; border-radius: 60px;
-  color: #fff; font-family: 'DM Sans', sans-serif;
+  color: #fff; font-family: var(--font);
   font-size: 0.95rem; font-weight: 500;
   cursor: pointer; margin-bottom: 1.2rem; transition: opacity 0.2s;
 }
@@ -616,508 +688,717 @@ body.light #queue-bar button { background: rgba(0,0,0,0.05); border-color: rgba(
   min-height: 80px; margin-bottom: 1rem; white-space: pre-wrap;
 }
 .ai-preview.loading { color: rgba(255,255,255,0.3); font-style: italic; }
-textarea.ai-preview { width: 100%; font-family: 'DM Sans', sans-serif; resize: vertical; outline: none; }
+textarea.ai-preview { width: 100%; font-family: var(--font); resize: vertical; outline: none; }
 textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
 .btn-send-tv {
   width: 100%; padding: 0.85rem;
   background: rgba(76,175,134,0.2); border: 1px solid rgba(76,175,134,0.4);
   border-radius: 60px; color: #88d4aa;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
+  font-family: var(--font); font-size: 0.9rem; font-weight: 500;
   cursor: pointer; display: none; transition: background 0.2s;
 }
 .btn-send-tv.visible { display: block; }
 .btn-send-tv:disabled { opacity: 0.4; cursor: default; }
 .btn-send-tv:hover { background: rgba(76,175,134,0.3); }
+/* ─────────────── HOJE (tela inicial guiada) ─────────────── */
+#today-view { padding: 2rem; max-width: 1180px; margin: 0 auto; }
+.today-hello { font-size: 1.85rem; font-weight: 500; letter-spacing: -0.015em; line-height: 1.15; }
+.today-date { color: var(--muted); font-size: 0.92rem; margin-top: 0.3rem; }
+.today-date::first-letter, .agenda-week-label::first-letter, .fin-label::first-letter { text-transform: uppercase; }
+
+.guide {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); margin-bottom: 1.5rem; overflow: hidden;
+}
+.guide-step { position: relative; padding: 0.95rem 1rem 1rem 1.1rem; }
+.guide-step + .guide-step { border-left: 1px solid var(--line); }
+.guide-step .n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 7px; margin-bottom: 0.45rem;
+  background: var(--brand-50); color: var(--brand-700); font-size: 0.72rem; font-weight: 600;
+  border: 1px solid var(--line-strong);
+}
+.guide-step b { display: block; font-size: 0.86rem; font-weight: 600; margin-bottom: 0.15rem; }
+.guide-step span { display: block; font-size: 0.76rem; color: var(--muted); line-height: 1.4; }
+.guide-close {
+  position: absolute; top: 0.5rem; right: 0.6rem; background: none; border: none; cursor: pointer;
+  color: var(--subtle); font-size: 1rem; line-height: 1;
+}
+@media (max-width: 900px) {
+  .guide { grid-template-columns: 1fr 1fr; }
+  .guide-step + .guide-step { border-left: none; border-top: 1px solid var(--line); }
+}
+
+.today-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+@media (max-width: 800px) { .today-kpis { grid-template-columns: 1fr 1fr; } }
+.today-kpis .metric-value { margin-bottom: 0; font-size: 1.6rem; }
+.today-kpis .metric-card small { display: block; color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
+
+.today-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.25rem; align-items: start; }
+@media (max-width: 1000px) { .today-grid { grid-template-columns: 1fr; } }
+
+.today-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.t-row {
+  display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 1rem;
+  padding: 0.9rem 1rem 0.9rem 1.1rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); position: relative; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.t-row:hover { border-color: var(--line-strong); box-shadow: var(--shadow); }
+.t-row.is-now { border-color: var(--brand-300); box-shadow: 0 0 0 3px rgba(148,117,198,0.14), var(--shadow); }
+.t-row.is-done { background: var(--surface-2); }
+.t-row.is-off { opacity: 0.6; }
+.t-time { font-size: 1.15rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--brand-700); }
+.t-time small { display: block; font-size: 0.7rem; color: var(--subtle); font-weight: 400; }
+.t-name { font-weight: 600; font-size: 0.98rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.t-meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.t-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: flex-end; }
+.t-actions .btn-primary, .t-actions .btn-ghost { padding: 0.5rem 0.95rem; font-size: 0.82rem; border-radius: 10px; }
+@media (max-width: 640px) {
+  .t-row { grid-template-columns: 54px 1fr; }
+  .t-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
+/* Mini-progresso de cada paciente: Agendado · Chegou · Atendimento · Concluído */
+.t-track { display: inline-flex; align-items: center; gap: 3px; }
+.t-track i { width: 18px; height: 4px; border-radius: 4px; background: var(--brand-100); }
+.t-track i.on { background: var(--brand-500); }
+.t-track i.ok { background: var(--ok); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.7rem; font-weight: 500; padding: 0.16rem 0.6rem; border-radius: 60px;
+  background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.chip.ok   { background: var(--ok-bg);     color: var(--ok);     border-color: var(--ok-line); }
+.chip.warn { background: var(--warn-bg);   color: var(--warn);   border-color: var(--warn-line); }
+.chip.bad  { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-line); }
+.chip.live { background: var(--grad); color: #fff; border-color: transparent; }
+
+.side-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); padding: 1.1rem 1.2rem; margin-bottom: 1rem;
+}
+.side-card h4 { font-size: 0.66rem; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 500; color: var(--brand-700); margin-bottom: 0.8rem; }
+.quick { display: flex; flex-direction: column; gap: 0.45rem; }
+.quick button {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%; text-align: left;
+  padding: 0.7rem 0.8rem; border-radius: 12px; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line);
+  font-family: var(--font); font-size: 0.88rem; color: var(--ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+.quick button:hover { background: var(--brand-50); border-color: var(--line-strong); }
+.quick .qi {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--grad); color: #fff; font-size: 0.9rem;
+}
+.quick small { display: block; color: var(--muted); font-size: 0.74rem; }
+.empty-state {
+  text-align: center; padding: 2.5rem 1.5rem; color: var(--muted);
+  background: var(--surface); border: 1px dashed var(--line-strong); border-radius: var(--radius);
+}
+.empty-state b { display: block; color: var(--ink); font-size: 1.05rem; font-weight: 500; margin-bottom: 0.35rem; }
+.empty-state .btn-primary { margin-top: 1rem; }
+
 /* ─────────────── AGENDA ─────────────── */
-#agenda-view { padding: 2rem; overflow-y: auto; max-height: calc(100vh - 60px); }
+#agenda-view { padding: 2rem; }
 
 .agenda-header {
-  display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap;
 }
 .agenda-nav-btn {
-  padding: 0.5rem 1.1rem;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 60px; color: rgba(255,255,255,0.6);
-  font-family: 'DM Sans', sans-serif; font-size: 0.85rem;
-  cursor: pointer; transition: background 0.2s, color 0.2s;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; color: var(--brand-700);
+  font-family: var(--font); font-size: 0.84rem; font-weight: 500;
+  cursor: pointer; transition: background 0.2s, border-color 0.2s;
 }
-.agenda-nav-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.agenda-nav-btn:hover { background: var(--brand-50); border-color: var(--line-strong); }
 .agenda-week-label {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.1rem; font-weight: 300;
-  color: rgba(255,255,255,0.8);
+  font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em;
+  color: var(--ink);
   flex: 1; text-align: center;
 }
+.agenda-legend { display: flex; gap: 0.9rem; flex-wrap: wrap; font-size: 0.74rem; color: var(--muted); margin-bottom: 0.9rem; }
+.agenda-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.agenda-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
 /* Grade semanal com horários */
-.agenda-scroll { overflow-x: auto; }
+.agenda-scroll {
+  overflow: auto; max-height: calc(100vh - 230px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
 .week-grid {
   display: grid;
-  grid-template-columns: 48px repeat(7, minmax(90px, 1fr));
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 12px; overflow: hidden;
-  min-width: 700px;
+  grid-template-columns: 56px repeat(7, minmax(110px, 1fr));
+  min-width: 820px;
 }
 
 /* Coluna de horários */
-.time-axis {}
+.time-axis { background: var(--surface-2); }
+.time-axis-header, .day-header { position: sticky; top: 0; z-index: 5; }
 .time-axis-header {
-  height: 50px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-  border-right: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.015);
+  height: 58px;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  background: var(--surface-2);
 }
 .time-tick {
   height: 42px;
-  display: flex; align-items: center; justify-content: flex-end;
-  padding-right: 0.45rem;
-  font-size: 0.6rem; color: rgba(255,255,255,0.22);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  border-right: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.01);
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  padding: 0.2rem 0.5rem 0 0;
+  font-size: 0.68rem; color: var(--subtle); font-variant-numeric: tabular-nums;
+  border-right: 1px solid var(--line);
 }
+.time-tick.hour { color: var(--muted); font-weight: 500; }
 
 .day-col {
-  background: transparent; border: none; border-radius: 0;
-  min-height: unset; overflow: visible;
-  border-right: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+  border-right: 1px solid var(--line);
 }
 .day-col:last-child { border-right: none; }
+.day-col.today { background: linear-gradient(180deg, rgba(233,225,244,0.45), rgba(233,225,244,0.15)); }
 
 .day-header {
-  height: 50px; padding: 0.5rem 0.3rem; text-align: center;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.02);
+  height: 58px; padding: 0.55rem 0.3rem; text-align: center;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.94); backdrop-filter: blur(6px);
 }
 .day-name {
-  font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.3); margin-bottom: 0.15rem;
+  font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 500;
+  color: var(--muted); margin-bottom: 0.1rem;
 }
-.day-num { font-size: 1.1rem; font-weight: 300; color: rgba(255,255,255,0.65); }
-.day-col.today .day-header { background: rgba(100,80,200,0.1); }
-.day-col.today .day-num { color: #b8a8e8; }
+.day-num { font-size: 1.2rem; font-weight: 500; color: var(--ink); }
+.day-col.today .day-header { background: rgba(246,242,251,0.96); }
+.day-col.today .day-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--grad); color: #fff; font-size: 1rem; box-shadow: var(--glow);
+}
 
 /* Slot de horário */
 .time-slot {
   height: 42px; position: relative;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px dashed rgba(106,74,160,0.07);
   transition: background 0.15s;
 }
+.time-slot.hour-end { border-bottom: 1px solid var(--line); }
 .time-slot.free { cursor: pointer; }
-.time-slot.free:hover { background: rgba(255,255,255,0.025); }
+.time-slot.free:hover { background: rgba(148,117,198,0.08); }
 .time-slot.free:hover::after {
-  content: '+';
-  position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%);
-  font-size: 0.85rem; color: rgba(255,255,255,0.18);
+  content: '+ agendar';
+  position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%);
+  font-size: 0.7rem; font-weight: 500; color: var(--brand-500);
+}
+.now-line {
+  position: absolute; left: 0; right: 0; height: 2px; z-index: 4; pointer-events: none;
+  background: var(--brand-700);
+}
+.now-line::before {
+  content: ''; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--brand-700); box-shadow: 0 0 0 3px rgba(106,74,160,0.2);
 }
 
 /* Card de agendamento dentro do slot */
 .slot-card {
   position: absolute;
-  border-radius: 5px; padding: 0.18rem 0.4rem;
+  border-radius: 8px; padding: 0.25rem 0.5rem 0.25rem 0.6rem;
   cursor: pointer; overflow: hidden;
-  display: flex; flex-direction: column; justify-content: center;
-  transition: filter 0.15s;
-  z-index: 2;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  transition: transform 0.15s, box-shadow 0.15s;
+  z-index: 2; border-left-width: 3px !important;
 }
 .time-slot { overflow: visible; }
-.slot-card:hover { filter: brightness(1.3); }
-.sc-name { font-size: 0.7rem; color: rgba(255,255,255,0.9); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sc-type { font-size: 0.58rem; color: rgba(255,255,255,0.5); }
+.slot-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); z-index: 3; }
+.sc-name { font-size: 0.74rem; color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 16px; }
+.sc-type { font-size: 0.64rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sc-paid {
   display: inline-flex; align-items: center; justify-content: center;
   width: 13px; height: 13px; border-radius: 50%;
-  background: rgba(60,180,120,0.9); color: #fff; font-size: 0.6rem; font-weight: 700;
+  background: var(--ok); color: #fff; font-size: 0.55rem; font-weight: 700;
   vertical-align: middle;
 }
 .sc-history-btn {
-  position: absolute; top: 2px; right: 2px; z-index: 3;
-  width: 16px; height: 16px;
-  background: rgba(255,255,255,0.1); border: none; border-radius: 3px;
-  color: rgba(255,255,255,0.55); font-size: 0.6rem;
+  position: absolute; top: 3px; right: 3px; z-index: 3;
+  width: 18px; height: 18px;
+  background: rgba(255,255,255,0.8); border: 1px solid var(--line); border-radius: 5px;
+  color: var(--brand-700); font-size: 0.62rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   line-height: 1; transition: background 0.15s, color 0.15s;
 }
-.sc-history-btn:hover { background: rgba(106,63,168,0.65); color: #fff; }
+.sc-history-btn:hover { background: var(--brand-700); color: #fff; }
 
-.slot-agendado   { background: rgba(50,120,200,0.22); border: 1px solid rgba(50,120,200,0.4); }
-.slot-confirmado { background: rgba(50,180,100,0.22); border: 1px solid rgba(50,180,100,0.4); }
-.slot-atendimento{ background: rgba(220,180,30,0.22); border: 1px solid rgba(220,180,30,0.4); }
-.slot-concluido  { background: rgba(100,100,120,0.18); border: 1px solid rgba(100,100,120,0.35); }
-.slot-cancelado  { background: rgba(200,50,50,0.18); border: 1px solid rgba(200,50,50,0.35); }
-.slot-falta      { background: rgba(200,120,30,0.18); border: 1px solid rgba(200,120,30,0.35); }
-
-/* FAB — botão flutuante */
-.fab {
-  position: fixed; bottom: 2rem; right: 2rem; z-index: 500;
-  width: 56px; height: 56px;
-  background: linear-gradient(135deg, #6a3fa8, #3a6fa8);
-  border: none; border-radius: 50%;
-  color: #fff; font-size: 1.6rem;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(106,63,168,0.5);
-  display: flex; align-items: center; justify-content: center;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(106,63,168,0.6); }
+.slot-agendado   { background: #F1EBFA; border: 1px solid #DCCFF0; border-left-color: var(--brand-500) !important; }
+.slot-confirmado { background: #E9F6EF; border: 1px solid #C7E6D5; border-left-color: var(--ok) !important; }
+.slot-atendimento{ background: #FBF3DF; border: 1px solid #EEDBA8; border-left-color: var(--gold) !important; }
+.slot-concluido  { background: #F3F1F6; border: 1px solid #E2DEE8; border-left-color: #9C94A8 !important; }
+.slot-concluido .sc-name { color: var(--muted); }
+.slot-cancelado  { background: #FBEDEC; border: 1px solid #F0CFCC; border-left-color: var(--danger) !important; }
+.slot-cancelado .sc-name { text-decoration: line-through; color: var(--muted); }
+.slot-falta      { background: #FCF0E3; border: 1px solid #F1D5B5; border-left-color: #D9822B !important; }
 
 /* ── Modal genérico ── */
 .generic-overlay {
   position: fixed; inset: 0; z-index: 1500;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(6px);
+  background: rgba(45,32,70,0.36);
+  backdrop-filter: blur(8px);
   display: flex; align-items: center; justify-content: center;
   padding: 1.5rem;
   opacity: 0; pointer-events: none;
-  transition: opacity 0.3s;
+  transition: opacity 0.25s;
 }
 .generic-overlay.visible { opacity: 1; pointer-events: all; }
+.generic-overlay .modal-sheet { transform: translateY(10px) scale(0.99); transition: transform 0.25s; }
+.generic-overlay.visible .modal-sheet { transform: none; }
 
 .modal-sheet {
-  background: #16161e;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 20px;
-  padding: 2rem;
-  width: 100%; max-width: 520px;
-  max-height: 90vh; overflow-y: auto;
-  box-shadow: 0 24px 72px rgba(0,0,0,0.6);
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 1.9rem 2rem;
+  width: 100%; max-width: 540px;
+  max-height: 92vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg);
 }
 .modal-sheet h3 {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.4rem; font-weight: 300;
-  color: rgba(255,255,255,0.9);
-  margin-bottom: 1.5rem;
+  font-size: 1.35rem; font-weight: 500; letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 1.4rem; padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
 }
+.modal-sheet.wide { max-width: 720px; }
 .form-group { margin-bottom: 1rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 560px) { .form-row, .form-row.three { grid-template-columns: 1fr; } }
 .form-label {
-  display: block; font-size: 0.75rem;
-  text-transform: uppercase; letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.4); margin-bottom: 0.4rem;
+  display: block; font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted); margin-bottom: 0.38rem;
 }
 .form-control {
-  width: 100%; padding: 0.75rem 1rem;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px; color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
-  outline: none; transition: border-color 0.2s;
+  width: 100%; padding: 0.7rem 0.9rem;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: 10px; color: var(--ink);
+  font-family: var(--font); font-size: 0.92rem;
+  outline: none; transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.form-control::placeholder { color: rgba(255,255,255,0.25); }
-.form-control:focus { border-color: rgba(255,255,255,0.3); }
-.form-control option { background: #1e1e2e; }
+.form-control::placeholder { color: var(--subtle); }
+.form-control:hover { border-color: var(--brand-300); }
+.form-control:focus { border-color: var(--brand-500); background: #fff; box-shadow: 0 0 0 4px rgba(148,117,198,0.16); }
+.form-control option { background: #fff; color: var(--ink); }
+.form-hint { font-size: 0.76rem; color: var(--muted); margin-top: 0.35rem; line-height: 1.45; }
 .modal-actions {
-  display: flex; gap: 0.8rem; justify-content: flex-end;
-  margin-top: 1.5rem;
+  display: flex; gap: 0.7rem; justify-content: flex-end; flex-wrap: wrap;
+  margin-top: 1.5rem; padding-top: 1.1rem; border-top: 1px solid var(--line);
 }
-.btn-cancel {
-  padding: 0.75rem 1.5rem;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 60px; color: rgba(255,255,255,0.6);
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; cursor: pointer;
-}
-.btn-save {
-  padding: 0.75rem 2rem;
-  background: linear-gradient(135deg, #6a3fa8, #3a6fa8);
-  border: none; border-radius: 60px; color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500;
-  cursor: pointer; transition: opacity 0.2s;
-}
-.btn-save:hover { opacity: 0.9; }
 .btn-delete {
-  padding: 0.75rem 1.4rem;
-  background: rgba(200,60,60,0.15); border: 1px solid rgba(200,60,60,0.45);
-  border-radius: 60px; color: #f08888;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.72rem 1.2rem;
+  background: transparent; border: 1px solid var(--danger-line);
+  border-radius: 12px; color: var(--danger);
+  font-family: var(--font); font-size: 0.88rem; font-weight: 500; cursor: pointer;
   transition: background 0.2s;
 }
-.btn-delete:hover { background: rgba(200,60,60,0.3); color: #fff; }
+.btn-delete:hover { background: var(--danger-bg); }
 
-/* ── Modal de finalização de sessão ── */
+/* Seletor em pílulas (substitui selects simples) */
+.seg { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.seg button {
+  padding: 0.48rem 0.9rem; border-radius: 10px; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--ink);
+  font-family: var(--font); font-size: 0.84rem; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.seg button:hover { border-color: var(--brand-300); }
+.seg button.on { background: var(--brand-700); border-color: var(--brand-700); color: #fff; }
+
+/* ── Fechamento da consulta em etapas ── */
+.wiz-steps { display: flex; gap: 0.4rem; margin: -0.4rem 0 1.4rem; }
+.wiz-steps button {
+  flex: 1; display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 0.75rem; border-radius: 12px; cursor: pointer; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+  font-family: var(--font); font-size: 0.82rem; font-weight: 500;
+}
+.wiz-steps button .n {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 600;
+  background: var(--surface); border: 1.5px solid var(--line-strong); color: var(--muted);
+}
+.wiz-steps button.done .n { background: var(--brand-100); border-color: var(--brand-100); color: var(--brand-700); }
+.wiz-steps button.on { background: var(--brand-50); border-color: var(--brand-300); color: var(--brand-700); }
+.wiz-steps button.on .n { background: var(--grad); border-color: transparent; color: #fff; }
+.wiz-pane { display: none; }
+.wiz-pane.on { display: block; animation: view-in 0.2s ease both; }
+.wiz-foot { display: flex; align-items: center; gap: 0.6rem; margin-top: 1.4rem; padding-top: 1.1rem; border-top: 1px solid var(--line); }
+.wiz-foot .spacer { flex: 1; }
+@media (max-width: 560px) { .wiz-steps button .t { display: none; } .wiz-steps button { justify-content: center; } }
+
 .finish-field-wrap { position: relative; }
 .finish-textarea {
-  width: 100%; padding: 0.75rem 2.8rem 0.75rem 1rem;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px; color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
-  resize: vertical; min-height: 90px; outline: none;
-  transition: border-color 0.2s;
+  width: 100%; padding: 0.75rem 2.9rem 0.75rem 0.95rem;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: 12px; color: var(--ink);
+  font-family: var(--font); font-size: 0.92rem; line-height: 1.5;
+  resize: vertical; min-height: 84px; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.finish-textarea::placeholder { color: rgba(255,255,255,0.25); }
-.finish-textarea:focus { border-color: rgba(255,255,255,0.3); }
+.finish-textarea::placeholder { color: var(--subtle); }
+.finish-textarea:focus { border-color: var(--brand-500); background: #fff; box-shadow: 0 0 0 4px rgba(148,117,198,0.16); }
 .btn-mic {
-  position: absolute; top: 0.6rem; right: 0.6rem;
-  width: 30px; height: 30px; border-radius: 50%;
-  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.5); font-size: 0.85rem;
+  position: absolute; top: 0.55rem; right: 0.55rem;
+  width: 32px; height: 32px; border-radius: 9px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  color: var(--brand-700); font-size: 0.85rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: background 0.2s, color 0.2s;
 }
-.btn-mic:hover { background: rgba(255,255,255,0.14); color: #fff; }
+.btn-mic:hover { background: var(--brand-50); }
 .btn-mic.recording {
-  background: rgba(200,50,50,0.35); border-color: rgba(200,50,50,0.6);
-  color: #f08080; animation: mic-pulse 1s ease-in-out infinite;
+  background: var(--danger-bg); border-color: var(--danger-line);
+  color: var(--danger); animation: mic-pulse 1s ease-in-out infinite;
 }
 @keyframes mic-pulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(200,50,50,0.4); }
-  50%      { box-shadow: 0 0 0 6px rgba(200,50,50,0); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(194,69,61,0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(194,69,61,0); }
 }
 .notes-pill {
-  font-size: 0.75rem; color: rgba(255,255,255,0.45);
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.75rem; color: var(--muted);
+  background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 6px; padding: 0.3rem 0.6rem; margin-top: 0.4rem;
   font-style: italic; line-height: 1.4;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 
-/* ─────────────── DASHBOARD FINANCEIRO ─────────────── */
+/* ── Retornos recorrentes ── */
+.rec-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1.1rem; }
+.rec-choice button {
+  padding: 0.9rem; border-radius: 14px; cursor: pointer; text-align: left;
+  background: var(--surface-2); border: 1.5px solid var(--line-strong); color: var(--ink);
+  font-family: var(--font); font-size: 0.9rem; font-weight: 500;
+}
+.rec-choice button small { display: block; font-weight: 400; color: var(--muted); font-size: 0.76rem; margin-top: 0.15rem; }
+.rec-choice button.on { border-color: var(--brand-500); background: var(--brand-50); box-shadow: 0 0 0 3px rgba(148,117,198,0.14); }
+.rec-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
+.rec-day {
+  padding: 0.6rem 0; border-radius: 12px; cursor: pointer; text-align: center;
+  background: var(--surface-2); border: 1.5px solid var(--line-strong); color: var(--ink);
+  font-family: var(--font); font-size: 0.82rem; font-weight: 500; transition: all 0.15s;
+}
+.rec-day:hover { border-color: var(--brand-300); }
+.rec-day.on { background: var(--grad); border-color: transparent; color: #fff; box-shadow: var(--glow); }
+.rec-times { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.7rem; }
+.rec-time-row {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.45rem 0.6rem 0.45rem 0.85rem; border-radius: 12px;
+  background: var(--brand-50); border: 1px solid var(--line);
+}
+.rec-time-row b { flex: 1; font-weight: 500; font-size: 0.88rem; }
+.rec-time-row input { max-width: 120px; padding: 0.45rem 0.6rem; background: #fff; }
+.rec-preview {
+  margin: 0.4rem 0 1.1rem; padding: 0.85rem 0.9rem; border-radius: 14px;
+  background: var(--surface-2); border: 1px dashed var(--line-strong);
+}
+.rec-preview-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; font-size: 0.82rem; margin-bottom: 0.6rem; }
+.rec-preview-head b { font-weight: 600; color: var(--brand-700); }
+.rec-preview-head span { color: var(--muted); font-size: 0.74rem; }
+.rec-dates { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.rec-date {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.28rem 0.35rem 0.28rem 0.6rem; border-radius: 8px;
+  background: #fff; border: 1px solid var(--line-strong); font-size: 0.76rem; font-variant-numeric: tabular-nums;
+}
+.rec-date button { background: none; border: none; cursor: pointer; color: var(--subtle); font-size: 0.85rem; line-height: 1; padding: 0 0.15rem; }
+.rec-date button:hover { color: var(--danger); }
+.rec-date.conflict { background: var(--danger-bg); border-color: var(--danger-line); color: var(--danger); text-decoration: line-through; }
+.rec-date.off { opacity: 0.45; text-decoration: line-through; }
+.rec-summary { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.5; }
+.rec-quick { display: flex; gap: 0.3rem; margin-top: 0.4rem; flex-wrap: wrap; }
+.rec-quick button {
+  padding: 0.22rem 0.6rem; border-radius: 8px; cursor: pointer; font-family: var(--font); font-size: 0.74rem;
+  background: var(--surface); border: 1px solid var(--line-strong); color: var(--brand-700);
+}
+.rec-quick button:hover { background: var(--brand-50); }
+
+/* Resumo final do fechamento */
+.recap { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 1rem; }
+.recap div {
+  display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.84rem;
+  padding: 0.55rem 0.8rem; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+}
+.recap div span { color: var(--muted); min-width: 92px; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.12em; }
+
+/* ─────────────── FINANCEIRO / DASHBOARD ─────────────── */
+#finance-view, #analytics-view { padding: 2rem; }
 .fin-toolbar {
-  display: flex; align-items: center; gap: 0.8rem;
+  display: flex; align-items: center; gap: 0.6rem;
   flex-wrap: wrap; margin-bottom: 1.5rem;
+  padding: 0.6rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
 }
-.fin-presets { display: flex; gap: 0.3rem; }
-.preset-btn.active {
-  background: rgba(106,63,168,0.35); border-color: rgba(140,110,220,0.6); color: #fff;
-}
-.fin-nav { display: flex; align-items: center; gap: 0.6rem; }
+.fin-presets { display: flex; gap: 0.25rem; padding: 0.2rem; background: var(--brand-50); border-radius: 12px; }
+.fin-presets .agenda-nav-btn { border-color: transparent; background: transparent; padding: 0.42rem 0.85rem; }
+.preset-btn.active { background: var(--surface) !important; color: var(--brand-700); box-shadow: 0 1px 2px rgba(45,30,80,0.08), 0 4px 10px rgba(74,47,126,0.08); }
+.fin-nav { display: flex; align-items: center; gap: 0.4rem; }
 .fin-label {
-  font-family: 'Playfair Display', serif; font-size: 1.05rem; font-weight: 300;
-  color: rgba(255,255,255,0.8); min-width: 190px; text-align: center;
-  text-transform: capitalize;
+  font-size: 1rem; font-weight: 500;
+  color: var(--ink); min-width: 190px; text-align: center;
+  display: inline-block;
 }
-body.light .fin-label { color: rgba(0,0,0,0.8); }
 .fin-custom { display: flex; align-items: center; gap: 0.5rem; }
 
 .kpi-grid {
   display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem;
 }
-@media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 640px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-.kpi-good { color: #7ad4a4 !important; }
-.kpi-warn { color: #f0b070 !important; }
-.chart-card canvas { max-height: 220px; }
+@media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+@media (max-width: 640px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+.kpi-grid .metric-card { position: relative; overflow: hidden; }
+.kpi-grid .metric-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--rule);
+}
+.kpi-grid .metric-value { font-size: 1.55rem; margin-bottom: 0; }
+.kpi-good { color: var(--ok) !important; }
+.kpi-warn { color: var(--warn) !important; }
 
 /* Lista de lançamentos */
 .ledger-header {
   display: flex; align-items: center; justify-content: space-between;
   gap: 1rem; flex-wrap: wrap; margin: 2rem 0 1rem;
 }
-.ledger-filters { display: flex; gap: 0.3rem; }
-.led-btn.active {
-  background: rgba(106,63,168,0.35); border-color: rgba(140,110,220,0.6); color: #fff;
-}
+.ledger-header .section-title { flex: 1; }
+.ledger-filters { display: flex; gap: 0.25rem; padding: 0.2rem; background: var(--brand-50); border-radius: 12px; }
+.ledger-filters .agenda-nav-btn { border-color: transparent; background: transparent; padding: 0.38rem 0.8rem; }
+.led-btn.active { background: var(--surface) !important; box-shadow: 0 1px 2px rgba(45,30,80,0.08); }
 .led-row {
   display: flex; align-items: center; gap: 1rem;
-  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px; padding: 0.75rem 1.1rem; font-size: 0.86rem;
-  flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 0.7rem 1.05rem; font-size: 0.88rem;
+  flex-wrap: wrap; transition: border-color 0.15s;
 }
-body.light .led-row { background: #fff; border-color: rgba(0,0,0,0.08); }
-.led-date  { color: rgba(255,255,255,0.4); min-width: 78px; }
-body.light .led-date { color: rgba(0,0,0,0.45); }
+.led-row:hover { border-color: var(--line-strong); }
+.led-date  { color: var(--muted); min-width: 78px; font-variant-numeric: tabular-nums; }
 .led-name  { font-weight: 500; min-width: 150px; }
-.led-meta  { color: rgba(255,255,255,0.4); text-transform: capitalize; font-size: 0.8rem; }
-body.light .led-meta { color: rgba(0,0,0,0.45); }
-.led-amount { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+.led-meta  { color: var(--muted); text-transform: capitalize; font-size: 0.8rem; }
+.led-amount { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
 .led-tag {
-  font-size: 0.72rem; padding: 0.2rem 0.65rem; border-radius: 60px; white-space: nowrap;
+  font-size: 0.72rem; font-weight: 500; padding: 0.2rem 0.65rem; border-radius: 60px; white-space: nowrap;
 }
-.led-tag.pago     { background: rgba(60,180,120,0.18); border: 1px solid rgba(60,180,120,0.4); color: #7ad4a4; }
-.led-tag.pendente { background: rgba(220,150,60,0.18); border: 1px solid rgba(220,150,60,0.45); color: #f0b070; }
+.led-tag.pago     { background: var(--ok-bg);   border: 1px solid var(--ok-line);   color: var(--ok); }
+.led-tag.pendente { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn); }
 .led-pay-btn {
-  padding: 0.35rem 0.9rem; border-radius: 60px; cursor: pointer;
-  background: rgba(60,180,120,0.16); border: 1px solid rgba(60,180,120,0.45);
-  color: #7ad4a4; font-family: 'DM Sans', sans-serif; font-size: 0.76rem;
+  padding: 0.35rem 0.9rem; border-radius: 9px; cursor: pointer;
+  background: var(--ok-bg); border: 1px solid var(--ok-line);
+  color: var(--ok); font-family: var(--font); font-size: 0.76rem; font-weight: 500;
 }
-.led-pay-btn:hover { background: rgba(60,180,120,0.34); color: #fff; }
+.led-pay-btn:hover { background: var(--ok); color: #fff; }
 
-/* Selo de pacote ativo (fechamento da consulta) */
+/* Selo informativo (pacote ativo, Pix, avisos) */
 .pkg-badge {
-  background: rgba(100,80,180,0.18); border: 1px solid rgba(140,110,220,0.4);
-  color: #cbbcf2; border-radius: 12px; padding: 0.7rem 0.9rem;
-  font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.45;
+  background: var(--brand-50); border: 1px solid var(--line-strong);
+  color: var(--brand-900); border-radius: 12px; padding: 0.75rem 0.95rem;
+  font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.5;
 }
-.modal-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 1.5rem 0; }
-body.light .modal-divider { background: rgba(0,0,0,0.1); }
-.rec-summary { font-size: 0.78rem; color: rgba(255,255,255,0.4); margin-top: 0.4rem; line-height: 1.5; }
-body.light .rec-summary { color: rgba(0,0,0,0.5); }
+.modal-divider { height: 1px; background: var(--line); margin: 1.5rem 0; }
 
 /* Campo de busca de paciente no modal de agendamento */
 .patient-search-wrapper { position: relative; }
 .patient-suggestions {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
-  background: #1e1e2e; border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px; margin-top: 4px;
-  max-height: 180px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 12px; margin-top: 4px; box-shadow: var(--shadow);
+  max-height: 200px; overflow-y: auto;
   display: none;
 }
 .patient-suggestions.open { display: block; }
 .suggestion-item {
   padding: 0.65rem 1rem; cursor: pointer;
-  font-size: 0.9rem; color: rgba(255,255,255,0.8);
+  font-size: 0.9rem; color: var(--ink);
   transition: background 0.15s;
 }
-.suggestion-item:hover { background: rgba(255,255,255,0.06); }
-.suggestion-item.no-patient { color: rgba(255,255,255,0.4); font-style: italic; }
+.suggestion-item:hover { background: var(--brand-50); }
+.suggestion-item.no-patient { color: var(--muted); font-style: italic; }
 
 /* ─────────────── PACIENTES ─────────────── */
 #patients-view { padding: 2rem; }
 
 .patients-toolbar {
-  display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
 }
 .search-input {
-  flex: 1; min-width: 200px;
-  padding: 0.65rem 1rem;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 60px; color: #fff;
-  font-family: 'DM Sans', sans-serif; font-size: 0.9rem; outline: none;
-  transition: border-color 0.2s;
+  flex: 1; min-width: 220px; max-width: 520px;
+  padding: 0.75rem 1rem 0.75rem 2.6rem;
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%239475C6' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 0.9rem center;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px; color: var(--ink);
+  font-family: var(--font); font-size: 0.92rem; outline: none;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.search-input::placeholder { color: rgba(255,255,255,0.3); }
-.search-input:focus { border-color: rgba(255,255,255,0.3); }
+.search-input::placeholder { color: var(--subtle); }
+.search-input:focus { border-color: var(--brand-500); box-shadow: 0 0 0 4px rgba(148,117,198,0.16); }
 
 .patients-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem;
 }
 .patient-card {
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 16px; padding: 1.2rem;
-  cursor: pointer; transition: background 0.2s, border-color 0.2s;
+  display: grid; grid-template-columns: 46px 1fr; gap: 0 0.9rem; align-items: start;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 1.1rem 1.15rem;
+  cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  box-shadow: var(--shadow-sm);
 }
-.patient-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.patient-card:hover { border-color: var(--brand-300); box-shadow: var(--shadow); transform: translateY(-2px); }
+.patient-card > :not(.pc-avatar) { grid-column: 2; }
 .pc-avatar {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+  grid-row: span 4;
+  width: 46px; height: 46px; border-radius: 14px;
+  background: var(--grad-soft); border: 1px solid var(--line-strong);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1rem; font-weight: 500; color: rgba(255,255,255,0.9);
-  margin-bottom: 0.8rem;
+  font-size: 0.95rem; font-weight: 600; color: var(--brand-700);
 }
-.pc-name { font-size: 1rem; font-weight: 500; color: rgba(255,255,255,0.9); margin-bottom: 0.3rem; }
-.pc-phone { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-bottom: 0.3rem; }
-.pc-condition { font-size: 0.8rem; color: rgba(255,255,255,0.55); font-style: italic; }
-.pc-last { font-size: 0.72rem; color: rgba(255,255,255,0.3); margin-top: 0.5rem; }
+.pc-name { font-size: 1rem; font-weight: 600; color: var(--ink); margin-bottom: 0.2rem; }
+.pc-phone { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.2rem; }
+.pc-condition { font-size: 0.8rem; color: var(--brand-700); }
+.pc-last { font-size: 0.72rem; color: var(--subtle); margin-top: 0.45rem; }
 
 /* ── Detalhe do Paciente ── */
-#patient-detail-view { padding: 2rem; display: none; }
-#patient-detail-view.visible { display: block; }
+#patient-detail-view { padding: 2rem; display: none; max-width: 1180px; margin: 0 auto; }
+#patient-detail-view.visible { display: block; animation: view-in 0.25s ease both; }
 
 .detail-back {
-  padding: 0.5rem 1.1rem;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 60px; color: rgba(255,255,255,0.5);
-  font-family: 'DM Sans', sans-serif; font-size: 0.85rem; cursor: pointer;
-  margin-bottom: 1.5rem; display: inline-block;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 10px; color: var(--brand-700);
+  font-family: var(--font); font-size: 0.84rem; font-weight: 500; cursor: pointer;
+  margin-bottom: 1.25rem;
+  transition: background 0.15s;
 }
+.detail-back:hover { background: var(--brand-50); }
 .detail-header {
-  display: flex; align-items: flex-start; gap: 1.5rem;
-  margin-bottom: 2rem;
+  display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap;
+  margin-bottom: 2rem; padding: 1.5rem 1.6rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
 }
 .detail-avatar {
   width: 72px; height: 72px; flex-shrink: 0;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #7b3fa0, #3a6fa8);
+  border-radius: 20px;
+  background: var(--grad);
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; font-weight: 500; color: rgba(255,255,255,0.9);
+  font-size: 1.5rem; font-weight: 500; color: #fff; box-shadow: var(--glow);
 }
+.detail-info { flex: 1; min-width: 240px; }
 .detail-info h2 {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2rem; font-weight: 300; margin-bottom: 0.4rem;
+  font-size: 1.8rem; font-weight: 500; letter-spacing: -0.015em; margin-bottom: 0.5rem;
 }
-.detail-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.detail-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
 .detail-tag {
-  font-size: 0.78rem; color: rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 60px; padding: 0.2rem 0.7rem;
+  font-size: 0.78rem; color: var(--muted);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 0.22rem 0.65rem;
 }
 .session-count-badge {
-  font-size: 0.8rem; color: #b8a8e8;
-  background: rgba(100,80,180,0.2); border: 1px solid rgba(100,80,180,0.4);
-  border-radius: 60px; padding: 0.3rem 0.9rem;
-  display: inline-block; margin-bottom: 1rem;
+  font-size: 0.78rem; font-weight: 500; color: var(--brand-700);
+  background: var(--brand-50); border: 1px solid var(--line-strong);
+  border-radius: 60px; padding: 0.3rem 0.85rem;
+  display: inline-block; margin-bottom: 0;
 }
+.detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.detail-actions .detail-back { margin: 0; }
 
 /* Gráficos */
 .charts-grid {
   display: grid; grid-template-columns: 1fr 1fr;
-  gap: 1.2rem; margin-bottom: 2rem;
+  gap: 1rem; margin-bottom: 2rem;
 }
 @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
 .chart-card {
-  background: #16161e; border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 14px; padding: 1.2rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 1.15rem 1.2rem;
+  box-shadow: var(--shadow-sm);
 }
 .chart-card h4 {
-  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.35); margin-bottom: 0.8rem;
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 500;
+  color: var(--brand-700); margin-bottom: 0.9rem;
 }
-.chart-card canvas { max-height: 180px; }
+.chart-card canvas { max-height: 220px; }
 
 /* Timeline de sessões */
 .timeline-title {
-  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em;
-  color: rgba(255,255,255,0.3); margin-bottom: 1rem;
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.24em; font-weight: 500;
+  color: var(--brand-700); margin-bottom: 0.9rem;
 }
-.timeline-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.timeline-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .timeline-item {
-  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; transition: border-color 0.15s;
 }
+.timeline-item:hover { border-color: var(--line-strong); }
 .timeline-item-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
   padding: 0.8rem 1rem; cursor: pointer;
 }
-.timeline-date { font-size: 0.85rem; color: rgba(255,255,255,0.5); }
-.timeline-summary { font-size: 0.78rem; color: rgba(255,255,255,0.35); }
-.timeline-expand { font-size: 0.8rem; color: rgba(255,255,255,0.3); }
+.timeline-date { font-size: 0.88rem; color: var(--ink); font-weight: 500; }
+.timeline-summary { font-size: 0.78rem; color: var(--muted); }
+.timeline-expand { font-size: 0.8rem; color: var(--brand-500); }
 .timeline-body {
-  padding: 0 1rem 0.8rem;
+  padding: 0 1rem 0.9rem;
   display: none;
-  font-size: 0.8rem; color: rgba(255,255,255,0.55);
+  font-size: 0.84rem; color: var(--ink);
   line-height: 1.7;
 }
 .timeline-body.open { display: block; }
-.no-history-msg { color: rgba(255,255,255,0.25); font-style: italic; font-size: 0.9rem; }
+.no-history-msg { color: var(--subtle); font-size: 0.9rem; }
 
 /* ── Ficha de avaliação ── */
 #eval-overlay {
   position: fixed; inset: 0; z-index: 1600;
-  background: #0e0e16; color-scheme: dark;
+  background: var(--bg); color-scheme: light;
   display: none; flex-direction: column;
 }
 #eval-overlay.visible { display: flex; }
 .ev-head {
   display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
-  padding: 0.9rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--surface);
 }
-.ev-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; font-weight: 300; color: rgba(255,255,255,0.92); }
-.ev-sub { font-size: 0.8rem; color: rgba(255,255,255,0.45); }
+.ev-title { font-size: 1.2rem; font-weight: 500; color: var(--ink); }
+.ev-sub { font-size: 0.8rem; color: var(--muted); }
 .ev-head .form-control { width: auto; padding: 0.5rem 0.8rem; }
 .ev-head-actions { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .ev-head-actions button { padding: 0.55rem 1.1rem; margin: 0; }
 .ev-nav {
-  display: flex; flex-wrap: wrap; gap: 0.4rem;
-  padding: 0.6rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  padding: 0.6rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--surface);
 }
 .ev-nav button {
-  white-space: nowrap; padding: 0.3rem 0.8rem; border-radius: 60px;
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.55); font-family: 'DM Sans', sans-serif; font-size: 0.75rem; cursor: pointer;
+  white-space: nowrap; padding: 0.32rem 0.8rem; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--muted); font-family: var(--font); font-size: 0.76rem; cursor: pointer;
 }
-.ev-nav button:hover { color: #fff; }
+.ev-nav button:hover { color: var(--brand-700); border-color: var(--line-strong); }
 .ev-body { flex: 1; overflow-y: auto; padding: 1.5rem; }
 .ev-inner { max-width: 1000px; margin: 0 auto; }
 .ev-sec {
-  background: #16161e; border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 14px; margin-bottom: 1rem; scroll-margin-top: 1rem;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm);
+  border-radius: var(--radius); margin-bottom: 1rem; scroll-margin-top: 1rem;
 }
 .ev-sec > summary {
   cursor: pointer; list-style: none; padding: 1rem 1.2rem;
-  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.6); display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 500;
+  color: var(--brand-700); display: flex; justify-content: space-between; align-items: center;
 }
 .ev-sec > summary::-webkit-details-marker { display: none; }
 .ev-sec > summary::after { content: '▾'; opacity: 0.5; }
 .ev-sec:not([open]) > summary::after { content: '▸'; }
-.ev-sec > summary small { text-transform: none; letter-spacing: 0; opacity: 0.6; margin-left: 0.5rem; margin-right: auto; }
+.ev-sec > summary small { text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 0.5rem; margin-right: auto; }
 .ev-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.8rem 1rem; padding: 0 1.2rem 1.2rem; }
 @media (max-width: 700px) {
   .ev-grid { grid-template-columns: 1fr; }
@@ -1126,91 +1407,44 @@ body.light .rec-summary { color: rgba(0,0,0,0.5); }
   .ev-nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 }
 .ev-f .form-label { margin-bottom: 0.35rem; }
-.ev-hint { font-size: 0.75rem; color: rgba(255,255,255,0.38); font-style: italic; margin: -0.1rem 0 0.4rem; }
+.ev-hint { font-size: 0.75rem; color: var(--muted); font-style: italic; margin: -0.1rem 0 0.4rem; }
 .ev-ta { min-height: 72px; resize: vertical; padding-right: 2.8rem; }
 .ev-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .ev-chip {
-  padding: 0.35rem 0.8rem; border-radius: 60px;
-  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.65); font-family: 'DM Sans', sans-serif; font-size: 0.8rem;
+  padding: 0.38rem 0.8rem; border-radius: 9px;
+  border: 1px solid var(--line-strong); background: var(--surface-2);
+  color: var(--ink); font-family: var(--font); font-size: 0.8rem;
   cursor: pointer; transition: background 0.15s, border-color 0.15s;
 }
-.ev-chip:hover { border-color: rgba(255,255,255,0.3); }
-.ev-chip.on { background: rgba(106,63,168,0.4); border-color: rgba(160,120,230,0.8); color: #fff; }
-.ev-scale .ev-chip { min-width: 2.3rem; text-align: center; padding: 0.35rem 0.5rem; }
+.ev-chip:hover { border-color: var(--brand-300); }
+.ev-chip.on { background: var(--brand-700); border-color: var(--brand-700); color: #fff; }
+.ev-scale .ev-chip { min-width: 2.3rem; text-align: center; padding: 0.38rem 0.5rem; }
 .ev-yn { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .ev-yn .form-control { flex: 1; min-width: 200px; }
 .ev-rom { overflow-x: auto; }
 .ev-rom table { width: 100%; max-width: 640px; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 1.2rem; }
 .ev-rom td:first-child, .ev-rom th:first-child { width: 22%; }
 .ev-rom th {
-  text-align: left; font-weight: 400; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.4); padding: 0.4rem;
+  text-align: left; font-weight: 500; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--muted); padding: 0.4rem;
 }
-.ev-rom td { padding: 0.25rem 0.4rem; border-top: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.65); }
-.ev-rom td.ev-j { color: rgba(255,255,255,0.88); font-weight: 500; vertical-align: top; padding-top: 0.6rem; }
+.ev-rom td { padding: 0.25rem 0.4rem; border-top: 1px solid var(--line); color: var(--ink); }
+.ev-rom td.ev-j { color: var(--ink); font-weight: 600; vertical-align: top; padding-top: 0.6rem; }
 .ev-rom .form-control { padding: 0.35rem 0.55rem; max-width: 120px; }
 .ev-empty { padding: 0.9rem 1rem; }
 .btn-eval {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(200,170,255,0.4);
-  color: rgba(210,190,255,0.95);
+  background: var(--surface); border: 1px solid var(--line-strong);
+  color: var(--brand-700);
 }
+.btn-eval:hover { background: var(--brand-50); }
 .alert-pill.ev-pill { cursor: pointer; }
 
-body.light #eval-overlay { background: #eef0f4; color-scheme: light; }
-body.light .ev-head, body.light .ev-nav { border-color: rgba(0,0,0,0.08); background: #ffffff; }
-body.light .ev-title { color: rgba(0,0,0,0.88); }
-body.light .ev-sub, body.light .ev-hint, body.light .ev-rom th { color: rgba(0,0,0,0.5); }
-body.light .ev-nav button, body.light .ev-chip { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.14); color: rgba(0,0,0,0.65); }
-body.light .ev-chip.on { background: #6a3fa8; border-color: #6a3fa8; color: #fff; }
-body.light .ev-sec { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-body.light .ev-sec > summary { color: rgba(0,0,0,0.6); }
-body.light .ev-rom td { border-color: rgba(0,0,0,0.07); color: rgba(0,0,0,0.65); }
-body.light .ev-rom td.ev-j { color: rgba(0,0,0,0.85); }
-body.light .btn-eval { background: rgba(106,63,168,0.08); border-color: rgba(106,63,168,0.4); color: #5a2f98; }
-
-/* ─────────────── MODO CLARO (item 10) ─────────────── */
-body.light { background: #eef0f4; color: #1c1e26; }
-body.light .main-header { background: #ffffff; border-bottom-color: rgba(0,0,0,0.08); }
-body.light .header-clinic { color: rgba(0,0,0,0.45); }
-body.light .header-clock { color: rgba(0,0,0,0.6); }
-body.light .header-icon-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.55); }
-body.light .header-icon-btn:hover { background: rgba(0,0,0,0.1); color: #000; }
-body.light .tab-btn { color: rgba(0,0,0,0.45); }
-body.light .tab-btn:hover { color: rgba(0,0,0,0.7); }
-body.light .tab-btn.active { background: rgba(0,0,0,0.08); color: #000; }
-body.light .hero, body.light .alerts-row, body.light .metrics-grid,
-body.light #session-control, body.light .history-section { border-bottom-color: rgba(0,0,0,0.08); }
-body.light .patient-name, body.light .pain-display, body.light .detail-info h2,
-body.light .modal-title, body.light .modal-sheet h3 { color: rgba(0,0,0,0.9); }
-body.light .metric-card, body.light .patient-card, body.light .chart-card,
-body.light .history-item, body.light .timeline-item { background: #ffffff; border-color: rgba(0,0,0,0.08); }
-body.light .metric-label, body.light .section-title, body.light .history-date,
-body.light .timeline-summary, body.light .timeline-expand,
-body.light .form-label, body.light .summary-label, body.light .day-name, body.light .time-tick,
-body.light .session-status-label { color: rgba(0,0,0,0.5); }
-body.light .metric-value, body.light .summary-value, body.light .pc-name,
-body.light .timeline-date, body.light .agenda-week-label, body.light .consult-title { color: rgba(0,0,0,0.8); }
-body.light .metric-reason, body.light .metric-value, body.light .timeline-body { color: rgba(0,0,0,0.7); }
-body.light .day-num { color: rgba(0,0,0,0.7); }
-body.light .modal-sheet, body.light .modal-card { background: #ffffff; border-color: rgba(0,0,0,0.1); }
-body.light .form-control, body.light .finish-textarea, body.light .search-input,
-body.light .summary-row { background: #f3f4f7; border-color: rgba(0,0,0,0.12); color: #1c1e26; }
-body.light .form-control option { background: #fff; color: #1c1e26; }
-body.light .week-grid { border-color: rgba(0,0,0,0.1); }
-body.light .day-header, body.light .time-axis-header, body.light .time-tick { background: #f6f7f9; }
-body.light .time-slot { border-bottom-color: rgba(0,0,0,0.06); }
-body.light .day-col { border-right-color: rgba(0,0,0,0.06); }
-body.light .btn-consult, body.light .agenda-nav-btn, body.light .detail-back,
-body.light .toggle-btn, body.light .btn-cancel,
-body.light .patient-suggestions { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: rgba(0,0,0,0.6); }
-body.light .patient-suggestions { background: #ffffff; }
-body.light .suggestion-item { color: rgba(0,0,0,0.8); }
-body.light .pc-phone, body.light .pc-last, body.light .no-history,
-body.light .no-history-msg { color: rgba(0,0,0,0.4); }
-body.light .pc-condition { color: rgba(0,0,0,0.55); }
-body.light .detail-tag, body.light .notes-pill { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: rgba(0,0,0,0.55); }
-body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,0,0.08); }
+@media (max-width: 700px) {
+  #today-view, #agenda-view, #patients-view, #finance-view, #analytics-view, #patient-detail-view { padding: 1.1rem; }
+  .hero { margin: 1rem; } .metrics-grid, .alerts-row, .history-section { padding-left: 1rem; padding-right: 1rem; }
+  #session-control { margin: 1rem 1rem 0; }
+  .modal-sheet { padding: 1.4rem 1.2rem; }
+}
 </style>
 </head>
 <body>
@@ -1267,7 +1501,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 
 <!-- Modal Agendamento (create / edit) -->
 <div class="generic-overlay" id="appt-modal">
-  <div class="modal-sheet">
+  <div class="modal-sheet wide">
     <h3 id="appt-modal-title">Novo Agendamento</h3>
     <input type="hidden" id="appt-id">
     <div class="form-group">
@@ -1285,14 +1519,24 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       <input type="hidden" id="appt-patient-id">
       <input type="text"   id="appt-patient-name-free" class="form-control" placeholder="Nome (se não cadastrado)" style="margin-top:0.5rem;display:none">
     </div>
-    <div class="form-group">
-      <label class="form-label">Data</label>
-      <input type="date" class="form-control" id="appt-date">
+    <div class="form-group" id="appt-repeat-group">
+      <label class="form-label">Quando</label>
+      <div class="seg" id="appt-repeat-seg">
+        <button type="button" data-r="0" onclick="setApptRepeat(false)">Uma data</button>
+        <button type="button" data-r="1" onclick="setApptRepeat(true)">Vários dias (recorrente)</button>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Hora</label>
-      <input type="time" class="form-control" id="appt-time">
+    <div class="form-row" id="appt-when-row">
+      <div class="form-group">
+        <label class="form-label">Data</label>
+        <input type="date" class="form-control" id="appt-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Hora</label>
+        <input type="time" class="form-control" id="appt-time" step="900">
+      </div>
     </div>
+    <div class="form-row three">
     <div class="form-group">
       <label class="form-label">Tipo</label>
       <select class="form-control" id="appt-type" onchange="onApptTypeChange()">
@@ -1307,7 +1551,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
     </div>
     <div class="form-group">
       <label class="form-label">Duração</label>
-      <select class="form-control" id="appt-duration">
+      <select class="form-control" id="appt-duration" onchange="apptRec && apptRec.state && apptRec.render()">
         <option value="30">30 min</option>
         <option value="45">45 min</option>
         <option value="60" selected>60 min</option>
@@ -1319,6 +1563,8 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       <label class="form-label">Valor (R$)</label>
       <input type="number" step="0.01" min="0" class="form-control" id="appt-price" placeholder="0,00">
     </div>
+    </div>
+    <div id="appt-rec" style="display:none"></div>
     <div class="form-group" id="appt-payment-group" style="display:none">
       <label class="form-label">Pagamento</label>
       <select class="form-control" id="appt-payment-status">
@@ -1395,30 +1641,108 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
   </div>
 </div>
 
-<!-- ── Header com tabs ── -->
+<!-- ── Cabeçalho com abas ── -->
 <div class="main-header" id="main-header">
-  <div class="header-clinic">Consultório de Fisioterapia &amp; Acupuntura</div>
-  <div class="header-tabs">
+  <div class="header-brand">
+    <span class="brand-mark"><img src="/img/simbolo-branco.png" alt=""></span>
+    <div class="header-clinic"><b>Consultório Equilibrium</b><span>Dra. Juliane Brasil Lopes</span></div>
+  </div>
+  <nav class="header-tabs">
     <button class="tab-btn" id="tab-dashboard" onclick="switchTab('dashboard')" style="display:none" title="Voltar ao paciente em atendimento">Atendimento</button>
+    <button class="tab-btn" id="tab-today"     onclick="switchTab('today')">Hoje</button>
     <button class="tab-btn" id="tab-agenda"    onclick="switchTab('agenda')">Agenda</button>
     <button class="tab-btn" id="tab-patients"  onclick="switchTab('patients')">Pacientes</button>
     <button class="tab-btn" id="tab-finance"   onclick="switchTab('finance')">Financeiro</button>
     <button class="tab-btn" id="tab-analytics" onclick="switchTab('analytics')">Dashboard</button>
-  </div>
+  </nav>
   <div class="header-right">
     <div class="header-clock" id="clock">--:--</div>
-    <button class="header-icon-btn" title="Anatomia 3D (fisioterapia)" onclick="enterConsultMode()">◎</button>
-    <button class="header-icon-btn" title="Atlas de acupuntura 3D" onclick="openAcuModal()">⊕</button>
-    <button class="header-icon-btn" id="theme-btn" title="Alternar claro/escuro" onclick="toggleTheme()">☾</button>
-    <button class="header-icon-btn" id="logout-btn" title="Sair" onclick="doLogout()">⇥</button>
+    <button class="header-icon-btn" title="Anatomia 3D (fisioterapia)" onclick="enterConsultMode()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v7m0 0-3 7m3-7 3 7M6 10l6-2 6 2"/></svg><span class="lbl">Anatomia 3D</span>
+    </button>
+    <button class="header-icon-btn" title="Atlas de acupuntura 3D" onclick="openAcuModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg><span class="lbl">Acupuntura</span>
+    </button>
+    <button class="header-icon-btn" id="logout-btn" title="Sair" onclick="doLogout()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>
+    </button>
   </div>
 </div>
 
 <!-- Fila da recepção (pacientes que chegaram enquanto há outro atendimento) -->
 <div id="queue-bar" style="display:none"></div>
 
-<!-- Dashboard -->
+<!-- Hoje — tela inicial guiada -->
+<div id="today-view" class="view">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Hoje</div>
+      <div class="today-hello" id="today-hello">Olá!</div>
+      <div class="today-date" id="today-date"></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn-ghost" onclick="toggleGuide(true)" id="guide-open-btn" style="display:none">Como funciona?</button>
+    <button class="btn-primary" onclick="openApptModal()">+ Novo agendamento</button>
+  </div>
+
+  <div class="guide" id="guide">
+    <div class="guide-step"><div class="n">1</div><b>Agende</b><span>Marque o paciente na Agenda (ou pelo botão acima).</span></div>
+    <div class="guide-step"><div class="n">2</div><b>Check-in</b><span>Na hora, o paciente se identifica no totem e responde o formulário no celular.</span></div>
+    <div class="guide-step"><div class="n">3</div><b>Chame e inicie</b><span>Você recebe o aviso: clique em "Pode entrar" e depois em "Iniciar".</span></div>
+    <div class="guide-step"><div class="n">4</div><b>Feche a consulta</b><span>Registre a evolução e a cobrança em "Finalizar e cobrar".</span></div>
+    <div class="guide-step"><div class="n">5</div><b>Agende o retorno</b><span>No próprio fechamento, escolha os dias da semana dos próximos retornos.</span>
+      <button class="guide-close" title="Esconder guia" onclick="toggleGuide(false)">×</button></div>
+  </div>
+
+  <div class="today-kpis">
+    <div class="metric-card"><div class="metric-label">Agendados</div><div class="metric-value" id="tk-total">—</div><small id="tk-total-sub">&nbsp;</small></div>
+    <div class="metric-card"><div class="metric-label">Atendidos</div><div class="metric-value" id="tk-done">—</div><small id="tk-done-sub">&nbsp;</small></div>
+    <div class="metric-card"><div class="metric-label">Na recepção</div><div class="metric-value" id="tk-wait">—</div><small id="tk-wait-sub">&nbsp;</small></div>
+    <div class="metric-card"><div class="metric-label">A receber hoje</div><div class="metric-value kpi-warn" id="tk-open">—</div><small id="tk-open-sub">&nbsp;</small></div>
+  </div>
+
+  <div class="today-grid">
+    <div>
+      <div class="section-title">Pacientes do dia</div>
+      <div class="today-list" id="today-list"></div>
+    </div>
+    <aside>
+      <div class="side-card" id="today-next-card" style="display:none">
+        <h4>Próximo paciente</h4>
+        <div id="today-next"></div>
+      </div>
+      <div class="side-card">
+        <h4>Atalhos</h4>
+        <div class="quick">
+          <button onclick="openApptModal()"><span class="qi">+</span><span>Novo agendamento<small>Marcar horário na agenda</small></span></button>
+          <button onclick="openPatientModal()"><span class="qi">☺</span><span>Novo paciente<small>Cadastro completo</small></span></button>
+          <button onclick="switchTab('agenda')"><span class="qi">▦</span><span>Ver a semana<small>Agenda completa, das 07h às 23h</small></span></button>
+          <button onclick="switchTab('finance')"><span class="qi">$</span><span>Financeiro<small>Recebimentos e pendências</small></span></button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Atendimento -->
 <div id="dashboard-view" class="view">
+  <!-- Passo a passo do atendimento -->
+  <div id="session-control" class="hidden">
+    <div class="sc-row"><div class="flow-steps" id="flow-steps"></div></div>
+    <div class="sc-row">
+      <div id="session-timer" style="display:none">00:00</div>
+      <div class="session-status-label" id="session-status-label"></div>
+      <div class="pay-badge" id="session-pay-badge" style="display:none"></div>
+      <button class="btn-session-action btn-can-enter" id="btn-sc-can-enter" onclick="sessionCanEnter()" style="display:none">Chamar: pode entrar →</button>
+      <button class="btn-session-action btn-start" id="btn-sc-start" onclick="startSessionAction()" style="display:none">▶ Iniciar atendimento</button>
+      <button class="btn-session-action btn-finish" id="btn-sc-finish" onclick="finishSessionAction()" style="display:none">Finalizar e cobrar →</button>
+      <div class="sc-tools">
+        <button class="btn-session-action btn-phy" id="btn-sc-phy" onclick="enterConsultMode()" style="display:none">Anatomia 3D</button>
+        <button class="btn-session-action btn-acu" id="btn-sc-acu" onclick="openAcuModal()" style="display:none">Atlas de acupuntura</button>
+      </div>
+    </div>
+  </div>
+
   <div class="hero">
     <div class="avatar" id="patient-avatar"></div>
     <div class="hero-info">
@@ -1429,22 +1753,10 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       </div>
       <div class="hero-time" id="hero-time"></div>
     </div>
-    <div style="margin-left:auto;display:flex;gap:0.6rem;flex-wrap:wrap;justify-content:flex-end">
-      <button class="btn-session-action btn-eval" id="btn-eval-dash" onclick="openDashEval()" style="display:none">📋 Ficha de avaliação</button>
-      <button class="btn-consult" onclick="enterConsultMode()">◎ Anatomia 3D →</button>
+    <div class="hero-actions">
+      <button class="btn-session-action btn-eval" id="btn-eval-dash" onclick="openDashEval()" style="display:none">Ficha de avaliação</button>
+      <button class="btn-consult" onclick="enterConsultMode()">Anatomia 3D →</button>
     </div>
-  </div>
-
-  <!-- Controle de fluxo da sessão -->
-  <div id="session-control" class="hidden">
-    <div id="session-timer" style="display:none">00:00</div>
-    <div class="session-status-label" id="session-status-label"></div>
-    <div class="pay-badge" id="session-pay-badge" style="display:none"></div>
-    <button class="btn-session-action btn-can-enter" id="btn-sc-can-enter" onclick="sessionCanEnter()" style="display:none">Pode entrar →</button>
-    <button class="btn-session-action btn-start" id="btn-sc-start" onclick="startSessionAction()" style="display:none">▶ Iniciar Sessão</button>
-    <button class="btn-session-action btn-finish" id="btn-sc-finish" onclick="finishSessionAction()" style="display:none">■ Finalizar Sessão</button>
-    <button class="btn-session-action btn-phy" id="btn-sc-phy" onclick="enterConsultMode()" style="display:none">◎ Anatomia 3D</button>
-    <button class="btn-session-action btn-acu" id="btn-sc-acu" onclick="openAcuModal()" style="display:none">⊕ Atlas de Acupuntura</button>
   </div>
 
   <div class="alerts-row" id="alerts-row"></div>
@@ -1457,7 +1769,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
     </div>
     <div class="metric-card">
       <div class="metric-label">Nível de dor</div>
-      <div class="pain-display"><span id="m-pain">—</span><span style="font-size:1rem;color:rgba(255,255,255,0.3)">/10</span></div>
+      <div class="pain-display"><span id="m-pain">—</span><span style="font-size:1rem;color:rgb(var(--fg) / 0.3)">/10</span></div>
       <div class="pain-bar" id="pain-bar-wrap">
         <div class="pain-marker" id="pain-marker" style="left:0%"></div>
       </div>
@@ -1538,7 +1850,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
         <textarea class="problem-input" id="problem-input" placeholder="O que o paciente relata (ex.: dor ao agachar, estalos, formigamento)…"></textarea>
         <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação com IA (rascunho) →</button>
         <textarea class="ai-preview" id="ai-preview" style="display:none" placeholder="A explicação gerada aparece aqui e pode ser editada antes de exibir."></textarea>
-        <div id="ai-preview-hint" style="display:none;font-size:0.72rem;color:rgba(255,255,255,0.35);margin:-0.5rem 0 0.5rem;text-align:center">Rascunho privado — o paciente só vê ao clicar em "Exibir na TV".</div>
+        <div id="ai-preview-hint" style="display:none;font-size:0.72rem;color:rgb(var(--fg) / 0.35);margin:-0.5rem 0 0.5rem;text-align:center">Rascunho privado — o paciente só vê ao clicar em "Exibir na TV".</div>
       </div>
     </div>
     <div class="phy-actions">
@@ -1550,11 +1862,29 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 
 <!-- Aba Agenda -->
 <div id="agenda-view" class="view">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Agenda</div>
+      <div class="page-title">Semana de atendimentos</div>
+      <div class="page-sub">Clique em um horário livre para agendar — a grade vai das 07h às 23h.</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn-primary" onclick="openApptModal()">+ Novo agendamento</button>
+  </div>
   <div class="agenda-header">
     <button class="agenda-nav-btn" onclick="agendaWeekPrev()">← Anterior</button>
     <div class="agenda-week-label" id="agenda-week-label"></div>
     <button class="agenda-nav-btn" onclick="agendaToday()">Hoje</button>
     <button class="agenda-nav-btn" onclick="agendaWeekNext()">Próxima →</button>
+  </div>
+  <div class="agenda-legend">
+    <span><i style="background:#DCCFF0"></i>Agendado</span>
+    <span><i style="background:#C7E6D5"></i>Confirmado</span>
+    <span><i style="background:#EEDBA8"></i>Em atendimento</span>
+    <span><i style="background:#E2DEE8"></i>Concluído</span>
+    <span><i style="background:#F1D5B5"></i>Falta</span>
+    <span><i style="background:#F0CFCC"></i>Cancelado</span>
+    <span style="margin-left:auto"><span class="sc-paid">✓</span> pago</span>
   </div>
   <div class="agenda-scroll">
     <div class="week-grid" id="week-grid"></div>
@@ -1563,6 +1893,15 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 
 <!-- Aba Pacientes -->
 <div id="patients-view" class="view">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Pacientes</div>
+      <div class="page-title">Cadastro e prontuários</div>
+      <div class="page-sub">Abra um paciente para ver a evolução, as fichas de avaliação e o financeiro.</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn-primary" onclick="openPatientModal()">+ Novo paciente</button>
+  </div>
   <div class="patients-toolbar">
     <input
       type="text"
@@ -1576,7 +1915,15 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 </div>
 
 <!-- Aba Financeiro -->
-<div id="finance-view" class="view" style="padding:2rem">
+<div id="finance-view" class="view">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Financeiro</div>
+      <div class="page-title">Recebimentos e pendências</div>
+      <div class="page-sub">Tudo o que foi cobrado nos fechamentos, agendamentos e pacotes.</div>
+    </div>
+    <div class="spacer"></div>
+  </div>
   <div class="fin-toolbar">
     <div class="fin-presets">
       <button class="agenda-nav-btn preset-btn" data-mode="month"  onclick="setPeriod('month')">Mês</button>
@@ -1627,7 +1974,15 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 </div>
 
 <!-- Aba Dashboard — análises do sistema -->
-<div id="analytics-view" class="view" style="padding:2rem">
+<div id="analytics-view" class="view">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Dashboard</div>
+      <div class="page-title">Visão geral do consultório</div>
+      <div class="page-sub">Atendimentos, presença e evolução clínica no período.</div>
+    </div>
+    <div class="spacer"></div>
+  </div>
   <div class="fin-toolbar">
     <div class="fin-presets">
       <button class="agenda-nav-btn preset-btn" data-mode="month"  onclick="setPeriod('month')">Mês</button>
@@ -1673,7 +2028,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
 <div class="generic-overlay" id="prices-modal">
   <div class="modal-sheet">
     <h3>Tabela de preços padrão</h3>
-    <div style="font-size:0.82rem;color:rgba(255,255,255,0.4);margin-bottom:1.2rem;line-height:1.5">
+    <div style="font-size:0.82rem;color:rgb(var(--fg) / 0.4);margin-bottom:1.2rem;line-height:1.5">
       Usada para preencher o valor automaticamente ao agendar e ao fechar a consulta.
       Você continua podendo editar o valor caso a caso.
     </div>
@@ -1707,7 +2062,7 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
         <label class="form-label">URL do webhook (cole no painel do Mercado Pago)</label>
         <input type="text" class="form-control" id="mp-webhook-url" readonly onclick="this.select()">
       </div>
-      <div style="font-size:0.8rem;color:rgba(255,255,255,0.4);line-height:1.55;margin-bottom:1rem">
+      <div style="font-size:0.8rem;color:rgb(var(--fg) / 0.4);line-height:1.55;margin-bottom:1rem">
         O token de acesso e a assinatura secreta ficam nas variáveis de ambiente do servidor
         (<b>MERCADOPAGO_ACCESS_TOKEN</b> e <b>MERCADOPAGO_WEBHOOK_SECRET</b>) — nunca no banco
         nem no navegador.
@@ -1730,7 +2085,10 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
       <h2 id="detail-name"></h2>
       <div class="detail-meta" id="detail-meta"></div>
       <div class="session-count-badge" id="detail-session-count"></div>
-      <button class="detail-back" style="margin:0 0 0 0.5rem" onclick="editActivePatient()">✎ Editar cadastro</button>
+    </div>
+    <div class="detail-actions">
+      <button class="detail-back" onclick="editActivePatient()">✎ Editar cadastro</button>
+      <button class="btn-primary" onclick="openApptForPatient(activePatientId, document.getElementById('detail-name').textContent)">+ Agendar</button>
     </div>
   </div>
   <div class="timeline-title" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem">
@@ -1857,132 +2215,138 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
   <div class="ev-body"><div class="ev-inner" id="ev-form"></div></div>
 </div>
 
-<!-- Modal de finalização de sessão -->
+<!-- Modal de finalização de sessão — em 3 etapas -->
 <div class="generic-overlay" id="finish-modal">
-  <div class="modal-sheet">
+  <div class="modal-sheet wide">
     <h3 id="finish-modal-title">Finalizar Sessão</h3>
-    <div class="form-group">
-      <label class="form-label">Queixa / subjetivo (o que o paciente relatou)</label>
-      <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-complaint" placeholder="Ex: relata melhora da dor lombar, ainda com rigidez matinal..."></textarea>
-        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-complaint', this)">🎤</button>
-      </div>
+    <div class="wiz-steps" id="wiz-steps">
+      <button type="button" data-step="0" onclick="finishGo(0)"><span class="n">1</span><span class="t">Prontuário</span></button>
+      <button type="button" data-step="1" onclick="finishGo(1)"><span class="n">2</span><span class="t">Cobrança</span></button>
+      <button type="button" data-step="2" onclick="finishGo(2)"><span class="n">3</span><span class="t">Retorno</span></button>
     </div>
-    <div class="form-group">
-      <label class="form-label">Conduta realizada</label>
-      <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-conduct" placeholder="Procedimentos, técnicas e exercícios realizados na sessão..."></textarea>
-        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-conduct', this)">🎤</button>
+
+    <!-- 1. Prontuário -->
+    <div class="wiz-pane" data-pane="0">
+      <div class="form-group">
+        <label class="form-label">Queixa / subjetivo — o que o paciente relatou</label>
+        <div class="finish-field-wrap">
+          <textarea class="finish-textarea" id="finish-complaint" placeholder="Ex: relata melhora da dor lombar, ainda com rigidez matinal..."></textarea>
+          <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-complaint', this)">🎤</button>
+        </div>
       </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Evolução observada</label>
-      <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-evolution" placeholder="Resposta ao tratamento, ganhos de amplitude, força, etc."></textarea>
-        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-evolution', this)">🎤</button>
+      <div class="form-group">
+        <label class="form-label">Conduta realizada</label>
+        <div class="finish-field-wrap">
+          <textarea class="finish-textarea" id="finish-conduct" placeholder="Procedimentos, técnicas e exercícios realizados na sessão..."></textarea>
+          <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-conduct', this)">🎤</button>
+        </div>
       </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Plano para a próxima sessão</label>
-      <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-plan" placeholder="Próximos passos, o que trabalhar, orientações de casa..."></textarea>
-        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-plan', this)">🎤</button>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Evolução observada</label>
+          <div class="finish-field-wrap">
+            <textarea class="finish-textarea" id="finish-evolution" placeholder="Resposta ao tratamento, ganhos de amplitude, força..."></textarea>
+            <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-evolution', this)">🎤</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Plano para a próxima sessão</label>
+          <div class="finish-field-wrap">
+            <textarea class="finish-textarea" id="finish-plan" placeholder="Próximos passos, orientações de casa..."></textarea>
+            <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-plan', this)">🎤</button>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Observações (opcional)</label>
-      <div class="finish-field-wrap">
-        <textarea class="finish-textarea" id="finish-obs" placeholder="Observações adicionais..."></textarea>
-        <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-obs', this)">🎤</button>
+      <div class="form-group">
+        <label class="form-label">Observações (opcional)</label>
+        <div class="finish-field-wrap">
+          <textarea class="finish-textarea" id="finish-obs" style="min-height:60px" placeholder="Observações adicionais..."></textarea>
+          <button class="btn-mic" title="Ditar" onclick="toggleDictation('finish-obs', this)">🎤</button>
+        </div>
       </div>
     </div>
 
-    <!-- ── Cobrança ── -->
-    <div class="modal-divider"></div>
-    <div class="section-title" style="margin-bottom:1rem">Cobrança</div>
-    <div id="pkg-badge" class="pkg-badge" style="display:none"></div>
-    <div class="form-group">
-      <label class="form-label">Situação</label>
-      <select class="form-control" id="bill-mode" onchange="onBillModeChange()">
-        <option value="pago">Pago agora</option>
-        <option value="pendente">Pendente (a receber)</option>
-        <option value="pacote">Debitar do pacote</option>
-        <option value="isento">Isento / cortesia</option>
-      </select>
-    </div>
-    <div class="form-group" id="bill-amount-group">
-      <label class="form-label">Valor (R$)</label>
-      <input type="number" step="0.01" min="0" class="form-control" id="bill-amount" placeholder="0,00">
-    </div>
-    <div class="form-group" id="bill-method-group">
-      <label class="form-label">Forma de pagamento</label>
-      <select class="form-control" id="bill-method">
-        <option value="pix">Pix</option>
-        <option value="dinheiro">Dinheiro</option>
-        <option value="cartao">Cartão</option>
-        <option value="transferencia">Transferência</option>
-        <option value="outro">Outro</option>
-      </select>
-    </div>
-
-    <!-- ── Próximo retorno ── -->
-    <div class="modal-divider"></div>
-    <div class="section-title" style="margin-bottom:1rem">Próximo retorno</div>
-    <label class="meridian-toggle" style="margin-bottom:1rem;font-size:0.9rem">
-      <input type="checkbox" id="rec-enabled" onchange="onRecToggle()">
-      <span>Já agendar o(s) retorno(s)</span>
-    </label>
-    <div id="rec-fields" style="display:none">
+    <!-- 2. Cobrança -->
+    <div class="wiz-pane" data-pane="1">
+      <div id="pkg-badge" class="pkg-badge" style="display:none"></div>
       <div class="form-group">
-        <label class="form-label">Primeira data</label>
-        <input type="date" class="form-control" id="rec-date">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Horário</label>
-        <input type="time" class="form-control" id="rec-time">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Frequência</label>
-        <select class="form-control" id="rec-freq" onchange="updateRecSummary()">
-          <option value="semanal">Semanal (1x por semana)</option>
-          <option value="2x">2x por semana</option>
-          <option value="quinzenal">Quinzenal</option>
+        <label class="form-label">Situação do pagamento</label>
+        <div class="seg" id="bill-mode-seg">
+          <button type="button" data-v="pago" onclick="setBillMode('pago')">Pago agora</button>
+          <button type="button" data-v="pendente" onclick="setBillMode('pendente')">A receber</button>
+          <button type="button" data-v="pacote" onclick="setBillMode('pacote')">Debitar do pacote</button>
+          <button type="button" data-v="isento" onclick="setBillMode('isento')">Isento / cortesia</button>
+        </div>
+        <select class="form-control" id="bill-mode" onchange="onBillModeChange()" style="display:none">
+          <option value="pago">Pago agora</option>
+          <option value="pendente">Pendente (a receber)</option>
+          <option value="pacote">Debitar do pacote</option>
+          <option value="isento">Isento / cortesia</option>
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Quantas sessões</label>
-        <input type="number" min="1" max="52" class="form-control" id="rec-count" value="4" oninput="updateRecSummary()">
-        <div class="rec-summary" id="rec-summary"></div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Tipo</label>
-        <select class="form-control" id="rec-type" onchange="onRecTypeChange()">
-          <option value="Fisioterapia">Fisioterapia</option>
-          <option value="Acupuntura">Acupuntura</option>
-          <option value="Retorno" selected>Retorno</option>
-          <option value="Pilates">Pilates</option>
-          <option value="Avaliação">Avaliação</option>
-          <option value="Outro">Outro</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Duração</label>
-        <select class="form-control" id="rec-duration">
-          <option value="30">30 min</option>
-          <option value="45">45 min</option>
-          <option value="60" selected>60 min</option>
-          <option value="90">90 min</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Valor de cada retorno (R$)</label>
-        <input type="number" step="0.01" min="0" class="form-control" id="rec-price" placeholder="Usa o preço padrão do tipo">
+      <div class="form-row">
+        <div class="form-group" id="bill-amount-group">
+          <label class="form-label">Valor (R$)</label>
+          <input type="number" step="0.01" min="0" class="form-control" id="bill-amount" placeholder="0,00">
+        </div>
+        <div class="form-group" id="bill-method-group">
+          <label class="form-label">Forma de pagamento</label>
+          <select class="form-control" id="bill-method">
+            <option value="pix">Pix</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="cartao">Cartão</option>
+            <option value="transferencia">Transferência</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <div class="modal-actions">
+    <!-- 3. Retorno -->
+    <div class="wiz-pane" data-pane="2">
+      <input type="checkbox" id="rec-enabled" style="display:none">
+      <div class="rec-choice">
+        <button type="button" id="rec-no" onclick="setRecEnabled(false)">Não agendar agora<small>Fecha a consulta sem marcar retornos</small></button>
+        <button type="button" id="rec-yes" onclick="setRecEnabled(true)">Agendar retornos<small>Escolha os dias da semana e quantas sessões</small></button>
+      </div>
+      <div id="rec-fields" style="display:none">
+        <div id="rec-picker"></div>
+        <div class="form-row three">
+          <div class="form-group">
+            <label class="form-label">Tipo</label>
+            <select class="form-control" id="rec-type" onchange="onRecTypeChange()">
+              <option value="Fisioterapia">Fisioterapia</option>
+              <option value="Acupuntura">Acupuntura</option>
+              <option value="Retorno" selected>Retorno</option>
+              <option value="Pilates">Pilates</option>
+              <option value="Avaliação">Avaliação</option>
+              <option value="Outro">Outro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Duração</label>
+            <select class="form-control" id="rec-duration" onchange="finishRec && finishRec.render()">
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60" selected>60 min</option>
+              <option value="90">90 min</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Valor de cada (R$)</label>
+            <input type="number" step="0.01" min="0" class="form-control" id="rec-price" placeholder="Preço padrão">
+          </div>
+        </div>
+      </div>
+      <div class="recap" id="finish-recap"></div>
+    </div>
+
+    <div class="wiz-foot">
       <button class="btn-cancel" onclick="closeFinishModal()">Cancelar</button>
-      <button class="btn-finish btn-session-action" style="padding:0.75rem 2rem;border-radius:60px" onclick="confirmFinishSession()">■ Fechar Consulta</button>
+      <span class="spacer"></span>
+      <button class="btn-ghost" id="wiz-back" onclick="finishGo(finishStep - 1)">← Voltar</button>
+      <button class="btn-primary" id="wiz-next" onclick="finishGo(finishStep + 1)">Próximo →</button>
+      <button class="btn-primary" id="wiz-done" onclick="confirmFinishSession()">✓ Fechar consulta</button>
     </div>
   </div>
 </div>
@@ -2041,16 +2405,16 @@ body.light .main-header, body.light .metric-card { border-right-color: rgba(0,0,
   </div>
 </div>
 
-<!-- FAB (muda conforme a aba ativa) -->
-<button class="fab" id="fab-btn" onclick="fabAction()" title="Novo" style="display:none">+</button>
 
 <script src="/js/eval-form.js"></script>
+<script src="/js/rec-picker.js"></script>
 <script>
 // ── Estado global ─────────────────────────────────────────────────────────────
 let pendingSession        = null
 let currentSession        = null
 let pollingInterval       = null
-let activeTab             = localStorage.getItem('doctor_active_tab') || 'agenda'
+let activeTab             = localStorage.getItem('doctor_active_tab') || 'today'
+let doctorName            = ''
 let previewPatient        = null  // { id, name } ao navegar da agenda para o dashboard
 
 // Estado da agenda
@@ -2063,26 +2427,12 @@ let activePatientId = null
 let patientCharts   = {}
 let patientSearchTimer = null
 
-// ── Tema claro/escuro (item 10) ───────────────────────────────────────────────
-function applyTheme(theme) {
-  const light = theme === 'light'
-  document.body.classList.toggle('light', light)
-  const btn = document.getElementById('theme-btn')
-  if (btn) btn.textContent = light ? '☀' : '☾'
-  if (window.Chart) {
-    Chart.defaults.color = light ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)'
-  }
-}
-function toggleTheme() {
-  const next = document.body.classList.contains('light') ? 'dark' : 'light'
-  localStorage.setItem('doctor_theme', next)
-  applyTheme(next)
-  // Redesenha gráficos abertos com as cores do novo tema
-  if (activePatientId && document.getElementById('patient-detail-view').classList.contains('visible')) {
-    openPatientDetail(activePatientId)
-  }
-  if (document.getElementById('finance-view').classList.contains('visible'))   loadFinance()
-  if (document.getElementById('analytics-view').classList.contains('visible')) loadAnalytics()
+// ── Cores dos gráficos (paleta lilás do consultório) ───────────────────────
+const CH = {
+  text: '#736C7C', grid: 'rgba(106,74,160,0.08)',
+  brand: '#6A4AA0', mid: '#9475C6', lav: '#BBA4DE', gold: '#D2A93F',
+  ok: '#2F8F67', warn: '#D9A23A', danger: '#C9564E', info: '#5A7FC0',
+  series: ['#6A4AA0', '#9475C6', '#BBA4DE', '#D2A93F', '#2F8F67', '#5A7FC0', '#C9564E', '#8C82A0']
 }
 
 // ── Logout (item 4/12) ────────────────────────────────────────────────────────
@@ -2095,14 +2445,18 @@ async function doLogout() {
 
 // ── Inicialização ─────────────────────────────────────────────────────────────
 window.addEventListener('load', async () => {
-  applyTheme(localStorage.getItem('doctor_theme') || 'dark')
   updateClock()
   setInterval(updateClock, 60000)
 
   if (window.Chart) {
     Chart.defaults.backgroundColor = 'rgba(0,0,0,0)'
-    Chart.defaults.font.family      = "'DM Sans', sans-serif"
+    Chart.defaults.color            = CH.text
+    Chart.defaults.borderColor      = CH.grid
+    Chart.defaults.font.family      = "Outfit, sans-serif"
     Chart.defaults.font.size        = 11
+    Chart.defaults.plugins.tooltip.backgroundColor = '#2D2834'
+    Chart.defaults.plugins.tooltip.padding = 10
+    Chart.defaults.plugins.tooltip.cornerRadius = 10
   }
 
   // Recupera o atendimento em curso (item 12). A cópia local é conferida com o
@@ -2141,8 +2495,13 @@ window.addEventListener('load', async () => {
     if (r.ok) defaultPrices = await r.json()
   } catch (_) {}
 
+  // Nome para a saudação da tela "Hoje"
+  fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(u => {
+    if (u?.name) { doctorName = u.name; if (activeTab === 'today') renderTodayHeader() }
+  }).catch(() => {})
+
   startDoctorStream()
-  switchTab(currentSession ? 'dashboard' : (activeTab === 'dashboard' ? 'agenda' : activeTab), false)
+  switchTab(currentSession ? 'dashboard' : (activeTab === 'dashboard' ? 'today' : activeTab), false)
   updateSessionTab()
 })
 
@@ -2153,11 +2512,10 @@ function updateClock() {
 }
 
 // ── Troca de tabs ─────────────────────────────────────────────────────────────
+const VIEWS = ['today-view', 'dashboard-view', 'consult-mode', 'agenda-view', 'patients-view',
+               'patient-detail-view', 'finance-view', 'analytics-view']
+
 function switchTab(tab, save = true) {
-  // During active session, dashboard tab is locked — allow other tabs freely
-  if (currentSession?.status === 'in_session' && tab === 'dashboard') {
-    // always allow going back to dashboard during session
-  }
   activeTab = tab
   if (save) localStorage.setItem('doctor_active_tab', tab)
 
@@ -2165,43 +2523,31 @@ function switchTab(tab, save = true) {
   const tabBtn = document.getElementById('tab-' + tab)
   if (tabBtn) tabBtn.classList.add('active')
 
-  // Esconde todos as views principais
-  document.getElementById('dashboard-view').classList.remove('visible')
-  document.getElementById('consult-mode').classList.remove('visible')
-  document.getElementById('agenda-view').classList.remove('visible')
-  document.getElementById('patients-view').classList.remove('visible')
-  document.getElementById('patient-detail-view').classList.remove('visible')
-  document.getElementById('finance-view').classList.remove('visible')
-  document.getElementById('analytics-view').classList.remove('visible')
-
-  const fab = document.getElementById('fab-btn')
+  VIEWS.forEach(id => document.getElementById(id).classList.remove('visible'))
 
   if (tab === 'dashboard') {
     if (currentSession || previewPatient) {
       document.getElementById('dashboard-view').classList.add('visible')
     }
-    fab.style.display = 'none'
+  } else if (tab === 'today') {
+    document.getElementById('today-view').classList.add('visible')
+    loadToday()
   } else if (tab === 'agenda') {
     document.getElementById('agenda-view').classList.add('visible')
-    fab.style.display = 'flex'
-    fab.title = 'Novo agendamento'
     loadAgendaWeek()
   } else if (tab === 'patients') {
     document.getElementById('patients-view').classList.add('visible')
-    fab.style.display = 'flex'
-    fab.title = 'Novo paciente'
     loadPatients()
   } else if (tab === 'finance') {
     document.getElementById('finance-view').classList.add('visible')
-    fab.style.display = 'none'
     syncPeriodUI()
     loadFinance()
   } else if (tab === 'analytics') {
     document.getElementById('analytics-view').classList.add('visible')
-    fab.style.display = 'none'
     syncPeriodUI()
     loadAnalytics()
   }
+  window.scrollTo(0, 0)
 }
 
 // ── Notificações via SSE (item 13) com fallback para polling ──────────────────
@@ -2239,6 +2585,13 @@ function startDoctorStream() {
         renderSessionControls()
       }
       renderQueueBar()
+
+      // Alguém chegou, foi chamado ou começou/terminou: a tela "Hoje" acompanha
+      const sig = JSON.stringify([receptionQueue.map(q => q.id + q.status), data.active?.id, data.pending?.id])
+      if (sig !== todaySig) {
+        todaySig = sig
+        if (activeTab === 'today') loadToday()
+      }
 
       // Pagamento da sessão em andamento mudou → atualiza barra e dashboard
       if (data.active && currentSession && data.active.id === currentSession.id) {
@@ -2328,7 +2681,7 @@ function renderNotificationPayment(session) {
     document.getElementById('sum-pay-icon').textContent = icon
     const el = document.getElementById('sum-pay')
     el.textContent = txt
-    el.style.color = pay.status === 'pago' ? '#7ad4a4' : ''
+    el.style.color = pay.status === 'pago' ? 'var(--ok)' : ''
     payRow.style.display = 'flex'
   } else {
     payRow.style.display = 'none'
@@ -2421,6 +2774,23 @@ async function startSessionAction() {
 }
 
 let closeoutCtx = { default_prices: {}, active_package: null }
+let finishStep = 0
+let finishRec  = null   // RecPicker dos retornos
+
+// Selo informativo da cobrança (pacote, Pix confirmado, pedido de ajuda…)
+function setPkgBadge(html, tone) {
+  const badge = document.getElementById('pkg-badge')
+  const tones = {
+    ok:   ['var(--ok-bg)',   'var(--ok-line)',   'var(--ok)'],
+    warn: ['var(--warn-bg)', 'var(--warn-line)', 'var(--warn)']
+  }
+  const [bg, line, color] = tones[tone] || ['', '', '']
+  badge.innerHTML = html
+  badge.style.background = bg
+  badge.style.borderColor = line
+  badge.style.color = color
+  badge.style.display = html ? 'block' : 'none'
+}
 
 async function finishSessionAction() {
   if (!currentSession) return
@@ -2430,20 +2800,18 @@ async function finishSessionAction() {
   })
 
   // Reset da cobrança/retorno
+  closeoutCtx = { default_prices: {}, active_package: null }
+  if (finishRec) finishRec.state = null   // retornos sugeridos de novo para este paciente
   document.getElementById('bill-mode').value   = 'pago'
   document.getElementById('bill-amount').value = ''
   document.getElementById('bill-method').value = 'pix'
-  document.getElementById('rec-enabled').checked = false
-  document.getElementById('rec-fields').style.display = 'none'
   document.getElementById('rec-price').value = ''
   const pkgOpt = document.querySelector('#bill-mode option[value="pacote"]')
   pkgOpt.disabled = true
-  pkgOpt.textContent = 'Debitar do pacote (sem pacote ativo)'
-  const badgeEl = document.getElementById('pkg-badge')
-  badgeEl.style.display = 'none'
-  badgeEl.style.background = ''
-  badgeEl.style.borderColor = ''
-  badgeEl.style.color = ''
+  setPkgBadge('')
+  onBillModeChange()
+  setRecEnabled(false)
+  finishGo(0)
   document.getElementById('finish-modal').classList.add('visible')
 
   // Contexto: preço sugerido, pacote ativo, tabela de preços
@@ -2458,13 +2826,10 @@ async function finishSessionAction() {
     }
 
     const pkg = closeoutCtx.active_package
-    const badge = document.getElementById('pkg-badge')
     if (pkg) {
       pkgOpt.disabled = false
-      pkgOpt.textContent = 'Debitar do pacote'
       const restam = pkg.total_sessions - (pkg.used_sessions || 0)
-      badge.innerHTML = `📦 <b>Pacote ativo:</b> ${restam} de ${pkg.total_sessions} sessões restantes.<br>Escolha <b>"Debitar do pacote"</b> para consumir uma agora.`
-      badge.style.display = 'block'
+      setPkgBadge(`📦 <b>Pacote ativo:</b> ${restam} de ${pkg.total_sessions} sessões restantes. Já deixei marcado <b>"Debitar do pacote"</b>.`)
       document.getElementById('bill-mode').value = 'pacote'
     }
 
@@ -2475,79 +2840,99 @@ async function finishSessionAction() {
       if (closeoutCtx.payment.amount != null) {
         document.getElementById('bill-amount').value = closeoutCtx.payment.amount
       }
-      badge.innerHTML = `✅ <b>Pagamento já confirmado via Pix (Mercado Pago).</b><br>O valor de ${brl(closeoutCtx.payment.amount)} entrou automaticamente no financeiro — não precisa fazer nada.`
-      badge.style.background  = 'rgba(60,180,120,0.16)'
-      badge.style.borderColor = 'rgba(60,180,120,0.45)'
-      badge.style.color       = '#9fe0c0'
-      badge.style.display     = 'block'
-      onBillModeChange()
-      // Sugestão de retorno segue normalmente
-      const appt0 = closeoutCtx.appointment
-      const base0 = new Date(); base0.setDate(base0.getDate() + 7)
-      document.getElementById('rec-date').value = formatDate(base0)
-      document.getElementById('rec-time').value = appt0?.appointment_time?.slice(0, 5) || '09:00'
-      if (appt0?.type) {
-        const sel0 = document.getElementById('rec-type')
-        if ([...sel0.options].some(o => o.value === appt0.type)) sel0.value = appt0.type
+      setPkgBadge(`✅ <b>Pagamento já confirmado via Pix (Mercado Pago).</b><br>O valor de ${brl(closeoutCtx.payment.amount)} entrou automaticamente no financeiro — não precisa fazer nada.`, 'ok')
+    } else {
+      // Já vem preenchido com o que o paciente escolheu no formulário
+      const ans = parseAnswers(currentSession.answers)
+      const METODO = { 'Pix': 'pix', 'Dinheiro': 'dinheiro', 'Cartão': 'cartao' }
+      if (METODO[ans.payment_method]) {
+        document.getElementById('bill-method').value = METODO[ans.payment_method]
       }
-      if (appt0?.duration_minutes) document.getElementById('rec-duration').value = appt0.duration_minutes
-      onRecTypeChange()
-      updateRecSummary()
-      return
+      if (!pkg && ans.payment_method === 'Pix' && ans.pix_declared === 'sim') {
+        document.getElementById('bill-mode').value = 'pago'
+        setPkgBadge(`💸 <b>O paciente informou que já pagou via Pix.</b><br>Confira no app do banco antes de confirmar como pago.`, 'ok')
+      } else if (!pkg && ans.payment_method === 'Estou com dificuldade') {
+        document.getElementById('bill-mode').value = 'pendente'
+        setPkgBadge(`⚠️ <b>O paciente pediu ajuda com o pagamento.</b><br>Combine pessoalmente — deixei como "a receber".`, 'warn')
+      }
     }
-
-    // Já vem preenchido com o que o paciente escolheu no formulário
-    const ans = parseAnswers(currentSession.answers)
-    const METODO = { 'Pix': 'pix', 'Dinheiro': 'dinheiro', 'Cartão': 'cartao' }
-    if (METODO[ans.payment_method]) {
-      document.getElementById('bill-method').value = METODO[ans.payment_method]
-    }
-    if (!pkg && ans.payment_method === 'Pix' && ans.pix_declared === 'sim') {
-      document.getElementById('bill-mode').value = 'pago'
-      badge.innerHTML = `💸 <b>O paciente informou que já pagou via Pix.</b><br>Confira no app do banco antes de confirmar como pago.`
-      badge.style.background = 'rgba(60,180,120,0.16)'
-      badge.style.borderColor = 'rgba(60,180,120,0.45)'
-      badge.style.color = '#9fe0c0'
-      badge.style.display = 'block'
-    } else if (!pkg && ans.payment_method === 'Estou com dificuldade') {
-      document.getElementById('bill-mode').value = 'pendente'
-      badge.innerHTML = `⚠️ <b>O paciente pediu ajuda com o pagamento.</b><br>Combine pessoalmente — deixei como "pendente".`
-      badge.style.background = 'rgba(220,150,60,0.14)'
-      badge.style.borderColor = 'rgba(220,150,60,0.4)'
-      badge.style.color = '#f0c090'
-      badge.style.display = 'block'
-    }
-
     onBillModeChange()
 
-    // Sugestão de retorno: mesmo horário do agendamento, daqui a 1 semana
+    // Retorno: mesmo tipo/duração do agendamento de hoje
     const appt = closeoutCtx.appointment
-    const base = new Date()
-    base.setDate(base.getDate() + 7)
-    document.getElementById('rec-date').value = formatDate(base)
-    document.getElementById('rec-time').value = appt?.appointment_time?.slice(0, 5) || '09:00'
     if (appt?.type) {
       const sel = document.getElementById('rec-type')
       if ([...sel.options].some(o => o.value === appt.type)) sel.value = appt.type
     }
     if (appt?.duration_minutes) document.getElementById('rec-duration').value = appt.duration_minutes
     onRecTypeChange()
-    updateRecSummary()
   } catch (_) {}
+}
+
+// Navegação entre as etapas: 0 Prontuário · 1 Cobrança · 2 Retorno
+function finishGo(step) {
+  finishStep = Math.max(0, Math.min(2, step))
+  document.querySelectorAll('#wiz-steps button').forEach(b => {
+    const i = +b.dataset.step
+    b.classList.toggle('on', i === finishStep)
+    b.classList.toggle('done', i < finishStep)
+  })
+  document.querySelectorAll('#finish-modal .wiz-pane').forEach(p => p.classList.toggle('on', +p.dataset.pane === finishStep))
+  document.getElementById('wiz-back').style.display = finishStep > 0 ? '' : 'none'
+  document.getElementById('wiz-next').style.display = finishStep < 2 ? '' : 'none'
+  document.getElementById('wiz-done').style.display = finishStep === 2 ? '' : 'none'
+  if (finishStep === 2) renderFinishRecap()
+  document.querySelector('#finish-modal .modal-sheet').scrollTop = 0
+}
+
+function setBillMode(mode) {
+  const sel = document.getElementById('bill-mode')
+  if (sel.querySelector(`option[value="${mode}"]`).disabled) return
+  sel.value = mode
+  onBillModeChange()
 }
 
 // "Debitar do pacote" e "Isento" não pedem valor/forma
 function onBillModeChange() {
-  const mode = document.getElementById('bill-mode').value
+  const sel  = document.getElementById('bill-mode')
+  const mode = sel.value
   const money = mode === 'pago' || mode === 'pendente'
   document.getElementById('bill-amount-group').style.display = money ? 'block' : 'none'
   document.getElementById('bill-method-group').style.display = mode === 'pago' ? 'block' : 'none'
+  document.querySelectorAll('#bill-mode-seg button').forEach(b => {
+    const opt = sel.querySelector(`option[value="${b.dataset.v}"]`)
+    b.classList.toggle('on', b.dataset.v === mode)
+    b.disabled = opt.disabled
+    b.style.opacity = opt.disabled ? '0.4' : ''
+    b.title = opt.disabled ? 'Paciente sem pacote ativo' : ''
+  })
 }
 
-function onRecToggle() {
-  const on = document.getElementById('rec-enabled').checked
+function setRecEnabled(on) {
+  document.getElementById('rec-enabled').checked = on
+  document.getElementById('rec-yes').classList.toggle('on', on)
+  document.getElementById('rec-no').classList.toggle('on', !on)
   document.getElementById('rec-fields').style.display = on ? 'block' : 'none'
-  if (on) updateRecSummary()
+  if (on && !finishRec?.state) {
+    finishRec = finishRec || new RecPicker(document.getElementById('rec-picker'), {
+      duration: () => document.getElementById('rec-duration').value,
+      packageLeft: () => {
+        const p = closeoutCtx.active_package
+        return p ? Math.max(p.total_sessions - (p.used_sessions || 0) - 1, 0) || null : null
+      },
+      onChange: () => { if (finishStep === 2) renderFinishRecap() }
+    })
+    // Sugestão: mesmo dia da semana e horário de hoje, a partir de amanhã
+    const appt = closeoutCtx.appointment
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+    finishRec.reset({
+      start: formatDate(tomorrow),
+      time:  appt?.appointment_time?.slice(0, 5) || new Date().toTimeString().slice(0, 3) + '00',
+      days:  [new Date().getDay() || 1],
+      count: finishRec.opts.packageLeft() || 4
+    })
+  }
+  renderFinishRecap()
 }
 
 function onRecTypeChange() {
@@ -2555,26 +2940,28 @@ function onRecTypeChange() {
   const p = closeoutCtx.default_prices?.[type]
   const field = document.getElementById('rec-price')
   if (p != null && !field.value) field.value = p
-  updateRecSummary()
 }
 
-// Mostra as datas que serão criadas (sem contar conflitos, que o servidor pula)
-function updateRecSummary() {
-  const el = document.getElementById('rec-summary')
+// Resumo do que vai acontecer ao fechar
+function renderFinishRecap() {
+  const el = document.getElementById('finish-recap')
   if (!el) return
-  const count = Math.min(parseInt(document.getElementById('rec-count').value) || 0, 52)
-  const freq  = document.getElementById('rec-freq').value
-  const start = document.getElementById('rec-date').value
-  if (!count || !start) { el.textContent = ''; return }
-  const step = freq === 'quinzenal' ? 14 : freq === '2x' ? 3.5 : 7
-  const dates = []
-  for (let i = 0; i < Math.min(count, 4); i++) {
-    const d = new Date(start + 'T12:00:00')
-    d.setDate(d.getDate() + Math.round(step * i))
-    dates.push(d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }))
+  const mode = document.getElementById('bill-mode').value
+  const amount = document.getElementById('bill-amount').value
+  const PAY = {
+    pago: `Pago agora${amount ? ' · ' + brl(amount) : ''}`,
+    pendente: `A receber${amount ? ' · ' + brl(amount) : ''}`,
+    pacote: 'Debitada do pacote', isento: 'Isenta / cortesia'
   }
-  const more = count > 4 ? ` … (+${count - 4})` : ''
-  el.textContent = `Serão criados ${count} agendamentos: ${dates.join(', ')}${more}. Horários já ocupados são pulados.`
+  const notes = ['finish-complaint','finish-conduct','finish-evolution','finish-plan','finish-obs']
+    .filter(id => document.getElementById(id).value.trim()).length
+  const rec = document.getElementById('rec-enabled').checked && finishRec
+    ? `${finishRec.dates().length} retorno(s) a agendar`
+    : 'Nenhum retorno agora'
+  el.innerHTML = `
+    <div><span>Prontuário</span>${notes ? `${notes} campo(s) preenchido(s)` : '<i style="color:var(--warn)">Nada anotado — volte na etapa 1 se quiser registrar</i>'}</div>
+    <div><span>Cobrança</span>${PAY[mode]}</div>
+    <div><span>Retorno</span>${rec}</div>`
 }
 
 function closeFinishModal() {
@@ -2603,21 +2990,18 @@ async function confirmFinishSession() {
   }
 
   const recEnabled = document.getElementById('rec-enabled').checked
+  const dates = recEnabled && finishRec ? finishRec.dates() : []
+  if (recEnabled && !dates.length) {
+    alert('Escolha ao menos um dia da semana para os retornos (ou marque "Não agendar agora").')
+    return
+  }
   const recurrence = recEnabled ? {
     enabled: true,
-    start_date: document.getElementById('rec-date').value,
-    time:       document.getElementById('rec-time').value,
-    frequency:  document.getElementById('rec-freq').value,
-    count:      parseInt(document.getElementById('rec-count').value) || 1,
+    dates,
     type:       document.getElementById('rec-type').value,
     duration_minutes: parseInt(document.getElementById('rec-duration').value) || 60,
     price:      document.getElementById('rec-price').value || null
   } : null
-
-  if (recEnabled && (!recurrence.start_date || !recurrence.time)) {
-    alert('Informe data e horário do retorno.')
-    return
-  }
 
   closeFinishModal()
   let result = null
@@ -2658,12 +3042,16 @@ async function confirmFinishSession() {
   const next = receptionQueue.find(s => s.id !== finishedId && s.status === 'can_enter')
             || receptionQueue.find(s => s.id !== finishedId)
   if (next) await openAsCurrent(next, next.status)
-  else switchTab('agenda')
+  else switchTab('today')
 
   if (result.created?.length || result.skipped?.length) {
+    const fmt = x => {
+      const [d, t] = x.split(' ')
+      return `${d.slice(8, 10)}/${d.slice(5, 7)}${t ? ' ' + t : ''}`
+    }
     let msg = ''
-    if (result.created.length) msg += `${result.created.length} retorno(s) agendado(s).`
-    if (result.skipped.length) msg += `\n${result.skipped.length} data(s) pulada(s) por conflito de horário: ${result.skipped.join(', ')}`
+    if (result.created.length) msg += `✓ ${result.created.length} retorno(s) agendado(s).`
+    if (result.skipped.length) msg += `\n${result.skipped.length} horário(s) pulado(s) por já estarem ocupados: ${result.skipped.map(fmt).join(', ')}`
     alert(msg)
   }
 }
@@ -2762,7 +3150,24 @@ function updateSessionTab() {
   const t = document.getElementById('tab-dashboard')
   if (!t) return
   t.style.display = currentSession ? '' : 'none'
-  t.textContent = currentSession?.status === 'in_session' ? '● Atendimento' : 'Atendimento'
+  t.innerHTML = currentSession?.status === 'in_session' ? '<span class="live-dot"></span>Atendimento' : 'Atendimento'
+}
+
+// Passo a passo do atendimento: mostra onde o paciente está e o que vem depois
+const FLOW = [
+  { t: 'Chegada',     hint: 'formulário respondido' },
+  { t: 'Chamado',     hint: 'pode entrar' },
+  { t: 'Atendimento', hint: 'sessão em andamento' },
+  { t: 'Fechamento',  hint: 'prontuário, cobrança e retorno' }
+]
+function renderFlowSteps(status) {
+  // Aguardando → falta chamar; chamado ou em sessão → etapa de atendimento
+  const at = { wait: 1, can_enter: 2, in_session: 2 }[status] ?? 0
+  document.getElementById('flow-steps').innerHTML = FLOW.map((s, i) => {
+    const cls = i < at ? 'done' : i === at ? 'now' : ''
+    const line = i < FLOW.length - 1 ? `<span class="flow-line ${i < at ? 'done' : ''}"></span>` : ''
+    return `<span class="flow-step ${cls}" title="${s.hint}"><span class="n">${i < at ? '✓' : i + 1}</span><span class="t">${s.t}</span></span>${line}`
+  }).join('')
 }
 
 function renderSessionControls() {
@@ -2793,19 +3198,20 @@ function renderSessionControls() {
 
   panel.classList.remove('hidden')
   renderSessionPaymentBadge()
+  renderFlowSteps(status)
 
   if (status === 'wait') {
-    label.textContent = 'Paciente aguardando na recepção'
-    btnCanEnter.style.display = 'inline-block'
+    label.textContent = 'Próximo passo: chamar o paciente'
+    btnCanEnter.style.display = 'inline-flex'
   } else if (status === 'can_enter') {
-    label.textContent = 'Paciente pode entrar'
-    btnStart.style.display = 'inline-block'
+    label.textContent = 'Próximo passo: iniciar o atendimento'
+    btnStart.style.display = 'inline-flex'
   } else if (status === 'in_session') {
-    label.textContent = 'Sessão em andamento'
+    label.textContent = 'Em atendimento'
     timer.style.display     = 'inline-block'
-    btnFinish.style.display = 'inline-block'
-    btnAcu.style.display    = 'inline-block'
-    btnPhy.style.display    = 'inline-block'
+    btnFinish.style.display = 'inline-flex'
+    btnAcu.style.display    = 'inline-flex'
+    btnPhy.style.display    = 'inline-flex'
     startTimer(currentSession.started_at)
   }
 }
@@ -2826,10 +3232,6 @@ function renderSessionPaymentBadge() {
   } else {
     badge.style.display = 'none'
   }
-}
-
-function showAppContent() {
-  document.getElementById('fab-btn').style.display = activeTab !== 'dashboard' ? 'flex' : 'none'
 }
 
 // ── Histórico de paciente via agenda ─────────────────────────────────────────
@@ -2956,10 +3358,10 @@ function renderDashPayBadge() {
   const pay = currentSession?.payment
   if (pay?.status === 'pago') {
     b.textContent = pay.confirmed ? '✅ Pago (confirmado)' : '✅ Pago'
-    b.style.cssText = 'background:rgba(60,180,120,0.2);border:1px solid rgba(60,180,120,0.45);color:#7ad4a4;display:inline-block'
+    b.style.cssText = 'background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok);display:inline-block'
   } else if (pay?.status === 'pendente') {
     b.textContent = '⏳ Pagamento pendente'
-    b.style.cssText = 'background:rgba(220,150,60,0.18);border:1px solid rgba(220,150,60,0.45);color:#f0b070;display:inline-block'
+    b.style.cssText = 'background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn);display:inline-block'
   } else {
     b.style.display = 'none'
   }
@@ -3371,11 +3773,226 @@ async function clearPhysioTV() {
   }
 }
 
+// ── HOJE: agenda do dia com a próxima ação de cada paciente ──────────────────
+let todayData = null
+let todaySig  = ''   // assinatura da fila/sessão ativa — recarrega quando muda
+let todayRows = []   // linhas exibidas (os botões referenciam pelo índice)
+
+function toggleGuide(show) {
+  try { localStorage.setItem('doctor_guide_hidden', show ? '' : '1') } catch (_) {}
+  document.getElementById('guide').style.display = show ? '' : 'none'
+  document.getElementById('guide-open-btn').style.display = show ? 'none' : ''
+}
+
+function renderTodayHeader() {
+  const h = new Date().getHours()
+  const hello = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
+  const first = (doctorName || '').trim().split(/\s+/)[0]
+  document.getElementById('today-hello').textContent = first ? `${hello}, ${first}` : `${hello}!`
+  document.getElementById('today-date').textContent =
+    new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  let hidden = false
+  try { hidden = localStorage.getItem('doctor_guide_hidden') === '1' } catch (_) {}
+  document.getElementById('guide').style.display = hidden ? 'none' : ''
+  document.getElementById('guide-open-btn').style.display = hidden ? '' : 'none'
+}
+
+async function loadToday() {
+  renderTodayHeader()
+  try {
+    const r = await fetch('/api/today')
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error()
+    todayData = await r.json()
+  } catch (_) {
+    if (!todayData) {
+      document.getElementById('today-list').innerHTML =
+        '<div class="empty-state"><b>Não foi possível carregar o dia</b>Verifique a conexão e tente de novo.</div>'
+    }
+    return
+  }
+  renderToday()
+}
+
+// Situação de cada paciente do dia → selo, progresso e o botão da próxima ação
+function todayState(a) {
+  const s = a.session
+  const toMin = t => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m }
+  const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes()
+  if (['cancelado', 'falta'].includes(a.status)) return { key: 'off', step: 0 }
+  if (s?.status === 'finished' || a.status === 'concluido') return { key: 'done', step: 4 }
+  if (s?.status === 'in_session') return { key: 'live', step: 3 }
+  if (s?.status === 'can_enter') return { key: 'called', step: 2 }
+  if (s && s.completed_at) return { key: 'arrived', step: 2 }
+  return { key: toMin(a.appointment_time) + 15 < nowMin ? 'late' : 'scheduled', step: 1 }
+}
+
+function renderToday() {
+  if (!todayData) return
+  const appts = todayData.appointments || []
+  const walk  = (todayData.walk_ins || []).map(s => ({
+    id: null, walk: true, patient_id: s.patient_id, patient_name: s.patient_name,
+    appointment_time: new Date(s.completed_at || s.created_at).toTimeString().slice(0, 5),
+    type: 'Sem agendamento', status: s.status === 'finished' ? 'concluido' : 'agendado',
+    session: s, has_future: s.has_future
+  }))
+  const rows = [...appts, ...walk].sort((x, y) => String(x.appointment_time).localeCompare(String(y.appointment_time)))
+  const states = rows.map(todayState)
+  todayRows = rows
+
+  // Indicadores do dia
+  const active = rows.filter((_, i) => states[i].key !== 'off')
+  const done = states.filter(s => s.key === 'done').length
+  const waiting = states.filter(s => s.key === 'arrived' || s.key === 'called').length
+  const open = appts.filter(a => a.status !== 'cancelado' && a.payment_status === 'pendente' && a.price > 0)
+  document.getElementById('tk-total').textContent = active.length
+  document.getElementById('tk-total-sub').textContent = active.length ? `${active.length - done} ainda por atender` : 'agenda livre'
+  document.getElementById('tk-done').textContent = done
+  document.getElementById('tk-done-sub').textContent = active.length ? `${Math.round(done / active.length * 100)}% do dia` : '—'
+  document.getElementById('tk-wait').textContent = waiting
+  document.getElementById('tk-wait-sub').textContent = waiting ? 'aguardando você' : 'ninguém esperando'
+  document.getElementById('tk-open').textContent = brl(open.reduce((t, a) => t + Number(a.price || 0), 0))
+  document.getElementById('tk-open-sub').textContent = open.length ? `${open.length} atendimento(s) pendente(s)` : 'tudo em dia'
+
+  const list = document.getElementById('today-list')
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty-state"><b>Nenhum paciente agendado para hoje</b>
+      Comece marcando um horário — o paciente aparece aqui com o passo a passo do atendimento.<br>
+      <button class="btn-primary" onclick="openApptModal()">+ Novo agendamento</button></div>`
+  } else {
+    // O primeiro que ainda precisa de ação fica em destaque
+    const focus = states.findIndex(s => ['live', 'called', 'arrived'].includes(s.key))
+    const nextIdx = focus >= 0 ? focus : states.findIndex(s => s.key === 'scheduled' || s.key === 'late')
+    list.innerHTML = rows.map((a, i) => todayRow(a, states[i], i === nextIdx, i)).join('')
+  }
+
+  // Cartão "Próximo paciente"
+  const nextI = states.findIndex(s => s.key === 'scheduled' || s.key === 'late')
+  const card = document.getElementById('today-next-card')
+  if (nextI >= 0) {
+    const a = rows[nextI]
+    card.style.display = ''
+    document.getElementById('today-next').innerHTML = `
+      <div style="font-size:1.6rem;font-weight:500;color:var(--brand-700);font-variant-numeric:tabular-nums">${String(a.appointment_time).slice(0, 5)}</div>
+      <div style="font-weight:600;margin-top:0.15rem">${esc(a.patient_name)}</div>
+      <div style="font-size:0.8rem;color:var(--muted);margin-top:0.15rem">${esc(a.type || '')} · ${a.duration_minutes || 60} min</div>
+      <div style="font-size:0.76rem;color:var(--muted);margin-top:0.7rem;line-height:1.45">Quando chegar, o paciente faz o check-in no totem e você recebe o aviso aqui.</div>`
+  } else {
+    card.style.display = 'none'
+  }
+}
+
+function todayRow(a, st, highlight, idx) {
+  const s = a.session
+  const time = String(a.appointment_time).slice(0, 5)
+  const PAY = { pago: ['ok', 'Pago'], pendente: ['warn', 'A receber'], pacote: ['', 'Pacote'], isento: ['', 'Isento'] }
+  const chips = []
+  let actions = ''
+
+  switch (st.key) {
+    case 'off':
+      chips.push(`<span class="chip bad">${a.status === 'falta' ? 'Faltou' : 'Cancelado'}</span>`)
+      actions = a.id ? `<button class="btn-ghost" onclick="todayEdit('${a.id}')">Reagendar</button>` : ''
+      break
+    case 'done': {
+      chips.push('<span class="chip ok">✓ Concluído</span>')
+      const p = PAY[a.payment_status]
+      if (p && !a.walk) chips.push(`<span class="chip ${p[0]}">${p[1]}</span>`)
+      if (a.has_future) chips.push('<span class="chip">Retorno marcado</span>')
+      actions = (a.has_future ? '' : `<button class="btn-primary" onclick="todayReturn(${idx})">Agendar retorno →</button>`)
+        + (a.patient_id ? `<button class="btn-ghost" onclick="todayPatient('${a.patient_id}')">Prontuário</button>` : '')
+      break
+    }
+    case 'live':
+      chips.push('<span class="chip live">● Em atendimento</span>')
+      actions = `<button class="btn-primary" onclick="todayOpen('${s.id}')">Abrir atendimento →</button>`
+      break
+    case 'called':
+      chips.push('<span class="chip ok">Chamado · pode entrar</span>')
+      actions = `<button class="btn-primary" onclick="todayOpen('${s.id}')">Iniciar atendimento →</button>`
+      break
+    case 'arrived':
+      chips.push('<span class="chip warn">Na recepção</span>')
+      actions = `<button class="btn-primary" onclick="todayCall('${s.id}')">Chamar: pode entrar →</button>`
+      break
+    default:
+      chips.push(st.key === 'late' ? '<span class="chip warn">Atrasado</span>' : '<span class="chip">Aguardando chegada</span>')
+      actions = `<button class="btn-ghost" onclick="todayCheckin('${a.id}')" title="Paciente chegou sem passar pelo totem">Check-in manual</button>`
+        + `<button class="btn-ghost" onclick="todayEdit('${a.id}')">Editar</button>`
+  }
+
+  const track = [1, 2, 3, 4].map(n => `<i class="${n <= st.step ? (st.key === 'done' ? 'ok' : 'on') : ''}"></i>`).join('')
+  const cls = st.key === 'done' ? 'is-done' : st.key === 'off' ? 'is-off' : highlight ? 'is-now' : ''
+  return `
+    <div class="t-row ${cls}">
+      <div class="t-time">${time}<small>${a.duration_minutes || (a.walk ? '' : 60)}${a.walk ? '' : ' min'}</small></div>
+      <div>
+        <div class="t-name">${esc(a.patient_name)} ${chips.join('')}</div>
+        <div class="t-meta"><span class="t-track" title="Agendado · Chegou · Atendimento · Concluído">${track}</span>${esc(a.type || '')}</div>
+      </div>
+      <div class="t-actions">${actions}</div>
+    </div>`
+}
+
+function todayReturn(idx) {
+  const a = todayRows[idx]
+  if (a) openApptForPatient(a.patient_id, a.patient_name, true)
+}
+
+function todayEdit(id) {
+  const a = todayData?.appointments.find(x => x.id === id)
+  if (a) openEditApptModal(a)
+}
+
+function todayPatient(id) {
+  switchTab('patients', false)
+  openPatientDetail(id)
+}
+
+async function fetchFullSession(id) {
+  const r = await fetch(`/api/sessions/${id}`)
+  if (r.status === 401) { location.href = '/login'; return null }
+  return r.ok ? r.json() : null
+}
+
+// Abre o paciente no Atendimento (barra de passos mostra o que fazer em seguida)
+async function todayOpen(id) {
+  if (busyWith(id)) {
+    alert(`Finalize a sessão de ${currentSession.patient_name} antes de abrir outro paciente.`)
+    return
+  }
+  const s = await fetchFullSession(id)
+  if (!s) { alert('Não foi possível abrir este atendimento.'); return }
+  await openAsCurrent(s, s.status)
+}
+
+async function todayCall(id) {
+  try { await fetch(`/api/sessions/${id}/can-enter`, { method: 'POST' }) } catch (_) {}
+  if (busyWith(id)) { loadToday(); return }   // fica na fila, chamado
+  const s = await fetchFullSession(id)
+  if (s) await openAsCurrent(s, 'can_enter')
+}
+
+async function todayCheckin(apptId) {
+  const a = todayData?.appointments.find(x => x.id === apptId)
+  if (!confirm(`Fazer o check-in de ${a?.patient_name || 'paciente'} agora?\n\nUse quando o paciente chegou sem passar pelo totem — ele já fica como "pode entrar".`)) return
+  try {
+    const r = await fetch(`/api/appointments/${apptId}/checkin`, { method: 'POST' })
+    if (r.status === 401) { location.href = '/login'; return }
+    if (!r.ok) throw new Error()
+    const s = await r.json()
+    if (busyWith(s.id)) { loadToday(); return }
+    await openAsCurrent(s, 'can_enter')
+  } catch (_) {
+    alert('Não foi possível fazer o check-in.')
+  }
+}
+
 // ── AGENDA ────────────────────────────────────────────────────────────────────
 
-// Slots de 30 em 30 min, das 7:00 às 19:00
+// Slots de 30 em 30 min, das 7:00 às 23:00
 const TIME_SLOTS = []
-for (let h = 7; h < 19; h++) {
+for (let h = 7; h < 23; h++) {
   TIME_SLOTS.push(`${String(h).padStart(2,'0')}:00`)
   TIME_SLOTS.push(`${String(h).padStart(2,'0')}:30`)
 }
@@ -3415,6 +4032,11 @@ async function loadAgendaWeek() {
   } catch (_) { agendaAppointments = [] }
 
   renderWeekGrid(weekStart, agendaAppointments)
+
+  // Semana atual: rola até perto da hora de agora; outras semanas, para o começo do dia
+  const box = document.querySelector('.agenda-scroll')
+  const h = new Date().getHours()
+  box.scrollTop = agendaWeekOffset === 0 && h >= 8 ? Math.max(0, (h - 8) * 2 * 42) : 0
 }
 
 function renderWeekGrid(weekStart, appointments) {
@@ -3431,8 +4053,9 @@ function renderWeekGrid(weekStart, appointments) {
   axis.appendChild(axisHdr)
   TIME_SLOTS.forEach(t => {
     const tick = document.createElement('div')
-    tick.className = 'time-tick'
-    tick.textContent = t
+    const full = t.endsWith(':00')
+    tick.className = 'time-tick' + (full ? ' hour' : '')
+    tick.textContent = full ? t : ''
     axis.appendChild(tick)
   })
   grid.appendChild(axis)
@@ -3496,9 +4119,22 @@ function renderWeekGrid(weekStart, appointments) {
         slot.className = 'time-slot free'
         slot.onclick = () => openApptModalWithSlot(ds, slotTime)
       }
+      if (slotTime.endsWith(':30')) slot.classList.add('hour-end')
 
       col.appendChild(slot)
     })
+
+    // Linha do horário atual no dia de hoje
+    if (ds === today) {
+      const now = new Date()
+      const mins = now.getHours() * 60 + now.getMinutes() - toMin(TIME_SLOTS[0])
+      if (mins >= 0 && mins <= TIME_SLOTS.length * 30) {
+        const line = document.createElement('div')
+        line.className = 'now-line'
+        line.style.top = (58 + mins / 30 * 42) + 'px'
+        col.appendChild(line)
+      }
+    }
 
     grid.appendChild(col)
   }
@@ -3513,9 +4149,51 @@ function agendaToday()    { agendaWeekOffset = 0; loadAgendaWeek() }
 let editingApptPatientId = null  // patient_id do agendamento sendo editado
 let editingAppt = null           // objeto completo do agendamento em edição
 
-function fabAction() {
-  if (activeTab === 'agenda')   openApptModal()
-  if (activeTab === 'patients') openPatientModal()
+// Agenda e "Hoje" mudaram (novo agendamento, exclusão, check-in…)
+function refreshSchedule() {
+  if (activeTab === 'agenda') loadAgendaWeek()
+  if (activeTab === 'today')  loadToday()
+}
+
+// ── Repetição no agendamento ("Vários dias") ──
+let apptRec = null
+let apptRepeat = false
+function setApptRepeat(on) {
+  apptRepeat = on
+  document.querySelectorAll('#appt-repeat-seg button').forEach(b => b.classList.toggle('on', (b.dataset.r === '1') === on))
+  document.getElementById('appt-when-row').style.display = on ? 'none' : ''
+  const box = document.getElementById('appt-rec')
+  box.style.display = on ? 'block' : 'none'
+  if (on) {
+    apptRec = apptRec || new RecPicker(box, {
+      noun: 'agendamento',
+      duration: () => document.getElementById('appt-duration').value
+    })
+    const date = document.getElementById('appt-date').value || formatDate(new Date())
+    apptRec.reset({
+      start: date,
+      time: document.getElementById('appt-time').value || '09:00',
+      days: [new Date(date + 'T12:00').getDay()],
+      count: 8
+    })
+  }
+}
+
+// Abre o agendamento já com o paciente escolhido (ex.: "Agendar retorno" na tela Hoje)
+function openApptForPatient(patientId, patientName, repeat = false) {
+  openApptModal()
+  if (patientId) {
+    document.getElementById('appt-patient-id').value = patientId
+    document.getElementById('appt-patient-search').value = patientName
+  } else {
+    document.getElementById('appt-patient-name-free').value = patientName
+    document.getElementById('appt-patient-name-free').style.display = 'block'
+  }
+  const d = new Date(); d.setDate(d.getDate() + 7)
+  document.getElementById('appt-date').value = formatDate(d)
+  document.getElementById('appt-type').value = 'Retorno'
+  onApptTypeChange()
+  if (repeat) setApptRepeat(true)
 }
 
 function _resetApptModal() {
@@ -3533,6 +4211,8 @@ function _resetApptModal() {
   document.getElementById('appt-status-group').style.display = 'none'
   document.getElementById('btn-view-patient-from-appt').style.display = 'none'
   document.getElementById('btn-delete-appt').style.display = 'none'
+  document.getElementById('appt-repeat-group').style.display = ''
+  setApptRepeat(false)
   editingApptPatientId = null
   editingAppt = null
 }
@@ -3555,7 +4235,8 @@ function openApptModalWithSlot(dateStr, timeStr) {
 function openEditApptModal(appt) {
   _resetApptModal()
   editingAppt = appt
-  document.getElementById('btn-delete-appt').style.display = 'inline-block'
+  document.getElementById('appt-repeat-group').style.display = 'none'
+  document.getElementById('btn-delete-appt').style.display = 'inline-flex'
   document.getElementById('appt-modal-title').textContent = 'Editar Agendamento'
   document.getElementById('appt-id').value = appt.id
   document.getElementById('appt-date').value = appt.appointment_date
@@ -3574,7 +4255,7 @@ function openEditApptModal(appt) {
     document.getElementById('appt-patient-id').value    = appt.patient_id
     document.getElementById('appt-patient-search').value = appt.patient_name
     editingApptPatientId = appt.patient_id
-    document.getElementById('btn-view-patient-from-appt').style.display = 'inline-block'
+    document.getElementById('btn-view-patient-from-appt').style.display = 'inline-flex'
   } else {
     document.getElementById('appt-patient-name-free').value = appt.patient_name
     document.getElementById('appt-patient-name-free').style.display = 'block'
@@ -3632,7 +4313,7 @@ async function deleteAppointmentAction() {
     if (!r.ok) throw new Error()
     const d = await r.json()
     closeApptModal()
-    loadAgendaWeek()
+    refreshSchedule()
     if (d.deleted > 1) alert(`${d.deleted} agendamentos da série foram excluídos.`)
   } catch (_) {
     alert('Erro ao excluir agendamento.')
@@ -3707,6 +4388,34 @@ async function saveAppointment() {
   const paymentStatus = document.getElementById('appt-payment-status').value
 
   if (!patientName.trim()) { alert('Informe o nome do paciente.'); return }
+
+  // Vários dias: cria a série inteira de uma vez
+  if (!apptId && apptRepeat) {
+    if (!type) { alert('Selecione o tipo de atendimento.'); return }
+    const dates = apptRec?.dates() || []
+    if (!dates.length) { alert('Escolha ao menos um dia da semana.'); return }
+    try {
+      const r = await fetch('/api/appointments/series', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: patientId || null,
+          patient_name: patientName.trim(),
+          recurrence: { dates, type, duration_minutes: parseInt(duration), notes, price }
+        })
+      })
+      if (r.status === 401) { location.href = '/login'; return }
+      const res = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(res.error || 'Erro ao criar os agendamentos.')
+      closeApptModal()
+      refreshSchedule()
+      let msg = `✓ ${res.created.length} agendamento(s) criado(s).`
+      if (res.skipped.length) msg += `
+${res.skipped.length} horário(s) já ocupado(s) foram pulados.`
+      alert(msg)
+    } catch (err) { alert(err.message) }
+    return
+  }
+
   if (!date) { alert('Informe a data.'); return }
   if (!time) { alert('Informe o horário.'); return }
   if (!type) { alert('Selecione o tipo de atendimento.'); return }
@@ -3747,7 +4456,7 @@ async function saveAppointment() {
     if (r.status === 401) { location.href = '/login'; return }
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Erro ao salvar agendamento.')
     closeApptModal()
-    loadAgendaWeek()
+    refreshSchedule()
   } catch (err) { alert(err.message || 'Erro ao salvar agendamento.') }
 }
 
@@ -3850,7 +4559,6 @@ async function openPatientDetail(id) {
   activePatientId = id
   document.getElementById('patients-view').classList.remove('visible')
   document.getElementById('patient-detail-view').classList.add('visible')
-  document.getElementById('fab-btn').style.display = 'none'
 
   // Limpa gráficos anteriores
   Object.values(patientCharts).forEach(c => c.destroy())
@@ -3898,7 +4606,6 @@ async function openPatientDetail(id) {
 function backToPatients() {
   document.getElementById('patient-detail-view').classList.remove('visible')
   document.getElementById('patients-view').classList.add('visible')
-  document.getElementById('fab-btn').style.display = 'flex'
 }
 
 // Mapeamentos para gráficos
@@ -3923,10 +4630,9 @@ function buildPatientCharts(sessions, anatomyEvents) {
     return ans.stress in STRESS_MAP ? STRESS_MAP[ans.stress] : null
   })
 
-  // Configuração comum de grid/escala (adapta ao tema)
-  const light       = document.body.classList.contains('light')
-  const gridColor   = light ? 'rgba(0,0,0,0.08)'  : 'rgba(255,255,255,0.06)'
-  const tickColor   = light ? 'rgba(0,0,0,0.45)'  : 'rgba(255,255,255,0.35)'
+  // Configuração comum de grid/escala
+  const gridColor   = CH.grid
+  const tickColor   = CH.text
   const baseLineOpts = {
     responsive: true,
     maintainAspectRatio: true,
@@ -3945,11 +4651,11 @@ function buildPatientCharts(sessions, anatomyEvents) {
       labels,
       datasets: [{
         data: painData,
-        borderColor: 'rgba(220,80,80,0.8)',
-        backgroundColor: 'rgba(220,80,80,0.1)',
+        borderColor: CH.danger,
+        backgroundColor: 'rgba(201,86,78,0.08)',
         fill: true,
         tension: 0.4,
-        pointBackgroundColor: 'rgba(220,80,80,0.9)',
+        pointBackgroundColor: CH.danger,
         pointRadius: 4
       }]
     },
@@ -3964,11 +4670,11 @@ function buildPatientCharts(sessions, anatomyEvents) {
       labels,
       datasets: [{
         data: sleepData,
-        borderColor: 'rgba(100,150,220,0.8)',
-        backgroundColor: 'rgba(100,150,220,0.1)',
+        borderColor: CH.brand,
+        backgroundColor: 'rgba(106,74,160,0.08)',
         fill: true,
         tension: 0.4,
-        pointBackgroundColor: 'rgba(100,150,220,0.9)',
+        pointBackgroundColor: CH.brand,
         pointRadius: 4
       }]
     },
@@ -3996,11 +4702,11 @@ function buildPatientCharts(sessions, anatomyEvents) {
       labels,
       datasets: [{
         data: stressData,
-        borderColor: 'rgba(200,150,50,0.8)',
-        backgroundColor: 'rgba(200,150,50,0.1)',
+        borderColor: CH.gold,
+        backgroundColor: 'rgba(210,169,63,0.1)',
         fill: true,
         tension: 0.4,
-        pointBackgroundColor: 'rgba(200,150,50,0.9)',
+        pointBackgroundColor: CH.gold,
         pointRadius: 4
       }]
     },
@@ -4033,7 +4739,7 @@ function buildPatientCharts(sessions, anatomyEvents) {
       labels: regionEntries.map(([r]) => r),
       datasets: [{
         data: regionEntries.map(([,c]) => c),
-        backgroundColor: regionEntries.map((_, i) => `hsla(${260 + i * 18},60%,60%,0.7)`),
+        backgroundColor: regionEntries.map((_, i) => CH.series[i % 3]),
         borderRadius: 4
       }]
     },
@@ -4469,9 +5175,9 @@ function onPixProviderChange() {
     const okSegredo = pixCfg.mp_webhook_secret_set
     if (okToken && okSegredo) {
       box.innerHTML = '✅ <b>Mercado Pago conectado.</b> O pagamento do paciente será confirmado automaticamente no financeiro.'
-      box.style.background  = 'rgba(60,180,120,0.16)'
-      box.style.borderColor = 'rgba(60,180,120,0.45)'
-      box.style.color       = '#9fe0c0'
+      box.style.background  = 'var(--ok-bg)'
+      box.style.borderColor = 'var(--ok-line)'
+      box.style.color       = 'var(--ok)'
     } else {
       const faltando = [
         !okToken   ? 'MERCADOPAGO_ACCESS_TOKEN' : null,
@@ -4480,9 +5186,9 @@ function onPixProviderChange() {
       box.innerHTML = `⚠️ <b>Falta configurar no servidor (Coolify):</b><br>${faltando}<br><br>` +
                       (okToken ? 'Sem a assinatura secreta o webhook funciona, mas sem validação de origem.'
                                : 'Sem o token não é possível criar a cobrança.')
-      box.style.background  = 'rgba(220,150,60,0.14)'
-      box.style.borderColor = 'rgba(220,150,60,0.4)'
-      box.style.color       = '#f0c090'
+      box.style.background  = 'var(--warn-bg)'
+      box.style.borderColor = 'var(--warn-line)'
+      box.style.color       = 'var(--warn)'
     }
   }
 }
@@ -4527,19 +5233,19 @@ async function testMercadoPago() {
     if (d.ok && d.qr_ok) {
       box.innerHTML = `✅ <b>Tudo certo!</b> Token válido e QR Pix gerado com sucesso.` +
         (d.live === false ? '<br>⚠️ Token de <b>TESTE</b> — troque pelo de produção (APP_USR-) para cobrar de verdade.' : '')
-      box.style.background = 'rgba(60,180,120,0.16)'; box.style.borderColor = 'rgba(60,180,120,0.45)'; box.style.color = '#9fe0c0'
+      box.style.background = 'var(--ok-bg)'; box.style.borderColor = 'var(--ok-line)'; box.style.color = 'var(--ok)'
     } else if (d.ok && !d.qr_ok) {
       box.innerHTML = `⚠️ <b>Token válido, mas o QR não foi gerado:</b><br>${d.qr_error || 'erro desconhecido'}` +
         `<br><br>Isso costuma acontecer com valor de consulta muito baixo (ex.: R$ 0,01). Tente um valor maior.`
-      box.style.background = 'rgba(220,150,60,0.14)'; box.style.borderColor = 'rgba(220,150,60,0.4)'; box.style.color = '#f0c090'
+      box.style.background = 'var(--warn-bg)'; box.style.borderColor = 'var(--warn-line)'; box.style.color = 'var(--warn)'
     } else {
       box.innerHTML = `❌ <b>Falhou:</b> ${d.error || 'erro desconhecido'}${pixDiagHtml(d.diag)}`
-      box.style.background = 'rgba(220,80,80,0.16)'; box.style.borderColor = 'rgba(220,80,80,0.45)'; box.style.color = '#f0a0a0'
+      box.style.background = 'var(--danger-bg)'; box.style.borderColor = 'var(--danger-line)'; box.style.color = 'var(--danger)'
     }
   } catch (e) {
     box.style.display = 'block'
     box.innerHTML = `❌ <b>Falhou:</b> ${e.message}`
-    box.style.background = 'rgba(220,80,80,0.16)'; box.style.borderColor = 'rgba(220,80,80,0.45)'; box.style.color = '#f0a0a0'
+    box.style.background = 'var(--danger-bg)'; box.style.borderColor = 'var(--danger-line)'; box.style.color = 'var(--danger)'
   } finally {
     btn.disabled = false
     btn.textContent = txtOrig
@@ -4648,14 +5354,9 @@ function reloadActiveReport() {
   else if (activeTab === 'analytics') loadAnalytics()
 }
 
-// Cores dos gráficos conforme o tema
+// Cores de grade/legenda dos gráficos
 function chartTheme() {
-  const light = document.body.classList.contains('light')
-  return {
-    grid:   light ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)',
-    tick:   light ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)',
-    legend: light ? 'rgba(0,0,0,0.6)'  : 'rgba(255,255,255,0.6)'
-  }
+  return { grid: CH.grid, tick: CH.text, legend: CH.text }
 }
 function destroyCharts(store) {
   Object.values(store).forEach(c => { try { c.destroy() } catch (_) {} })
@@ -4705,9 +5406,9 @@ async function loadFinance() {
       labels: series.map(s => fmtPeriod(s.period, d.granularity)),
       datasets: [
         { label: 'Recebido',  data: series.map(s => s.paid),
-          backgroundColor: 'rgba(90,190,140,0.75)', borderRadius: 4 },
+          backgroundColor: CH.brand, borderRadius: 6 },
         { label: 'A receber', data: series.map(s => s.pending),
-          backgroundColor: 'rgba(230,170,90,0.7)', borderRadius: 4 }
+          backgroundColor: CH.lav, borderRadius: 6 }
       ]
     },
     options: {
@@ -4727,7 +5428,7 @@ async function loadFinance() {
       labels: me.length ? me.map(([k]) => k) : ['Sem pagamentos'],
       datasets: [{
         data: me.length ? me.map(([, v]) => v) : [1],
-        backgroundColor: me.length ? me.map((_, i) => `hsla(${170 + i * 40},55%,58%,0.85)`) : ['rgba(150,150,150,0.15)'],
+        backgroundColor: me.length ? me.map((_, i) => CH.series[i % CH.series.length]) : ['rgba(106,74,160,0.08)'],
         borderWidth: 0
       }]
     },
@@ -4745,8 +5446,8 @@ async function loadFinance() {
       datasets: [{
         data: hasMoney ? [rev.paid, rev.pending] : [1],
         backgroundColor: hasMoney
-          ? ['rgba(90,190,140,0.85)', 'rgba(230,170,90,0.8)']
-          : ['rgba(150,150,150,0.15)'],
+          ? [CH.brand, CH.gold]
+          : ['rgba(106,74,160,0.08)'],
         borderWidth: 0
       }]
     },
@@ -4795,7 +5496,7 @@ function renderLedger() {
   const rotulo = ledgerFilter === 'pago' ? 'Total recebido'
                : ledgerFilter === 'pendente' ? 'Total em aberto'
                : 'Total lançado'
-  tot.innerHTML = `<span style="color:rgba(255,255,255,0.45)">${rotulo}:</span> <b>${brl(soma)}</b> <span style="opacity:0.5">(${rows.length} lançamento${rows.length > 1 ? 's' : ''})</span>`
+  tot.innerHTML = `<span style="color:rgb(var(--fg) / 0.45)">${rotulo}:</span> <b>${brl(soma)}</b> <span style="opacity:0.5">(${rows.length} lançamento${rows.length > 1 ? 's' : ''})</span>`
 }
 
 async function markPaid(id) {
@@ -4872,16 +5573,15 @@ async function loadAnalytics() {
   // 1. Situação dos agendamentos
   const LBL = { agendado:'Agendado', confirmado:'Confirmado', atendimento:'Em atendimento',
                 concluido:'Concluído', cancelado:'Cancelado', falta:'Falta' }
-  const COL = { agendado:'rgba(80,150,220,0.8)', confirmado:'rgba(90,190,140,0.8)',
-                atendimento:'rgba(230,200,80,0.8)', concluido:'rgba(140,120,220,0.85)',
-                cancelado:'rgba(220,90,90,0.8)', falta:'rgba(230,150,70,0.85)' }
+  const COL = { agendado: CH.lav, confirmado: CH.ok, atendimento: CH.gold, concluido: CH.brand,
+                cancelado: CH.danger, falta: '#D9822B' }
   const st = Object.entries(ap.by_status || {})
   dashCharts.status = new Chart(document.getElementById('ch-status'), {
     type: 'bar',
     data: {
       labels: st.map(([k]) => LBL[k] || k),
       datasets: [{ data: st.map(([, v]) => v),
-                   backgroundColor: st.map(([k]) => COL[k] || 'rgba(150,150,150,0.7)'), borderRadius: 4 }]
+                   backgroundColor: st.map(([k]) => COL[k] || CH.mid), borderRadius: 6 }]
     },
     options: barOpts(true)
   })
@@ -4894,7 +5594,7 @@ async function loadAnalytics() {
       labels: ty.length ? ty.map(([k]) => k) : ['Sem dados'],
       datasets: [{
         data: ty.length ? ty.map(([, v]) => v) : [1],
-        backgroundColor: ty.length ? ty.map((_, i) => `hsla(${260 + i * 32},58%,62%,0.85)`) : ['rgba(150,150,150,0.15)'],
+        backgroundColor: ty.length ? ty.map((_, i) => CH.series[i % CH.series.length]) : ['rgba(106,74,160,0.08)'],
         borderWidth: 0
       }]
     },
@@ -4910,7 +5610,7 @@ async function loadAnalytics() {
     type: 'bar',
     data: {
       labels: DIAS,
-      datasets: [{ data: d.by_weekday || [], backgroundColor: 'rgba(120,150,230,0.8)', borderRadius: 4 }]
+      datasets: [{ data: d.by_weekday || [], backgroundColor: CH.mid, borderRadius: 6 }]
     },
     options: barOpts(false)
   })
@@ -4921,7 +5621,7 @@ async function loadAnalytics() {
     type: 'bar',
     data: {
       labels: hrs.map(([h]) => h + 'h'),
-      datasets: [{ data: hrs.map(([, v]) => v), backgroundColor: 'rgba(110,200,190,0.8)', borderRadius: 4 }]
+      datasets: [{ data: hrs.map(([, v]) => v), backgroundColor: CH.brand, borderRadius: 6 }]
     },
     options: barOpts(false)
   })
@@ -4934,7 +5634,7 @@ async function loadAnalytics() {
       labels: rg.length ? rg.map(([k]) => k) : ['Sem registros'],
       datasets: [{
         data: rg.length ? rg.map(([, v]) => v) : [0],
-        backgroundColor: rg.map((_, i) => `hsla(${280 + i * 14},55%,62%,0.8)`),
+        backgroundColor: rg.map((_, i) => CH.series[i % 3]),
         borderRadius: 4
       }]
     },
@@ -4949,10 +5649,10 @@ async function loadAnalytics() {
       labels: ps.map(s => fmtPeriod(s.period, d.granularity)),
       datasets: [{
         data: ps.map(s => s.avg),
-        borderColor: 'rgba(220,90,90,0.9)',
-        backgroundColor: 'rgba(220,90,90,0.12)',
+        borderColor: CH.danger,
+        backgroundColor: 'rgba(201,86,78,0.08)',
         fill: true, tension: 0.35, pointRadius: 3,
-        pointBackgroundColor: 'rgba(220,90,90,0.95)'
+        pointBackgroundColor: CH.danger
       }]
     },
     options: {
@@ -4984,10 +5684,10 @@ async function loadPatientFinance(id) {
       const total = payments.filter(p => p.status === 'pago').reduce((s, p) => s + Number(p.amount || 0), 0)
       html += payments.slice(0, 8).map(p => {
         const date = p.paid_at ? new Date(p.paid_at + 'T00:00').toLocaleDateString('pt-BR') : '—'
-        const stat = p.status === 'pendente' ? ' <span style="color:#f0b070">pendente</span>' : ''
-        return `<div class="history-item"><span class="history-date">${date}</span><span style="text-transform:capitalize;color:rgba(255,255,255,0.5)">${esc(p.method || '')}</span><span style="margin-left:auto">${brl(p.amount)}${stat}</span></div>`
+        const stat = p.status === 'pendente' ? ' <span style="color:var(--warn)">pendente</span>' : ''
+        return `<div class="history-item"><span class="history-date">${date}</span><span style="text-transform:capitalize;color:rgb(var(--fg) / 0.5)">${esc(p.method || '')}</span><span style="margin-left:auto">${brl(p.amount)}${stat}</span></div>`
       }).join('')
-      html += `<div style="text-align:right;margin-top:0.6rem;color:rgba(120,200,150,0.95);font-size:0.9rem">Total recebido: ${brl(total)}</div>`
+      html += `<div style="text-align:right;margin-top:0.6rem;color:var(--ok);font-size:0.9rem">Total recebido: ${brl(total)}</div>`
     }
     box.innerHTML = html
   } catch (_) {

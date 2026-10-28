@@ -35,29 +35,29 @@ function injectStyle() {
   s.textContent = `
   .pp-wrap { margin-bottom: 0.8rem; }
   .pp-bar { display: flex; gap: 0.45rem; margin-bottom: 0.7rem; }
-  .pp-btn { flex: 1; padding: 0.6rem 0.4rem; border-radius: 60px; cursor: pointer;
-    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
-    color: rgba(255,255,255,0.8); font-family: 'DM Sans', sans-serif; font-size: 0.9rem; }
+  .pp-btn { flex: 1; padding: 0.6rem 0.4rem; border-radius: 14px; cursor: pointer;
+    background: rgba(255,255,255,0.85); border: 1px solid rgba(106,74,160,0.24);
+    color: #6A4AA0; font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 500; }
   .pp-btn.sx { flex: 0 0 auto; padding: 0.6rem 0.95rem; }
-  .pp-btn.on { background: rgba(255,255,255,0.92); color: #3d1515; font-weight: 500; border-color: transparent; }
-  .pp-stage { position: relative; height: min(56vh, 460px); border-radius: 18px; overflow: hidden;
-    background: radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0.09) 0%, rgba(0,0,0,0.18) 75%);
-    border: 1px solid rgba(255,255,255,0.1); }
+  .pp-btn.on { background: #6A4AA0; color: #fff; border-color: #6A4AA0; box-shadow: 0 6px 20px rgba(106,74,160,0.32); }
+  .pp-stage { position: relative; height: min(56vh, 460px); border-radius: 20px; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 42%, #FFFFFF 0%, #F1EAF9 55%, #E2D6F2 100%);
+    border: 1px solid rgba(106,74,160,0.14); box-shadow: inset 0 0 40px rgba(106,74,160,0.06); }
   .pp-stage canvas { display: block; touch-action: none; outline: none; }
   .pp-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: rgba(255,255,255,0.6); font-family: 'DM Sans', sans-serif; font-size: 0.85rem; letter-spacing: .08em;
+    color: #736C7C; font-family: 'Outfit', sans-serif; font-size: 0.85rem; letter-spacing: .08em;
     pointer-events: none; text-align: center; padding: 1rem; }
   .pp-hint { position: absolute; left: 0; right: 0; bottom: 0.55rem; text-align: center; pointer-events: none;
-    font-family: 'DM Sans', sans-serif; font-size: 0.75rem; color: rgba(255,255,255,0.45); }
+    font-family: 'Outfit', sans-serif; font-size: 0.75rem; color: #736C7C; }
   .pp-tip { position: absolute; left: 50%; top: 0.7rem; transform: translateX(-50%); pointer-events: none;
-    padding: 0.35rem 0.85rem; border-radius: 60px; background: rgba(20,4,6,0.78); border: 1px solid rgba(255,110,100,0.7);
-    color: #fff; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; white-space: nowrap;
+    padding: 0.35rem 0.85rem; border-radius: 60px; background: rgba(45,40,52,0.88); border: 1px solid rgba(255,110,100,0.7);
+    color: #fff; font-family: 'Outfit', sans-serif; font-size: 0.85rem; white-space: nowrap;
     opacity: 0; transition: opacity .25s; }
   .pp-tip.on { opacity: 1; }
   .pp-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; margin: 0.75rem 0 0.4rem; min-height: 1.6rem; }
-  .pp-chip { padding: 0.3rem 0.75rem; border-radius: 60px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 0.82rem;
-    background: rgba(255,90,80,0.28); border: 1px solid rgba(255,140,130,0.7); color: #fff; }
-  .pp-none { font-family: 'DM Sans', sans-serif; font-size: 0.85rem; color: rgba(255,255,255,0.6); }
+  .pp-chip { padding: 0.3rem 0.75rem; border-radius: 60px; cursor: pointer; font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+    background: rgba(201,86,78,0.1); border: 1px solid rgba(201,86,78,0.45); color: #B23F37; }
+  .pp-none { font-family: 'Outfit', sans-serif; font-size: 0.85rem; color: #736C7C; }
   .pp-big .pp-stage { height: min(46vh, 520px); }
   .pp-big .pp-btn { font-size: 1rem; padding: 0.7rem 0.5rem; }
   .pp-big .pp-chip { font-size: 0.95rem; }

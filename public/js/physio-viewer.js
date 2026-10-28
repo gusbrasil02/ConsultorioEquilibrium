@@ -60,20 +60,20 @@ function injectStyle() {
   s.textContent = `
   .phy-host { position: relative; overflow: hidden;
     background:
-      linear-gradient(rgba(90,200,255,0.035) 1px, transparent 1px) 0 0 / 44px 44px,
-      linear-gradient(90deg, rgba(90,200,255,0.035) 1px, transparent 1px) 0 0 / 44px 44px,
-      radial-gradient(ellipse at 50% 42%, #0e2233 0%, #07121d 48%, #03060b 100%); }
+      linear-gradient(rgba(187,164,222,0.035) 1px, transparent 1px) 0 0 / 44px 44px,
+      linear-gradient(90deg, rgba(187,164,222,0.035) 1px, transparent 1px) 0 0 / 44px 44px,
+      radial-gradient(ellipse at 50% 42%, #241a38 0%, #160f24 48%, #0d0916 100%); }
   .phy-host canvas { display: block; outline: none; touch-action: none; }
-  .phy-ov { position: absolute; inset: 0; pointer-events: none; font-family: 'DM Sans', system-ui, sans-serif; color: #fff; }
+  .phy-ov { position: absolute; inset: 0; pointer-events: none; font-family: 'Outfit', system-ui, sans-serif; color: #fff; }
   .phy-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: rgba(160,230,255,0.55); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+    color: rgba(205,190,240,0.55); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
   .phy-ret { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity .5s; will-change: transform; }
   .phy-ret.on { opacity: 1; }
   .phy-ret svg { width: 100%; height: 100%; overflow: visible; }
   .phy-ret .r1 { fill: none; stroke: rgba(255,80,70,0.9); stroke-width: 1.4; stroke-dasharray: 16 9 3 9;
     transform-origin: 50% 50%; animation: phySpin 9s linear infinite; }
   .phy-ret .r2 { fill: none; stroke: rgba(255,120,110,0.35); stroke-width: 0.8; }
-  .phy-ret .r3 { fill: none; stroke: rgba(120,220,255,0.55); stroke-width: 1; stroke-dasharray: 2 6;
+  .phy-ret .r3 { fill: none; stroke: rgba(187,164,222,0.55); stroke-width: 1; stroke-dasharray: 2 6;
     transform-origin: 50% 50%; animation: phySpin 14s linear infinite reverse; }
   .phy-ret .tk { stroke: rgba(255,90,80,0.95); stroke-width: 1.6; }
   @keyframes phySpin { to { transform: rotate(360deg); } }
@@ -85,7 +85,7 @@ function injectStyle() {
   .phy-host.tv .phy-ret-lbl b { font-size: 16px; }
   .phy-host.tv .phy-ret-lbl span { font-size: 12px; }
   .phy-lbl { position: absolute; left: 0; top: 0; white-space: nowrap; padding: 3px 9px 3px 7px; border-radius: 6px;
-    background: rgba(4,14,24,0.78); border: 1px solid rgba(120,220,255,0.35); color: rgba(220,245,255,0.92);
+    background: rgba(20,13,32,0.78); border: 1px solid rgba(187,164,222,0.35); color: rgba(238,230,250,0.92);
     font-size: 11px; line-height: 1.3; opacity: 0; transition: opacity .35s; will-change: transform;
     box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
   .phy-lbl i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
@@ -95,24 +95,24 @@ function injectStyle() {
   @keyframes phyBlink { 50% { opacity: .35; } }
   .phy-host.tv .phy-lbl { font-size: 14px; padding: 4px 11px 4px 9px; }
   .phy-tip { position: absolute; left: 0; top: 0; padding: 6px 10px; border-radius: 8px; font-size: 12px;
-    background: rgba(4,14,24,0.92); border: 1px solid rgba(120,220,255,0.3); opacity: 0; transition: opacity .12s; }
+    background: rgba(20,13,32,0.92); border: 1px solid rgba(187,164,222,0.3); opacity: 0; transition: opacity .12s; }
   .phy-tip.on { opacity: 1; }
   .phy-hud { position: absolute; left: 16px; top: 14px; font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
-    color: rgba(140,225,255,0.7); opacity: 0; transition: opacity .5s; }
+    color: rgba(200,182,235,0.7); opacity: 0; transition: opacity .5s; }
   .phy-hud.on { opacity: 1; }
-  .phy-hud b { display: block; margin-top: 3px; font-size: 13px; letter-spacing: .14em; color: #e8f8ff; font-weight: 600; }
+  .phy-hud b { display: block; margin-top: 3px; font-size: 13px; letter-spacing: .14em; color: #f3edff; font-weight: 600; }
   .phy-hud .st { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; color: rgba(255,140,130,0.9); }
   .phy-hud .st::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #ff4a3d; box-shadow: 0 0 8px #ff4a3d;
     animation: phyBlink 1.1s ease-in-out infinite; }
   .phy-host.tv .phy-hud { left: 28px; top: 24px; font-size: 12px; }
   .phy-host.tv .phy-hud b { font-size: 18px; }
   .phy-legend { position: absolute; left: 16px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 5px 12px; max-width: 60%;
-    font-size: 10.5px; color: rgba(210,235,250,0.75); opacity: 0; transition: opacity .6s; }
+    font-size: 10.5px; color: rgba(230,222,245,0.75); opacity: 0; transition: opacity .6s; }
   .phy-legend.on { opacity: 1; }
   .phy-legend span { display: inline-flex; align-items: center; gap: 5px; }
   .phy-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
   .phy-host.tv .phy-legend { left: 28px; bottom: 60px; font-size: 13px; gap: 6px 16px; }
-  .phy-corner { position: absolute; width: 26px; height: 26px; border-color: rgba(120,220,255,0.4); border-style: solid; border-width: 0; }
+  .phy-corner { position: absolute; width: 26px; height: 26px; border-color: rgba(187,164,222,0.4); border-style: solid; border-width: 0; }
   .phy-corner.tl { left: 10px; top: 10px; border-left-width: 1.5px; border-top-width: 1.5px; }
   .phy-corner.tr { right: 10px; top: 10px; border-right-width: 1.5px; border-top-width: 1.5px; }
   .phy-corner.bl { left: 10px; bottom: 10px; border-left-width: 1.5px; border-bottom-width: 1.5px; }
@@ -143,12 +143,12 @@ function floorTexture() {
   c.width = c.height = 512
   const g = c.getContext('2d')
   const grd = g.createRadialGradient(256, 256, 0, 256, 256, 256)
-  grd.addColorStop(0, 'rgba(80,200,255,0.28)')
-  grd.addColorStop(0.55, 'rgba(40,120,200,0.08)')
+  grd.addColorStop(0, 'rgba(160,130,220,0.28)')
+  grd.addColorStop(0.55, 'rgba(106,74,160,0.08)')
   grd.addColorStop(1, 'rgba(0,0,0,0)')
   g.fillStyle = grd
   g.fillRect(0, 0, 512, 512)
-  g.strokeStyle = 'rgba(120,220,255,0.35)'
+  g.strokeStyle = 'rgba(187,164,222,0.35)'
   ;[70, 130, 190, 240].forEach((r, i) => {
     g.lineWidth = i === 3 ? 2 : 1
     g.setLineDash(i % 2 ? [6, 10] : [])

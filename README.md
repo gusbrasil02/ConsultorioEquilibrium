@@ -133,12 +133,15 @@ Paciente chega → identifica o agendamento → QR Code (ou formulário na TV)
 → totem confirma chegada
 
 [PAINEL DA PROFISSIONAL]
+→ aba "Hoje" (tela inicial): pacientes do dia, cada um com o botão da próxima ação
+  (check-in manual, chamar, iniciar, abrir atendimento, agendar retorno)
 → notificação de chegada aparece automaticamente (com resumo e local da dor)
 → "Aguardar" ou "Pode entrar"
 → se já houver alguém em atendimento, quem chega entra na barra "Na recepção"
   (a sessão aberta não é substituída); ao fechar a consulta, o próximo abre sozinho
-→ dashboard: métricas, alertas, histórico
-→ ao finalizar: prontuário estruturado (queixa, conduta, evolução, plano)
+→ atendimento com barra de passos: Chegada → Chamado → Atendimento → Fechamento
+→ "Finalizar e cobrar" em 3 etapas: prontuário → cobrança → retornos
+  (dias da semana, horário de cada dia, nº de sessões ou data final, prévia com conflitos)
 
 [SALA DE ATENDIMENTO — TV do paciente]
 → Anatomia 3D: escolhe a região no corpo 3D → condição (ex.: lesão de menisco)
@@ -278,12 +281,16 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
 
 ## Novidades desta versão
 
+- **Visual novo** em todas as telas, na identidade do cartão de visita (lilás, fonte Outfit, símbolo da fisioterapia). Tema claro único.
+- **Aba "Hoje"** com guia de 5 passos e a próxima ação de cada paciente; **barra de passos** no atendimento.
+- **Retornos recorrentes**: escolha os dias da semana (ex.: seg e qui), o horário de cada dia, a frequência e quantas sessões — também na agenda ("Vários dias").
+- **Agenda das 07h às 23h**, com linha do horário atual.
+- **Keep-alive do Supabase**: o servidor faz uma leitura e uma escrita no banco ao iniciar e a cada 5 dias, para o projeto gratuito não ser pausado por inatividade.
 - **Login** por contas individuais protegendo o painel e os dados dos pacientes (LGPD).
 - **Financeiro**: pagamentos, pacotes pré-pagos e relatório mensal de receita.
 - **Prontuário estruturado** por sessão (queixa, conduta, evolução, plano), com ditado por voz.
 - **Gerar × Exibir**: a explicação da IA vira rascunho privado e só vai para a TV quando a profissional publica.
 - **Mapa de dor** no formulário do celular (o paciente indica onde dói).
-- **Modo claro/escuro** no painel.
 - **Histórico por paciente** vinculado ao cadastro (não confunde homônimos).
 - **Tempo real via SSE** (menos carga no Supabase que o polling anterior).
 - **Anatomia 3D** para a fisioterapia: região acesa no corpo e visão interna da lesão, também na TV.
@@ -316,7 +323,10 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
     ├── form/index.html
     ├── doctor/index.html
     ├── shared/index.html        # TV da sala de atendimento
+    ├── css/brand.css            # identidade visual (paleta e fonte do cartão)
+    ├── img/                     # símbolo da fisioterapia e favicon
     └── js/
+        ├── rec-picker.js          # seletor de retornos recorrentes (dias da semana)
         ├── acupuncture-viewer.js  # atlas de acupuntura 3D (painel e TV)
         ├── acu-data.js            # GERADO — pontos e trajetos dos meridianos
         ├── physio-viewer.js       # Anatomia 3D da fisioterapia (painel e TV)

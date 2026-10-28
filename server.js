@@ -43,6 +43,7 @@ import {
   // settings / calibração
   getSetting,
   setSetting,
+  pingDatabase,
   // ficha de avaliação
   missingTable,
   getPatientEvaluations,
@@ -72,6 +73,9 @@ import {
   syncAppointmentPayment,
   syncAppointmentPackage,
   hasConflict,
+  findConflicts,
+  getTodayOverview,
+  checkinAppointment,
   getOpenSessionForAppointment,
   getLastAcupuncture,
   getQueue,
@@ -458,13 +462,71 @@ app.get('/api/sessions/:id/closeout', requireAuth, async (req, res) => {
   }
 })
 
-// Soma dias respeitando a frequência escolhida
+// Soma dias respeitando a frequência escolhida (formato antigo, sem datas explícitas)
 function nextDate(dateStr, frequency, index) {
   const d = new Date(dateStr + 'T12:00:00Z')
   if (frequency === 'quinzenal')      d.setUTCDate(d.getUTCDate() + 14 * index)
   else if (frequency === '2x')        d.setUTCDate(d.getUTCDate() + Math.round(3.5 * index))
   else /* semanal */                  d.setUTCDate(d.getUTCDate() + 7 * index)
   return d.toISOString().slice(0, 10)
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const TIME_RE = /^\d{2}:\d{2}$/
+
+// Cria a série de retornos. O painel manda as datas já calculadas (dias da semana
+// escolhidos, horário de cada dia); horários ocupados são pulados e devolvidos.
+async function createSeries({ patient_id, patient_name, recurrence }) {
+  const result = { created: [], skipped: [] }
+  const duration = parseInt(recurrence.duration_minutes) || 60
+  const type     = recurrence.type || 'Retorno'
+  const price    = recurrence.price == null || recurrence.price === '' ? null : Number(recurrence.price)
+
+  let slots
+  if (Array.isArray(recurrence.dates)) {
+    slots = recurrence.dates
+      .filter(d => DATE_RE.test(d?.date) && TIME_RE.test(String(d?.time).slice(0, 5)))
+      .slice(0, 104)
+      .map(d => ({ date: d.date, time: String(d.time).slice(0, 5) }))
+  } else if (recurrence.start_date && recurrence.time) {
+    const count = Math.min(Math.max(parseInt(recurrence.count) || 1, 1), 52)
+    // Tenta até 3x o número de sessões para pular conflitos sem loop infinito
+    slots = Array.from({ length: count * 3 }, (_, i) => ({
+      date: nextDate(recurrence.start_date, recurrence.frequency || 'semanal', i),
+      time: recurrence.time,
+      fill: count
+    }))
+  } else {
+    return result
+  }
+
+  const target   = slots[0]?.fill || slots.length
+  const seriesId = target > 1 ? uuidv4() : null
+  for (const { date, time } of slots) {
+    if (result.created.length >= target) break
+    try {
+      if (await hasConflict(date, time, duration)) {
+        result.skipped.push(`${date} ${time}`)
+        continue
+      }
+      const appt = await createAppointment({
+        patient_id: patient_id || null,
+        patient_name,
+        appointment_date: date,
+        appointment_time: time,
+        type,
+        duration_minutes: duration,
+        notes: recurrence.notes || null,
+        price,
+        series_id: seriesId
+      })
+      await syncAppointmentPayment(appt).catch(() => {})
+      result.created.push(`${date} ${time}`)
+    } catch (e) {
+      console.error('Erro ao criar retorno:', e.message)
+    }
+  }
+  return result
 }
 
 // Finaliza sessão: prontuário + cobrança + retorno recorrente
@@ -537,40 +599,14 @@ app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
     }
 
     // 3. Retorno recorrente
-    if (recurrence?.enabled && recurrence.start_date && recurrence.time) {
-      const count     = Math.min(Math.max(parseInt(recurrence.count) || 1, 1), 52)
-      const frequency = recurrence.frequency || 'semanal'
-      const duration  = parseInt(recurrence.duration_minutes) || 60
-      const type      = recurrence.type || 'Retorno'
-      const seriesId  = uuidv4()
-
-      let created = 0
-      // Tenta até 3x o número de sessões para pular conflitos sem loop infinito
-      for (let i = 0; created < count && i < count * 3; i++) {
-        const date = nextDate(recurrence.start_date, frequency, i)
-        try {
-          if (await hasConflict(date, recurrence.time, duration)) {
-            result.skipped.push(date)
-            continue
-          }
-          const appt = await createAppointment({
-            patient_id: session.patient_id || null,
-            patient_name: session.patient_name,
-            appointment_date: date,
-            appointment_time: recurrence.time,
-            type,
-            duration_minutes: duration,
-            notes: recurrence.notes || null,
-            price: recurrence.price == null || recurrence.price === '' ? null : Number(recurrence.price),
-            series_id: count > 1 ? seriesId : null
-          })
-          await syncAppointmentPayment(appt).catch(() => {})
-          result.created.push(date)
-          created++
-        } catch (e) {
-          console.error('Erro ao criar retorno:', e.message)
-        }
-      }
+    if (recurrence?.enabled) {
+      const series = await createSeries({
+        patient_id: session.patient_id,
+        patient_name: session.patient_name,
+        recurrence
+      })
+      result.created = series.created
+      result.skipped = series.skipped
     }
 
     res.json(result)
@@ -885,6 +921,58 @@ app.post('/api/appointments', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Erro ao criar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao criar agendamento' })
+  }
+})
+
+// Série de agendamentos (botão "Repetir" da agenda)
+app.post('/api/appointments/series', requireAuth, async (req, res) => {
+  try {
+    const { patient_id, patient_name, recurrence } = req.body
+    if (!patient_name?.trim()) return res.status(400).json({ error: 'Nome do paciente obrigatório' })
+    if (!Array.isArray(recurrence?.dates) || !recurrence.dates.length) {
+      return res.status(400).json({ error: 'Nenhuma data para agendar' })
+    }
+    res.status(201).json(await createSeries({ patient_id, patient_name: patient_name.trim(), recurrence }))
+  } catch (error) {
+    console.error('Erro ao criar série:', error.message)
+    res.status(500).json({ error: 'Erro interno ao criar agendamentos' })
+  }
+})
+
+// Prévia dos retornos: quais horários já estão ocupados
+app.post('/api/appointments/conflicts', requireAuth, async (req, res) => {
+  try {
+    const items = (Array.isArray(req.body?.items) ? req.body.items : [])
+      .slice(0, 104)
+      .filter(i => DATE_RE.test(i?.date) && TIME_RE.test(String(i?.time).slice(0, 5)))
+    res.json({ conflicts: await findConflicts(items) })
+  } catch (error) {
+    console.error('Erro ao conferir conflitos:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Visão "Hoje" do painel: agenda do dia com a situação de cada paciente
+app.get('/api/today', requireAuth, async (req, res) => {
+  try {
+    res.json(await getTodayOverview())
+  } catch (error) {
+    console.error('Erro na visão de hoje:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Paciente chegou sem passar pelo totem: a profissional faz o check-in
+app.post('/api/appointments/:id/checkin', requireAuth, async (req, res) => {
+  try {
+    const appt = await getAppointment(req.params.id)
+    if (!appt) return res.status(404).json({ error: 'Agendamento não encontrado' })
+    const session = await checkinAppointment(appt, uuidv4())
+    pollSoon()
+    res.json(session)
+  } catch (error) {
+    console.error('Erro no check-in:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
   }
 })
 
@@ -1473,12 +1561,30 @@ app.get('/api/stream/public', (req, res) => openSSE('public', req, res))
 // Painel da Dra. — inclui dados sensíveis (respostas), então exige login
 app.get('/api/stream/doctor', requireAuth, (req, res) => openSSE('doctor', req, res))
 
+// ─── Keep-alive do Supabase ──────────────────────────────────────────────────
+// O plano gratuito pausa o projeto após ~7 dias sem uso. O próprio servidor
+// "pinga" o banco ao subir e a cada 5 dias — nada a configurar fora do sistema.
+const KEEPALIVE_INTERVAL = 5 * 24 * 60 * 60 * 1000
+
+async function supabaseKeepAlive() {
+  try {
+    const at = await pingDatabase()
+    console.log(`[keep-alive] Supabase pingado em ${at}`)
+  } catch (error) {
+    console.error('[keep-alive] Falha ao pingar o Supabase:', error.message)
+    // Tenta de novo em 1 h em vez de esperar mais 5 dias
+    setTimeout(supabaseKeepAlive, 60 * 60 * 1000)
+  }
+}
+
 // ─── Inicialização ───────────────────────────────────────────────────────────
 
 app.listen(PORT, async () => {
   console.log(`\nServidor rodando em http://localhost:${PORT}`)
   console.log(`BASE_URL: ${process.env.BASE_URL || 'não configurada'}`)
   await testConnection()
+  supabaseKeepAlive()
+  setInterval(supabaseKeepAlive, KEEPALIVE_INTERVAL)
   console.log('\nURLs do sistema:')
   console.log(`  Totem (sala de espera): http://localhost:${PORT}/totem`)
   console.log(`  Painel da Dra.:         http://localhost:${PORT}/doctor`)

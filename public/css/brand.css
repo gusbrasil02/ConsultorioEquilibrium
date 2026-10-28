@@ -1,0 +1,85 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Identidade visual — Consultório Equilibrium · Dra. Juliane Brasil Lopes
+   Paleta e tipografia do cartão de visita (lilás + dourado, fonte Outfit).
+   Usado por todas as telas: painel, login, totem, formulário e TV.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Marca */
+  --brand-900: #4A2F7C;
+  --brand-700: #6A4AA0;   /* roxo profundo do cartão */
+  --brand-500: #9475C6;   /* lilás médio */
+  --brand-300: #BBA4DE;   /* lavanda */
+  --brand-100: #E9E1F4;   /* névoa */
+  --brand-50:  #F6F2FB;
+  --gold:      #D2A93F;
+  --brand-rgb: 106 74 160;
+
+  /* Texto */
+  --ink:    #2D2834;
+  --muted:  #736C7C;
+  --subtle: #A39DAB;
+  --fg:     45 40 52;     /* tinta em RGB — use rgb(var(--fg) / .5) */
+
+  /* Superfícies */
+  --bg:        #F4F0F9;
+  --surface:   #FFFFFF;
+  --surface-2: #FAF8FD;
+  --line:        rgba(106, 74, 160, 0.12);
+  --line-strong: rgba(106, 74, 160, 0.24);
+
+  /* Estados */
+  --ok:        #2F8F67;  --ok-bg:     rgba(47, 143, 103, 0.10);  --ok-line:     rgba(47, 143, 103, 0.32);
+  --warn:      #A86F12;  --warn-bg:   rgba(210, 169, 63, 0.14);  --warn-line:   rgba(190, 140, 40, 0.38);
+  --danger:    #C2453D;  --danger-bg: rgba(194, 69, 61, 0.09);   --danger-line: rgba(194, 69, 61, 0.32);
+  --info:      #4A6FB3;  --info-bg:   rgba(74, 111, 179, 0.10);  --info-line:   rgba(74, 111, 179, 0.30);
+
+  /* Degradês e sombras */
+  --grad:      linear-gradient(135deg, #5E3F96 0%, #8462BB 55%, #AE93D8 100%);
+  --grad-soft: linear-gradient(135deg, #F3EDFB 0%, #EAE0F7 100%);
+  --rule:      linear-gradient(90deg, var(--brand-700), var(--brand-300));
+  --shadow-sm: 0 1px 2px rgba(45, 30, 80, 0.06);
+  --shadow:    0 1px 2px rgba(45, 30, 80, 0.05), 0 8px 24px rgba(74, 47, 126, 0.07);
+  --shadow-lg: 0 2px 6px rgba(45, 30, 80, 0.06), 0 28px 70px rgba(54, 32, 96, 0.18);
+  --glow:      0 6px 20px rgba(106, 74, 160, 0.32);
+
+  --radius-lg: 22px;
+  --radius:    16px;
+  --radius-sm: 10px;
+  --font: 'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  color-scheme: light;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Rótulo espaçado como "ESPECIALIDADES" no cartão */
+.eyebrow {
+  font-size: 0.7rem; font-weight: 500; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--brand-700);
+}
+
+/* Filete em degradê sob títulos (o "rule" do cartão) */
+.brand-rule { width: 40px; height: 3px; border-radius: 3px; background: var(--rule); }
+
+/* Selo do logotipo: símbolo branco sobre o degradê roxo */
+.brand-mark {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 12px; background: var(--grad);
+  box-shadow: var(--glow);
+}
+.brand-mark img { height: 72%; width: auto; filter: drop-shadow(0 1px 2px rgba(40, 20, 80, 0.3)); }
+
+::selection { background: rgba(var(--brand-rgb) / 0.2); }
+
+/* Barras de rolagem discretas */
+* { scrollbar-width: thin; scrollbar-color: rgba(var(--brand-rgb) / 0.25) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(var(--brand-rgb) / 0.22); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }

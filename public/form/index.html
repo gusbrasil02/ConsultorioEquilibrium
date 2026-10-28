@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Formulário de Chegada</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<title>Equilibrium · Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/brand.css">
+<link rel="icon" type="image/png" href="/img/favicon.png">
 <script type="importmap">
 {
   "imports": {
@@ -18,8 +22,8 @@
 
   body {
     width: 100vw; min-height: 100dvh; overflow-x: hidden;
-    font-family: 'DM Sans', sans-serif;
-    color: #fff;
+    font-family: var(--font);
+    color: var(--ink);
     transition: background 0.8s ease;
   }
 
@@ -37,11 +41,11 @@
   }
   .pay-amount-top .lbl {
     font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.14em;
-    color: rgba(255,255,255,0.4);
+    color: rgb(var(--fg) / 0.60);
   }
   .pay-amount-top .val {
-    font-family: 'Playfair Display', serif; font-size: 2.2rem; font-weight: 300;
-    color: #fff; margin-top: 0.2rem;
+    font-family: var(--font); font-size: 2.2rem; font-weight: 300;
+    color: var(--ink); margin-top: 0.2rem;
   }
   .pay-panel {
     background: #fff; border-radius: 20px; padding: 1.3rem 1.1rem;
@@ -54,8 +58,8 @@
   .pay-copy-btn {
     width: 100%; padding: 0.9rem; margin-top: 0.9rem;
     border: none; border-radius: 60px;
-    background: #0b6b4a; color: #fff;
-    font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 500;
+    background: #0b6b4a; color: var(--ink);
+    font-family: var(--font); font-size: 0.95rem; font-weight: 500;
     cursor: pointer; transition: background 0.2s;
   }
   .pay-copy-btn:active { background: #085038; }
@@ -68,32 +72,32 @@
   .pay-key b { color: #16324a; }
   .pay-done-btn {
     width: 100%; padding: 0.9rem; margin-top: 1rem;
-    border: 1px solid rgba(255,255,255,0.35); border-radius: 60px;
-    background: rgba(255,255,255,0.14); color: #fff;
-    font-family: 'DM Sans', sans-serif; font-size: 0.95rem; cursor: pointer;
+    border: 1px solid rgba(106,74,160,0.22); border-radius: 60px;
+    background: rgba(255,255,255,0.76); color: var(--ink);
+    font-family: var(--font); font-size: 0.95rem; cursor: pointer;
   }
   .pay-done-btn.done {
     background: rgba(76,175,134,0.95); border-color: transparent; font-weight: 500;
   }
   .pay-help {
-    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.73); border: 1px solid rgba(106,74,160,0.22);
     border-radius: 14px; padding: 1rem; margin-top: 1.2rem;
-    font-size: 0.92rem; line-height: 1.55; color: rgba(255,255,255,0.9);
+    font-size: 0.92rem; line-height: 1.55; color: rgb(var(--fg) / 0.90);
   }
   .pay-confirmed {
     background: rgba(76,175,134,0.9); border-radius: 16px;
     padding: 1.3rem; margin-top: 1.2rem; text-align: center;
-    font-size: 1.15rem; font-weight: 500; color: #fff; line-height: 1.5;
+    font-size: 1.15rem; font-weight: 500; color: var(--ink); line-height: 1.5;
     animation: pop-in 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both;
   }
   .pay-confirmed span { font-size: 0.9rem; font-weight: 400; opacity: 0.9; }
   .pay-waiting {
     display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-    margin-top: 1.1rem; font-size: 0.9rem; color: rgba(255,255,255,0.6);
+    margin-top: 1.1rem; font-size: 0.9rem; color: rgb(var(--fg) / 0.60);
   }
   .pay-waiting .dot {
     width: 7px; height: 7px; border-radius: 50%;
-    background: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.95);
     animation: dot-bounce 1.3s ease-in-out infinite;
   }
   .pay-waiting .dot:nth-child(2) { animation-delay: 0.18s; }
@@ -106,12 +110,12 @@
   /* ── Progresso ── */
   .progress-bar {
     position: fixed; top: 0; left: 0; right: 0; height: 3px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.70);
     z-index: 100;
   }
   .progress-fill {
     height: 100%;
-    background: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.95);
     transition: width 0.5s ease;
   }
 
@@ -211,12 +215,12 @@
   }
 
   .question-text {
-    font-family: 'Playfair Display', serif;
+    font-family: var(--font);
     font-weight: 300;
     font-size: clamp(1.5rem, 6vw, 2rem);
     line-height: 1.35;
     margin-bottom: 2.5rem;
-    color: rgba(255,255,255,0.95);
+    color: rgb(var(--fg) / 0.95);
   }
 
   /* Opções */
@@ -226,11 +230,11 @@
     display: block;
     width: 100%;
     padding: 1rem 1.5rem;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.28);
+    background: rgba(255,255,255,0.73);
+    border: 1px solid rgba(106,74,160,0.22);
     border-radius: 60px;
-    color: rgba(255,255,255,0.9);
-    font-family: 'DM Sans', sans-serif;
+    color: rgb(var(--fg) / 0.90);
+    font-family: var(--font);
     font-size: 1rem;
     text-align: center;
     cursor: pointer;
@@ -253,10 +257,10 @@
   .pain-btn {
     aspect-ratio: 1;
     border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.28);
-    background: rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.9);
-    font-family: 'DM Sans', sans-serif;
+    border: 1px solid rgba(106,74,160,0.22);
+    background: rgba(255,255,255,0.73);
+    color: rgb(var(--fg) / 0.90);
+    font-family: var(--font);
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
@@ -274,7 +278,7 @@
   .pain-labels {
     display: flex; justify-content: space-between;
     font-size: 0.72rem;
-    color: rgba(255,255,255,0.4);
+    color: rgb(var(--fg) / 0.60);
     margin-bottom: 2rem;
     padding: 0 0.2rem;
   }
@@ -283,22 +287,22 @@
   .bodymap-toggle { display:flex; gap:0.5rem; margin-bottom:1rem; }
   .bm-tog-btn {
     flex:1; padding:0.6rem; border-radius:60px; cursor:pointer;
-    background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25);
-    color:rgba(255,255,255,0.75); font-family:'DM Sans',sans-serif; font-size:0.9rem;
+    background: rgba(255,255,255,0.70); border: 1px solid rgba(106,74,160,0.22);
+    color: rgb(var(--fg) / 0.75); font-family:'DM Sans',sans-serif; font-size:0.9rem;
   }
-  .bm-tog-btn.active { background:rgba(255,255,255,0.9); color:#3d1515; font-weight:500; border-color:transparent; }
+  .bm-tog-btn.active { background: rgba(255,255,255,0.95); color:#3d1515; font-weight:500; border-color:transparent; }
   .bodymap-wrap { display:flex; justify-content:center; margin-bottom:0.8rem; }
   .bodymap-wrap svg { width:min(240px,70vw); height:auto; touch-action:manipulation; }
   .bm-region {
-    fill:rgba(255,255,255,0.1); stroke:rgba(255,255,255,0.3); stroke-width:0.8;
+    fill: rgba(255,255,255,0.70); stroke: rgba(106,74,160,0.22); stroke-width:0.8;
     cursor:pointer; transition:fill 0.15s, stroke 0.15s;
   }
   .bm-region.sel { fill:rgba(255,120,120,0.55); stroke:rgba(255,150,150,0.9); stroke-width:1.4; }
-  .bm-chosen { text-align:center; font-size:0.85rem; color:rgba(255,255,255,0.7); min-height:1.3em; margin-bottom:0.8rem; }
+  .bm-chosen { text-align:center; font-size:0.85rem; color: rgb(var(--fg) / 0.70); min-height:1.3em; margin-bottom:0.8rem; }
   .bm-skip {
     display:block; margin:0 auto 0.5rem; padding:0.6rem 1.4rem; border-radius:60px;
-    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.2);
-    color:rgba(255,255,255,0.6); font-family:'DM Sans',sans-serif; font-size:0.85rem; cursor:pointer;
+    background: rgba(255,255,255,0.64); border: 1px solid rgba(106,74,160,0.22);
+    color: rgb(var(--fg) / 0.60); font-family:'DM Sans',sans-serif; font-size:0.85rem; cursor:pointer;
   }
 
   /* Navegação */
@@ -306,11 +310,11 @@
   .btn-back {
     flex: 0 0 auto;
     padding: 0.9rem 1.5rem;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.67);
+    border: 1px solid rgba(106,74,160,0.22);
     border-radius: 60px;
-    color: rgba(255,255,255,0.6);
-    font-family: 'DM Sans', sans-serif;
+    color: rgb(var(--fg) / 0.60);
+    font-family: var(--font);
     font-size: 0.95rem;
     cursor: pointer;
     backdrop-filter: blur(6px);
@@ -319,11 +323,11 @@
   .btn-next {
     flex: 1;
     padding: 0.9rem 2rem;
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.78);
+    border: 1px solid rgba(106,74,160,0.22);
     border-radius: 60px;
-    color: #fff;
-    font-family: 'DM Sans', sans-serif;
+    color: var(--ink);
+    font-family: var(--font);
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
@@ -331,7 +335,7 @@
     transition: background 0.2s, opacity 0.2s;
   }
   .btn-next:disabled { opacity: 0.35; cursor: default; }
-  .btn-next.ready { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.5); }
+  .btn-next.ready { background: rgba(255,255,255,0.95); border-color: rgba(106,74,160,0.22); }
 
   /* Tela final */
   #done-screen {
@@ -362,17 +366,71 @@
   .done-check svg { width: 44px; height: 44px; }
 
   .done-name {
-    font-family: 'Playfair Display', serif;
+    font-family: var(--font);
     font-size: 2rem;
     font-weight: 300;
     margin-bottom: 0.8rem;
   }
   .done-msg {
     font-size: 1rem;
-    color: rgba(255,255,255,0.6);
+    color: rgb(var(--fg) / 0.60);
     line-height: 1.6;
     max-width: 300px;
   }
+
+  /* ── Tema claro lilás (identidade do cartão) ── */
+  body { color: var(--ink); }
+  body.q1 { background: linear-gradient(160deg, #F8F4FD 0%, #EDE4F8 55%, #E2D6F2 100%); }
+  body.q2 { background: linear-gradient(160deg, #FDF6F6 0%, #F7E8EE 55%, #EDE0F3 100%); }
+  body.q3 { background: linear-gradient(160deg, #F2F6FB 0%, #E9EEF8 55%, #E6DFF4 100%); }
+  body.q4 { background: linear-gradient(160deg, #F6F1FC 0%, #EADFF7 55%, #E0D2F2 100%); }
+  body.q5 { background: linear-gradient(160deg, #EFF8F3 0%, #E6F2EE 55%, #E7E0F4 100%); }
+  body.done-state { background: linear-gradient(160deg, #E6F5EC 0%, #F1EAF8 55%, #DDF1E5 100%); }
+
+  .star { background: var(--brand-300); }
+  .moon, .cloud { display: none; }   /* tema claro: só as estrelas lilás */
+  .pulse-ring { border-color: rgba(201,86,78,0.28); }
+  .wave { background: rgba(148,117,198,0.12); }
+
+  .progress-bar { background: rgba(106,74,160,0.12); height: 4px; }
+  .progress-fill { background: var(--grad); }
+  .form-brand { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 2rem; }
+  .form-brand .brand-mark { width: 34px; height: 34px; border-radius: 10px; box-shadow: none; }
+  .form-brand b { display: block; font-size: 0.86rem; font-weight: 600; line-height: 1.15; }
+  .form-brand span { display: block; font-size: 0.6rem; letter-spacing: 0.24em; color: var(--brand-500); text-transform: uppercase; }
+  .question-text { color: var(--ink); font-weight: 400; }
+
+  .option-btn, .pain-btn, .bm-tog-btn {
+    background: rgba(255,255,255,0.85); color: var(--ink); border-color: var(--line-strong); box-shadow: var(--shadow-sm);
+  }
+  .option-btn { border-radius: 16px; }
+  .option-btn.selected, .pain-btn.selected, .bm-tog-btn.active {
+    background: var(--brand-700); color: #fff; border-color: var(--brand-700); box-shadow: var(--glow);
+  }
+  .pain-labels { color: var(--muted); }
+  .bm-region { fill: rgba(148,117,198,0.12); stroke: rgba(106,74,160,0.4); }
+  .bm-region.sel { fill: rgba(201,86,78,0.55); stroke: #C9564E; }
+  .bm-chosen { color: var(--ink); }
+  .bm-skip { background: rgba(255,255,255,0.85); color: var(--brand-700); border-color: var(--line-strong); }
+
+  .btn-back { background: rgba(255,255,255,0.85); color: var(--brand-700); border-color: var(--line-strong); border-radius: 14px; }
+  .btn-next { background: rgba(255,255,255,0.7); color: var(--muted); border-color: var(--line-strong); border-radius: 14px; }
+  .btn-next.ready { background: var(--grad); color: #fff; border-color: transparent; box-shadow: var(--glow); }
+
+  #done-screen { background: linear-gradient(160deg, #E9F6EF 0%, #F3EDFA 55%, #E2F2E8 100%); }
+  .done-check { background: linear-gradient(135deg, #3FA57A, #2F8F67); box-shadow: 0 10px 30px rgba(47,143,103,0.3); }
+  .done-name { color: var(--ink); font-weight: 400; }
+  .done-msg { color: var(--muted); }
+
+  .pay-amount-top .lbl { color: var(--muted); }
+  .pay-amount-top .val { color: var(--ink); }
+  .pay-panel { box-shadow: var(--shadow-lg); border: 1px solid var(--line); }
+  .pay-done-btn { background: rgba(255,255,255,0.85); color: var(--brand-700); border-color: var(--line-strong); }
+  .pay-done-btn.done { background: var(--ok); color: #fff; }
+  .pay-help { background: rgba(255,255,255,0.85); color: var(--ink); border-color: var(--line-strong); }
+  .pay-confirmed { background: var(--ok); color: #fff; }
+  .pay-waiting { color: var(--muted); }
+  .pay-waiting .dot { background: var(--brand-500); }
 </style>
 </head>
 <body class="q1">
@@ -381,6 +439,7 @@
 <div class="decor" id="decor"></div>
 
 <div class="screen" id="form-screen">
+  <div class="form-brand"><span class="brand-mark"><img src="/img/simbolo-branco.png" alt=""></span><div><b>Consultório Equilibrium</b><span>Fisioterapia &amp; Acupuntura</span></div></div>
   <div class="question-text" id="question-text"></div>
   <div id="options-area"></div>
   <div class="nav" id="nav-area">

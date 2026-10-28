@@ -710,6 +710,16 @@ async function setSetting(key, value) {
   if (error) throw error
 }
 
+// Keep-alive: o plano gratuito do Supabase pausa o projeto após ~7 dias sem
+// atividade. Uma leitura + uma escrita reais contam como uso do banco.
+async function pingDatabase() {
+  const { error } = await supabase.from('sessions').select('id').limit(1)
+  if (error) throw error
+  const at = new Date().toISOString()
+  await setSetting('keepalive', { at })
+  return at
+}
+
 // ─── Ficha de avaliação (migração v6) ─────────────────────────────────────────
 
 // Tabela ainda não criada → a rota avisa para rodar o supabase-v6-migration.sql
@@ -952,9 +962,8 @@ async function deleteAppointmentSeries(series_id) {
   return ids.length
 }
 
-// Verifica se um horário já está ocupado (usado pela agenda recorrente)
-async function hasConflict(dateStr, timeStr, durationMin) {
-  const appts = await getAppointmentsByDate(dateStr)
+// Dois horários se sobrepõem? (agendamentos cancelados não ocupam a agenda)
+function overlaps(appts, timeStr, durationMin) {
   const toMin = t => {
     const [h, m] = String(t).slice(0, 5).split(':').map(Number)
     return h * 60 + m
@@ -967,6 +976,93 @@ async function hasConflict(dateStr, timeStr, durationMin) {
     const ae = as + (Number(a.duration_minutes) || 60)
     return s < ae && as < e   // sobreposição
   })
+}
+
+// Verifica se um horário já está ocupado (usado pela agenda recorrente)
+async function hasConflict(dateStr, timeStr, durationMin) {
+  return overlaps(await getAppointmentsByDate(dateStr), timeStr, durationMin)
+}
+
+// Confere vários horários de uma vez (prévia dos retornos): uma consulta só
+async function findConflicts(items) {
+  if (!items.length) return []
+  const dates = items.map(i => i.date).sort()
+  const appts = await getAppointmentsByRange(dates[0], dates[dates.length - 1])
+  return items.map(i => overlaps(appts.filter(a => a.appointment_date === i.date), i.time, i.duration_minutes))
+}
+
+// Visão "Hoje": agendamentos do dia + a sessão (check-in) de cada um, as sessões
+// avulsas do dia e quem já tem retorno marcado.
+async function getTodayOverview() {
+  const today = todayBR()
+  const appts = await getAppointmentsByDate(today)
+
+  // Meia-noite de Brasília (UTC-3) em UTC
+  const since = new Date(`${today}T03:00:00.000Z`).toISOString()
+  const { data: sessions } = await supabase
+    .from('sessions')
+    .select('id, patient_name, patient_id, appointment_id, status, completed_at, started_at, finished_at, created_at')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+
+  const all = sessions || []
+  const byAppt = new Map()
+  for (const s of all) {
+    if (!s.appointment_id) continue
+    const cur = byAppt.get(s.appointment_id)
+    // Prefere a sessão que avançou mais (respondida/iniciada) à recém-criada pelo QR
+    const score = x => (x.finished_at ? 3 : x.started_at ? 2 : x.completed_at ? 1 : 0)
+    if (!cur || score(s) > score(cur)) byAppt.set(s.appointment_id, s)
+  }
+
+  const patientIds = [...new Set([
+    ...appts.map(a => a.patient_id),
+    ...all.map(s => s.patient_id)
+  ].filter(Boolean))]
+  const withFuture = new Set()
+  if (patientIds.length) {
+    const { data: fut } = await supabase
+      .from('appointments')
+      .select('patient_id')
+      .in('patient_id', patientIds)
+      .gt('appointment_date', today)
+      .neq('status', 'cancelado')
+    for (const f of fut || []) withFuture.add(f.patient_id)
+  }
+
+  return {
+    date: today,
+    appointments: appts.map(a => ({
+      ...a,
+      session: byAppt.get(a.id) || null,
+      has_future: a.patient_id ? withFuture.has(a.patient_id) : false
+    })),
+    walk_ins: all
+      .filter(s => !s.appointment_id && (s.completed_at || s.started_at))
+      .map(s => ({ ...s, has_future: s.patient_id ? withFuture.has(s.patient_id) : false }))
+  }
+}
+
+// Check-in feito pela profissional (paciente chegou sem usar o totem): abre a
+// sessão do agendamento já como "pode entrar", sem passar pela notificação.
+async function checkinAppointment(appointment, id) {
+  const open = await getOpenSessionForAppointment(appointment.id)
+  const sessionId = open?.id || id
+  if (!open) {
+    await createSession({
+      id: sessionId,
+      patient_name: appointment.patient_name,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      appointment_id: appointment.id,
+      patient_id: appointment.patient_id || null
+    })
+  }
+  const { error } = await supabase
+    .from('sessions')
+    .update({ status: 'can_enter', notified: true, completed_at: new Date().toISOString() })
+    .eq('id', sessionId)
+  if (error) throw error
+  return getSession(sessionId)
 }
 
 // Relatório mensal — receita e contagem de pagamentos no mês (YYYY-MM)
@@ -1286,6 +1382,7 @@ export {
   // Configurações
   getSetting,
   setSetting,
+  pingDatabase,
   // Ficha de avaliação
   missingTable,
   getPatientEvaluations,
@@ -1316,5 +1413,8 @@ export {
   deleteAppointmentSeries,
   syncAppointmentPayment,
   syncAppointmentPackage,
-  hasConflict
+  hasConflict,
+  findConflicts,
+  getTodayOverview,
+  checkinAppointment
 }

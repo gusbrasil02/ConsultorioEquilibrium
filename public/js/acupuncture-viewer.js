@@ -40,7 +40,7 @@ function injectStyle() {
   .acu-host { position: relative; overflow: hidden;
     background: radial-gradient(ellipse at 50% 38%, #1d1838 0%, #0b0b17 55%, #05050a 100%); }
   .acu-host canvas { display: block; outline: none; touch-action: none; }
-  .acu-overlay { position: absolute; inset: 0; pointer-events: none; font-family: 'DM Sans', system-ui, sans-serif; }
+  .acu-overlay { position: absolute; inset: 0; pointer-events: none; font-family: 'Outfit', system-ui, sans-serif; }
   .acu-lbl { position: absolute; left: 0; top: 0; white-space: nowrap; padding: 2px 7px;
     border-radius: 7px; background: rgba(8,8,18,0.78); border: 1px solid var(--c, #fff);
     color: #fff; font-size: 11px; line-height: 1.35; will-change: transform;
