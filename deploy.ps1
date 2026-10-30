@@ -28,4 +28,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "-> Push feito. O Coolify vai buildar e publicar em instantes." -ForegroundColor Green
-Write-Host "   Acompanhe em https://consultorioequilibrium.datawavebr.com" -ForegroundColor Green
+Write-Host "   Acompanhe em https://sistema.equilibriumsaudeintegrada.com.br" -ForegroundColor Green

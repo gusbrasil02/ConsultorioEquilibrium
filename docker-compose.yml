@@ -10,7 +10,7 @@ services:
     # então não precisa mais de volume persistente.
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.consultorio-equilibrium.rule=Host(`consultorioequilibrium.datawavebr.com`)"
+      - "traefik.http.routers.consultorio-equilibrium.rule=Host(`sistema.equilibriumsaudeintegrada.com.br`)"
       - "traefik.http.routers.consultorio-equilibrium.entrypoints=websecure"
       - "traefik.http.routers.consultorio-equilibrium.tls.certresolver=leresolver"
       - "traefik.http.services.consultorio-equilibrium.loadbalancer.server.port=3000"
