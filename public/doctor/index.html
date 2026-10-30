@@ -1432,6 +1432,175 @@ body {
   #session-control { margin: 1rem 1rem 0; }
   .modal-sheet { padding: 1.4rem 1.2rem; }
 }
+/* ─────────────── SUGESTÃO DA IA (atendimento) ─────────────── */
+.ai-sug {
+  margin: 0 2rem 1.6rem; border-radius: var(--radius); position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #FBF9FE 0%, #F3EDFB 100%);
+  border: 1px solid var(--line-strong); box-shadow: var(--shadow-sm);
+}
+.ai-sug::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--grad); }
+.ai-sug-head { display: flex; align-items: center; gap: 0.7rem; padding: 1rem 1.3rem 0.4rem 1.5rem; }
+.ai-sug-head .spark {
+  width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--grad); color: #fff; font-size: 0.95rem; box-shadow: var(--glow); flex-shrink: 0;
+}
+.ai-sug-head b { font-weight: 500; font-size: 0.98rem; }
+.ai-sug-head small { display: block; font-size: 0.72rem; color: var(--muted); }
+.ai-sug-head .spacer { flex: 1; }
+.ai-sug-body { padding: 0.4rem 1.3rem 1.1rem 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1.6rem; }
+.ai-sug.collapsed .ai-sug-body, .ai-sug.collapsed .ai-sug-foot { display: none; }
+@media (max-width: 900px) { .ai-sug-body { grid-template-columns: 1fr; } }
+.ai-sug-sec h5 { font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 500; color: var(--brand-700); margin-bottom: 0.35rem; }
+.ai-sug-sec p { font-size: 0.88rem; line-height: 1.55; color: var(--ink); }
+.ai-sug-sec.full { grid-column: 1 / -1; }
+.ai-sug-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.55rem; }
+.ai-sug-item { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0.7rem 0.85rem; }
+.ai-sug-item b { display: block; font-weight: 500; font-size: 0.88rem; margin-bottom: 0.2rem; color: var(--brand-900); }
+.ai-sug-item span { font-size: 0.83rem; line-height: 1.5; color: var(--muted); }
+.ai-sug-warn li { color: var(--danger); }
+.ai-sug-sec ul { padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.55; }
+.ai-sug-foot { padding: 0 1.3rem 0.9rem 1.5rem; font-size: 0.72rem; color: var(--muted); display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+.ai-sug-btn {
+  background: var(--surface); border: 1px solid var(--line-strong); color: var(--brand-700); border-radius: 60px;
+  padding: 0.4rem 0.9rem; font-family: var(--font); font-size: 0.78rem; font-weight: 500; cursor: pointer;
+}
+.ai-sug-btn:hover { background: var(--brand-50); }
+.ai-sug-btn.primary { background: var(--grad); color: #fff; border-color: transparent; box-shadow: var(--glow); }
+.ai-sug-loading { padding: 0.3rem 1.3rem 1.2rem 1.5rem; }
+.ai-sug-loading .bar {
+  height: 10px; border-radius: 6px; margin-bottom: 0.55rem;
+  background: linear-gradient(90deg, var(--brand-100) 0%, #fff 50%, var(--brand-100) 100%);
+  background-size: 200% 100%; animation: aiShimmer 1.4s linear infinite;
+}
+@keyframes aiShimmer { to { background-position: -200% 0; } }
+@media (max-width: 700px) { .ai-sug { margin: 0 1rem 1.2rem; } }
+
+/* ─────────────── CONFIGURAÇÕES (⚙) ─────────────── */
+#settings-view, #bot-view { padding: 2rem; max-width: 1240px; margin: 0 auto; }
+@media (max-width: 700px) { #settings-view, #bot-view { padding: 1.1rem; } }
+.st-tabs { display: inline-flex; gap: 0.2rem; padding: 0.25rem; background: var(--brand-50); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 1.4rem; flex-wrap: wrap; }
+.st-tabs button { padding: 0.5rem 1rem; border: none; border-radius: 10px; background: transparent; color: var(--muted); font-family: var(--font); font-size: 0.86rem; font-weight: 500; cursor: pointer; }
+.st-tabs button.on { background: var(--surface); color: var(--brand-700); box-shadow: 0 1px 2px rgba(45,30,80,0.08), 0 4px 12px rgba(74,47,126,0.08); }
+.st-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 1.4rem 1.5rem; margin-bottom: 1rem; }
+.st-card h4 { font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 500; color: var(--brand-700); margin-bottom: 1rem; }
+.st-card textarea.form-control { resize: vertical; min-height: 70px; line-height: 1.5; }
+.st-save { display: flex; justify-content: flex-end; gap: 0.7rem; align-items: center; position: sticky; bottom: 0; padding: 0.9rem 0; background: linear-gradient(transparent, var(--bg) 35%); }
+.st-save .saved { font-size: 0.82rem; color: var(--ok); }
+.st-faq { display: grid; grid-template-columns: 1fr 1.6fr auto; gap: 0.5rem; margin-bottom: 0.5rem; align-items: start; }
+.st-faq button { background: none; border: 1px solid var(--line); border-radius: 10px; color: var(--danger); cursor: pointer; height: 42px; width: 42px; font-size: 1.1rem; }
+@media (max-width: 700px) { .st-faq { grid-template-columns: 1fr; } }
+.st-hours { display: grid; grid-template-columns: 150px 120px 120px; gap: 0.5rem 0.8rem; align-items: center; }
+.st-hours .day { display: flex; align-items: center; gap: 0.55rem; font-size: 0.92rem; }
+.st-hours input[type=time]:disabled { opacity: 0.35; }
+.st-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin: -0.3rem 0 1rem; }
+
+/* Interruptor */
+.sw { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.sw input { opacity: 0; width: 0; height: 0; }
+.sw span { position: absolute; inset: 0; border-radius: 24px; background: #D9D2E3; cursor: pointer; transition: background 0.2s; }
+.sw span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: transform 0.2s; }
+.sw input:checked + span { background: var(--brand-500); }
+.sw input:checked + span::after { transform: translateX(20px); }
+.sw input:disabled + span { cursor: default; opacity: 0.6; }
+
+/* Lista de automações */
+.au-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.au-item { display: grid; grid-template-columns: auto 1fr auto; gap: 1rem; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.2rem; box-shadow: var(--shadow-sm); }
+.au-ico { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.05rem; background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--line); }
+.au-item.ia .au-ico { background: var(--grad); color: #fff; border: none; box-shadow: var(--glow); }
+.au-name { font-weight: 500; font-size: 0.96rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.au-desc { font-size: 0.83rem; color: var(--muted); line-height: 1.5; margin-top: 0.2rem; }
+.au-meta { font-size: 0.74rem; color: var(--subtle); margin-top: 0.35rem; }
+.au-meta .prob { color: var(--warn); }
+.au-tag { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; padding: 0.15rem 0.5rem; border-radius: 60px; border: 1px solid var(--line-strong); color: var(--brand-700); font-weight: 500; }
+.au-state { font-size: 0.68rem; padding: 0.18rem 0.6rem; border-radius: 60px; font-weight: 500; }
+.au-state.ativa { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-line); }
+.au-state.pausada { background: #F1EEF5; color: var(--muted); border: 1px solid var(--line); }
+.au-state.atencao { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-line); }
+
+/* ─────────────── ROBÔ (painel futurista) ─────────────── */
+.bot-console {
+  position: relative; overflow: hidden; border-radius: 24px; padding: 1.6rem 1.7rem 1.4rem; color: #EDE6FA; margin-bottom: 1.2rem;
+  background: radial-gradient(120% 140% at 0% 0%, #3B2468 0%, #1C1233 55%, #120B22 100%);
+  box-shadow: 0 30px 70px rgba(30, 15, 60, 0.35), inset 0 0 0 1px rgba(187,164,222,0.18);
+}
+.bot-console::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
+  background-image: linear-gradient(rgba(187,164,222,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(187,164,222,0.08) 1px, transparent 1px);
+  background-size: 28px 28px; mask-image: radial-gradient(120% 90% at 30% 0%, #000 40%, transparent 85%);
+}
+.bot-console::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 120px; top: -120px; pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(127,224,255,0.07), transparent); animation: botScan 6s linear infinite;
+}
+@keyframes botScan { to { top: 110%; } }
+.bot-top { position: relative; display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; }
+.bot-orb { position: relative; width: 92px; height: 92px; flex-shrink: 0; }
+.bot-orb .core {
+  position: absolute; inset: 18px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #F4ECFF 0%, #B79BE6 30%, #6A4AA0 70%, #2B1A4D 100%);
+  box-shadow: 0 0 30px rgba(174,147,216,0.8), 0 0 70px rgba(127,224,255,0.25); animation: botPulse 2.6s ease-in-out infinite;
+}
+.bot-orb .ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(187,164,222,0.4); border-top-color: #7FE0FF; animation: botSpin 3.5s linear infinite; }
+.bot-orb .ring.r2 { inset: 8px; border-color: rgba(127,224,255,0.25); border-bottom-color: #D2A93F; animation-duration: 5.5s; animation-direction: reverse; }
+.bot-orb.off .core { filter: grayscale(1) brightness(0.6); animation: none; box-shadow: none; }
+.bot-orb.off .ring { animation-play-state: paused; opacity: 0.4; }
+@keyframes botSpin { to { transform: rotate(360deg); } }
+@keyframes botPulse { 50% { transform: scale(0.92); box-shadow: 0 0 18px rgba(174,147,216,0.6), 0 0 40px rgba(127,224,255,0.15); } }
+.bot-title { flex: 1; min-width: 240px; }
+.bot-title .k { font-size: 0.64rem; letter-spacing: 0.3em; text-transform: uppercase; color: #7FE0FF; }
+.bot-title h2 { font-weight: 400; font-size: 1.6rem; letter-spacing: -0.01em; margin: 0.15rem 0 0.5rem; color: #fff; }
+.bot-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.bot-chip { font-size: 0.72rem; padding: 0.25rem 0.65rem; border-radius: 60px; border: 1px solid rgba(187,164,222,0.3); color: #D9CCF2; background: rgba(255,255,255,0.04); display: inline-flex; align-items: center; gap: 0.35rem; }
+.bot-chip i { width: 7px; height: 7px; border-radius: 50%; background: #8f86a0; }
+.bot-chip.ok i { background: #5BE39A; box-shadow: 0 0 8px #5BE39A; }
+.bot-chip.bad i { background: #FF6B5E; box-shadow: 0 0 8px #FF6B5E; }
+.bot-side { display: flex; flex-direction: column; align-items: flex-end; gap: 0.6rem; }
+.bot-range { display: inline-flex; padding: 0.2rem; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(187,164,222,0.2); }
+.bot-range button { border: none; background: none; color: #BFB2D8; font-family: var(--font); font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 9px; cursor: pointer; }
+.bot-range button.on { background: rgba(187,164,222,0.22); color: #fff; }
+.bot-toggle { display: flex; align-items: center; gap: 0.55rem; font-size: 0.82rem; color: #D9CCF2; }
+.bot-kpis { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.7rem; margin-top: 1.4rem; }
+@media (max-width: 900px) { .bot-kpis { grid-template-columns: repeat(2, 1fr); } }
+.bot-kpi { border-radius: 16px; padding: 0.9rem 1rem; background: rgba(255,255,255,0.045); border: 1px solid rgba(187,164,222,0.16); position: relative; overflow: hidden; }
+.bot-kpi::after { content: ''; position: absolute; right: -30px; top: -30px; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, var(--c, rgba(174,147,216,0.35)), transparent 70%); }
+.bot-kpi .n { font-size: 2rem; font-weight: 300; color: #fff; font-variant-numeric: tabular-nums; line-height: 1; text-shadow: 0 0 18px var(--c, rgba(174,147,216,0.6)); }
+.bot-kpi .l { font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: #BFB2D8; margin-top: 0.45rem; }
+.bot-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 1.2rem; }
+@media (max-width: 1000px) { .bot-grid { grid-template-columns: 1fr; } }
+.bot-feed { position: relative; padding-left: 1.2rem; }
+.bot-feed::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: linear-gradient(var(--brand-300), transparent); }
+.bot-ev { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 0.65rem 0.9rem; margin-bottom: 0.5rem; display: grid; grid-template-columns: auto 1fr auto; gap: 0.7rem; align-items: center; animation: view-in 0.3s ease both; }
+.bot-ev::before { content: ''; position: absolute; left: -1.2rem; top: 50%; transform: translate(1px, -50%); width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--brand-500)); box-shadow: 0 0 0 3px var(--bg), 0 0 10px var(--c, var(--brand-500)); }
+.bot-ev .ic { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; background: color-mix(in srgb, var(--c, #9475C6) 14%, white); }
+.bot-ev .t { font-size: 0.86rem; }
+.bot-ev .t b { font-weight: 500; }
+.bot-ev .t small { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.bot-ev .h { font-size: 0.74rem; color: var(--subtle); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bot-empty { color: var(--subtle); font-size: 0.88rem; padding: 0.8rem 0; }
+.bot-ho { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 12px; padding: 0.75rem 0.9rem; margin-bottom: 0.5rem; }
+.bot-ho .t { font-size: 0.86rem; line-height: 1.45; }
+.bot-ho .t b { font-weight: 500; }
+.bot-ho .a { display: flex; gap: 0.4rem; margin-top: 0.5rem; flex-wrap: wrap; align-items: center; }
+.bot-ho .a small { color: var(--muted); font-size: 0.74rem; margin-right: auto; }
+.bot-conv { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.2rem; border-bottom: 1px solid var(--line); }
+.bot-conv:last-child { border-bottom: none; }
+.bot-conv .av { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-50); color: var(--brand-700); font-size: 0.8rem; font-weight: 500; flex-shrink: 0; }
+.bot-conv .nm { flex: 1; min-width: 0; font-size: 0.88rem; }
+.bot-conv .nm small { display: block; color: var(--muted); font-size: 0.74rem; }
+.bot-conv .tag { font-size: 0.66rem; padding: 0.12rem 0.5rem; border-radius: 60px; background: #F1EEF5; color: var(--muted); }
+.bot-conv .tag.p { background: var(--warn-bg); color: var(--warn); }
+.mini-btn { background: var(--surface); border: 1px solid var(--line-strong); color: var(--brand-700); border-radius: 8px; padding: 0.3rem 0.6rem; font-family: var(--font); font-size: 0.74rem; cursor: pointer; white-space: nowrap; text-decoration: none; }
+.mini-btn:hover { background: var(--brand-50); }
+.chat-box { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 0.45rem; padding: 0.3rem; }
+.chat-msg { max-width: 82%; padding: 0.55rem 0.8rem; border-radius: 14px; font-size: 0.86rem; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+.chat-msg small { display: block; font-size: 0.66rem; opacity: 0.6; margin-top: 0.25rem; }
+.chat-msg.user { align-self: flex-start; background: #F1EEF5; }
+.chat-msg.assistant { align-self: flex-end; background: var(--brand-50); border: 1px solid var(--line-strong); }
+.chat-note { align-self: center; font-size: 0.74rem; color: var(--muted); background: var(--surface-2); border: 1px dashed var(--line-strong); border-radius: 10px; padding: 0.3rem 0.7rem; max-width: 92%; text-align: center; }
+.chat-msg.auto { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--line-strong); }
+.chat-msg.staff { align-self: flex-end; background: var(--ok-bg); border: 1px solid var(--ok-line); }
+
 </style>
 </head>
 <body>
@@ -1641,6 +1810,7 @@ body {
     <button class="tab-btn" id="tab-patients"  onclick="switchTab('patients')">Pacientes</button>
     <button class="tab-btn" id="tab-finance"   onclick="switchTab('finance')">Financeiro</button>
     <button class="tab-btn" id="tab-analytics" onclick="switchTab('analytics')">Dashboard</button>
+    <button class="tab-btn" id="tab-bot"       onclick="switchTab('bot')">Robô</button>
   </nav>
   <div class="header-right">
     <div class="header-clock" id="clock">--:--</div>
@@ -1649,6 +1819,9 @@ body {
     </button>
     <button class="header-icon-btn" title="Atlas de acupuntura 3D" onclick="openAcuModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg><span class="lbl">Acupuntura</span>
+    </button>
+    <button class="header-icon-btn" id="tab-settings" title="Configurações, robô e automações" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
     <button class="header-icon-btn" id="logout-btn" title="Sair" onclick="doLogout()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/></svg>
@@ -1747,6 +1920,7 @@ body {
   </div>
 
   <div class="alerts-row" id="alerts-row"></div>
+  <div class="ai-sug" id="ai-sug" style="display:none"></div>
 
   <div class="metrics-grid">
     <div class="metric-card">
@@ -1952,6 +2126,78 @@ body {
   </div>
   <div id="ledger-list" class="history-list"></div>
   <div id="ledger-total" style="text-align:right;margin-top:0.9rem;font-size:0.9rem"></div>
+</div>
+
+<!-- Robô do WhatsApp — painel do dia -->
+<div id="bot-view" class="view">
+  <div class="bot-console">
+    <div class="bot-top">
+      <div class="bot-orb" id="bot-orb"><div class="ring"></div><div class="ring r2"></div><div class="core"></div></div>
+      <div class="bot-title">
+        <div class="k">Assistente virtual · WhatsApp</div>
+        <h2 id="bot-headline">Carregando…</h2>
+        <div class="bot-chips" id="bot-chips"></div>
+      </div>
+      <div class="bot-side">
+        <div class="bot-range" id="bot-range">
+          <button data-r="today" class="on" onclick="setBotRange('today')">Hoje</button>
+          <button data-r="7d" onclick="setBotRange('7d')">7 dias</button>
+          <button data-r="30d" onclick="setBotRange('30d')">30 dias</button>
+        </div>
+        <label class="bot-toggle">Robô ligado
+          <span class="sw"><input type="checkbox" id="bot-on" onchange="toggleAutomation('bot', this.checked)"><span></span></span>
+        </label>
+      </div>
+    </div>
+    <div class="bot-kpis" id="bot-kpis"></div>
+  </div>
+
+  <div class="bot-grid">
+    <div>
+      <div class="section-title">Atividade</div>
+      <div class="bot-feed" id="bot-feed"></div>
+    </div>
+    <div>
+      <div class="side-card">
+        <h4>Para a Dra. responder</h4>
+        <div id="bot-handoffs"></div>
+      </div>
+      <div class="side-card">
+        <h4>Conversas recentes</h4>
+        <div id="bot-convs"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Configurações (⚙) -->
+<div id="settings-view" class="view">
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Configurações</div>
+      <div class="page-title">Consultório, robô e automações</div>
+      <div class="page-sub">O robô do WhatsApp responde os pacientes com as informações daqui.</div>
+    </div>
+  </div>
+  <div class="st-tabs" id="st-tabs">
+    <button data-t="info" onclick="setStTab('info')">Consultório</button>
+    <button data-t="hours" onclick="setStTab('hours')">Horários</button>
+    <button data-t="bot" onclick="setStTab('bot')">Robô e lembretes</button>
+    <button data-t="auto" onclick="setStTab('auto')">Automações e IA</button>
+  </div>
+  <div id="st-body"></div>
+</div>
+
+<!-- Conversa do WhatsApp (painel do Robô) -->
+<div class="generic-overlay" id="chat-modal" onclick="if (event.target === this) closeChatModal()">
+  <div class="modal-sheet wide">
+    <h3 id="chat-title">Conversa</h3>
+    <div class="chat-box" id="chat-box"></div>
+    <div class="modal-actions">
+      <a class="btn-cancel" id="chat-wa" target="_blank" rel="noopener" style="text-decoration:none">Abrir no WhatsApp</a>
+      <button class="btn-save" onclick="closeChatModal()">Fechar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Aba Dashboard — análises do sistema -->
@@ -2502,7 +2748,7 @@ function updateClock() {
 
 // ── Troca de tabs ─────────────────────────────────────────────────────────────
 const VIEWS = ['today-view', 'dashboard-view', 'consult-mode', 'agenda-view', 'patients-view',
-               'patient-detail-view', 'finance-view', 'analytics-view']
+               'patient-detail-view', 'finance-view', 'analytics-view', 'bot-view', 'settings-view']
 
 function switchTab(tab, save = true) {
   activeTab = tab
@@ -2535,6 +2781,12 @@ function switchTab(tab, save = true) {
     document.getElementById('analytics-view').classList.add('visible')
     syncPeriodUI()
     loadAnalytics()
+  } else if (tab === 'bot') {
+    document.getElementById('bot-view').classList.add('visible')
+    loadBot()
+  } else if (tab === 'settings') {
+    document.getElementById('settings-view').classList.add('visible')
+    loadSettings()
   }
   window.scrollTo(0, 0)
 }
@@ -3337,6 +3589,7 @@ async function loadDashboard(session) {
   }
 
   renderAlerts(ans)
+  loadAiSuggestion(session.id)
   refreshDashEval(session.patient_id)
   renderDashPayBadge()
   renderSessionControls()
@@ -3781,6 +4034,432 @@ async function clearPhysioTV() {
   } catch (_) {
     alert('Não foi possível limpar a TV.')
   }
+}
+
+// ── Sugestão da IA para a sessão ────────────────────────────────────────────
+// Gerada quando o paciente conclui o totem (automação "Sugestão de sessão").
+let aiSugTimer = null
+let aiSugSession = null
+
+async function loadAiSuggestion(sessionId) {
+  aiSugSession = sessionId
+  clearTimeout(aiSugTimer)
+  const box = document.getElementById('ai-sug')
+  if (!sessionId) { box.style.display = 'none'; return }
+  try {
+    const r = await fetch(`/api/sessions/${sessionId}/suggestion`)
+    if (r.status === 401) { location.href = '/login'; return }
+    if (aiSugSession !== sessionId) return
+    renderAiSuggestion(await r.json())
+  } catch (_) { box.style.display = 'none' }
+}
+
+function renderAiSuggestion(s) {
+  const box = document.getElementById('ai-sug')
+  const head = (sub, extra = '') => `<div class="ai-sug-head"><span class="spark">✦</span><div><b>Sugestão da IA para hoje</b><small>${sub}</small></div><span class="spacer"></span>${extra}</div>`
+  box.style.display = ''
+  if (!s || s.status === 'none') {
+    box.className = 'ai-sug'
+    box.innerHTML = head('A IA analisa as últimas sessões e como o paciente chegou hoje.',
+      `<button class="ai-sug-btn primary" onclick="regenAiSuggestion()">Gerar sugestão</button>`)
+    return
+  }
+  if (s.status === 'pending') {
+    box.className = 'ai-sug'
+    box.innerHTML = head('Analisando o histórico do paciente…') +
+      '<div class="ai-sug-loading"><div class="bar" style="width:92%"></div><div class="bar" style="width:76%"></div><div class="bar" style="width:84%"></div></div>'
+    // Ainda gerando (ou travou): confere de novo em alguns segundos, por até 3 min
+    if (Date.now() - new Date(s.at) < 180000) aiSugTimer = setTimeout(() => loadAiSuggestion(aiSugSession), 4000)
+    return
+  }
+  if (s.status === 'error') {
+    box.className = 'ai-sug'
+    box.innerHTML = head(`Não foi possível gerar: ${esc(s.error || 'erro')}`,
+      `<button class="ai-sug-btn" onclick="regenAiSuggestion()">Tentar de novo</button>`)
+    return
+  }
+  const d = s.data || {}
+  const collapsed = localStorage.getItem('ai_sug_collapsed') === '1'
+  const list = arr => (arr || []).map(x => `<li>${esc(x)}</li>`).join('')
+  box.className = 'ai-sug' + (collapsed ? ' collapsed' : '')
+  box.innerHTML =
+    head(`Gerada às ${new Date(s.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · é uma sugestão — a decisão clínica é sua.`,
+      `<button class="ai-sug-btn" onclick="toggleAiSug()">${collapsed ? 'Mostrar' : 'Recolher'}</button>`) +
+    `<div class="ai-sug-body">
+      <div class="ai-sug-sec"><h5>Resumo</h5><p>${esc(d.resumo)}</p></div>
+      <div class="ai-sug-sec"><h5>Evolução</h5><p>${esc(d.evolucao)}</p></div>
+      <div class="ai-sug-sec full"><h5>Hoje</h5><p>${esc(d.hoje)}</p></div>
+      <div class="ai-sug-sec full"><h5>O que pode ser feito hoje</h5><div class="ai-sug-list">${(d.sugestoes || []).map(x =>
+        `<div class="ai-sug-item"><b>${esc(x.titulo)}</b><span>${esc(x.detalhe)}</span></div>`).join('')}</div></div>
+      ${(d.atencao || []).length ? `<div class="ai-sug-sec"><h5>Atenção</h5><ul class="ai-sug-warn">${list(d.atencao)}</ul></div>` : ''}
+      ${(d.perguntar || []).length ? `<div class="ai-sug-sec"><h5>Vale perguntar ou avaliar</h5><ul>${list(d.perguntar)}</ul></div>` : ''}
+    </div>
+    <div class="ai-sug-foot">Feita pela IA (Claude Sonnet 5.5) com o prontuário, a dor e as regiões das sessões anteriores e o check-in de hoje.
+      <button class="ai-sug-btn" onclick="regenAiSuggestion()">Gerar de novo</button></div>`
+}
+
+function toggleAiSug() {
+  const box = document.getElementById('ai-sug')
+  const c = !box.classList.contains('collapsed')
+  localStorage.setItem('ai_sug_collapsed', c ? '1' : '0')
+  box.classList.toggle('collapsed', c)
+  box.querySelector('.ai-sug-head .ai-sug-btn').textContent = c ? 'Mostrar' : 'Recolher'
+}
+
+async function regenAiSuggestion() {
+  const sid = aiSugSession
+  if (!sid) return
+  renderAiSuggestion({ status: 'pending', at: new Date().toISOString() })
+  clearTimeout(aiSugTimer)
+  try {
+    const r = await fetch(`/api/sessions/${sid}/suggestion`, { method: 'POST' })
+    const j = await r.json()
+    if (aiSugSession === sid) renderAiSuggestion(r.ok ? j : { status: 'error', error: j.error })
+  } catch (_) {
+    if (aiSugSession === sid) renderAiSuggestion({ status: 'error', error: 'sem conexão' })
+  }
+}
+
+// ── Robô do WhatsApp ─────────────────────────────────────────────────────────
+let botRange = 'today'
+let botTimer = null
+let botData = null
+
+const BOT_KINDS = {
+  agendou:    { ic: '＋', c: '#2F8F67', t: 'Marcou consulta' },
+  remarcou:   { ic: '↻', c: '#4A6FB3', t: 'Remarcou' },
+  desmarcou:  { ic: '✕', c: '#C2453D', t: 'Desmarcou' },
+  confirmou:  { ic: '✓', c: '#2F8F67', t: 'Paciente confirmou' },
+  lembrete:   { ic: '⏰', c: '#9475C6', t: 'Lembrete enviado' },
+  aviso:      { ic: '✉', c: '#8462BB', t: 'Aviso de agendamento' },
+  resposta:   { ic: '💬', c: '#6A4AA0', t: 'Respondeu dúvida' },
+  encaminhou: { ic: '➜', c: '#D2A93F', t: 'Encaminhou à Dra.' },
+  sugestao:   { ic: '✦', c: '#AE93D8', t: 'Sugestão de sessão (IA)' },
+  ignorou:    { ic: '◌', c: '#A39DAB', t: 'Conversa pessoal — não respondeu' },
+  erro:       { ic: '!', c: '#C2453D', t: 'Erro' }
+}
+
+function setBotRange(r) {
+  botRange = r
+  document.querySelectorAll('#bot-range button').forEach(b => b.classList.toggle('on', b.dataset.r === r))
+  loadBot()
+}
+
+async function loadBot() {
+  clearTimeout(botTimer)
+  try {
+    const r = await fetch('/api/bot/overview?range=' + botRange)
+    if (r.status === 401) { location.href = '/login'; return }
+    if (r.ok) { botData = await r.json(); renderBot() }
+  } catch (_) {}
+  if (activeTab === 'bot') botTimer = setTimeout(loadBot, 20000)
+}
+
+function botTime(iso) {
+  const d = new Date(iso)
+  const today = new Date().toDateString() === d.toDateString()
+  return today ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function renderBot() {
+  const d = botData, st = d.status, c = d.counts || {}
+  const live = st.bot_on && st.whatsapp === 'open' && st.ai && st.db
+  document.getElementById('bot-orb').classList.toggle('off', !live)
+  document.getElementById('bot-on').checked = !!st.bot_on
+  const total = ['agendou', 'remarcou', 'desmarcou', 'confirmou', 'lembrete', 'aviso', 'resposta', 'encaminhou'].reduce((s, k) => s + (c[k] || 0), 0)
+  const per = { today: 'hoje', '7d': 'nos últimos 7 dias', '30d': 'nos últimos 30 dias' }[d.range]
+  document.getElementById('bot-headline').textContent = !st.bot_on ? 'Robô desligado'
+    : !live ? 'Robô com pendências de configuração'
+    : total ? `${total} ${total === 1 ? 'ação' : 'ações'} ${per}` : `Online · nenhuma ação ${per}`
+  const chip = (ok, label) => `<span class="bot-chip ${ok === null ? '' : ok ? 'ok' : 'bad'}"><i></i>${label}</span>`
+  const waLbl = { open: 'WhatsApp conectado', not_configured: 'WhatsApp não configurado', close: 'WhatsApp desconectado', connecting: 'WhatsApp conectando…' }[st.whatsapp] || `WhatsApp: ${st.whatsapp}`
+  document.getElementById('bot-chips').innerHTML =
+    chip(st.whatsapp === 'open', waLbl) +
+    chip(st.ai, st.ai ? 'IA ativa · Sonnet 5.5' : 'IA sem chave') +
+    chip(st.db, st.db ? 'Banco pronto' : 'Falta rodar a migração v7') +
+    chip(st.reminders_on, st.reminders_on ? 'Lembretes ligados' : 'Lembretes desligados') +
+    (st.webhook === false ? chip(false, 'Webhook com falha') : '')
+
+  const kpi = (k, label, color) => `<div class="bot-kpi" style="--c:${color}"><div class="n">${c[k] || 0}</div><div class="l">${label}</div></div>`
+  document.getElementById('bot-kpis').innerHTML =
+    kpi('agendou', 'Consultas marcadas', 'rgba(91,227,154,0.45)') +
+    kpi('remarcou', 'Remarcadas', 'rgba(127,170,255,0.45)') +
+    kpi('desmarcou', 'Desmarcadas', 'rgba(255,107,94,0.4)') +
+    kpi('confirmou', 'Confirmações', 'rgba(91,227,154,0.45)') +
+    kpi('lembrete', 'Lembretes enviados', 'rgba(174,147,216,0.55)') +
+    kpi('aviso', 'Avisos de agendamento', 'rgba(174,147,216,0.45)') +
+    kpi('resposta', 'Dúvidas respondidas', 'rgba(127,224,255,0.45)') +
+    kpi('encaminhou', 'Encaminhadas à Dra.', 'rgba(210,169,63,0.5)')
+
+  const feed = d.actions || []
+  document.getElementById('bot-feed').innerHTML = feed.length ? feed.map(a => {
+    const k = BOT_KINDS[a.kind] || { ic: '•', c: '#9475C6', t: a.kind }
+    return `<div class="bot-ev" style="--c:${k.c}"><span class="ic">${k.ic}</span>
+      <div class="t"><b>${esc(k.t)}</b>${a.who ? ` · ${esc(a.who)}` : ''}<small>${esc(a.detail || '')}</small></div>
+      <span class="h">${botTime(a.created_at)}</span></div>`
+  }).join('') : `<div class="bot-empty">Nenhuma ação ${per}.</div>`
+
+  document.getElementById('bot-handoffs').innerHTML = (d.handoffs || []).length ? d.handoffs.map(h => `
+    <div class="bot-ho"><div class="t"><b>${esc(h.who || h.phone_pretty || 'Contato')}</b> — ${esc(h.detail || '')}</div>
+      <div class="a"><small>${botTime(h.created_at)}</small>
+        ${h.phone ? `<button class="mini-btn" onclick="openChat('${h.phone}')">Ver conversa</button>
+        <a class="mini-btn" href="https://wa.me/${h.phone}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+        <button class="mini-btn" onclick="resolveHandoff(${h.id})">✓ Resolvido</button></div></div>`).join('')
+    : '<div class="bot-empty">Nada pendente. 🎉</div>'
+
+  document.getElementById('bot-convs').innerHTML = (d.conversations || []).length ? d.conversations.slice(0, 15).map(cv => {
+    const ini = String(cv.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase()
+    const tag = cv.ignored ? '<span class="tag">ignorado</span>' : cv.paused ? '<span class="tag p">robô pausado</span>' : cv.is_patient ? '<span class="tag">paciente</span>' : ''
+    return `<div class="bot-conv"><span class="av">${esc(ini)}</span>
+      <div class="nm">${esc(cv.name || cv.phone_pretty)} ${tag}<small>${esc(cv.phone_pretty)} · ${botTime(cv.last_message_at)}</small></div>
+      <button class="mini-btn" onclick="openChat('${cv.phone}')">Ver</button>
+      <button class="mini-btn" onclick="pauseConv('${cv.phone}', ${cv.paused ? 0 : 24})">${cv.paused ? 'Reativar robô' : 'Pausar 24 h'}</button></div>`
+  }).join('') : '<div class="bot-empty">Nenhuma conversa ainda.</div>'
+}
+
+async function resolveHandoff(id) {
+  await fetch(`/api/bot/actions/${id}/resolve`, { method: 'POST' }).catch(() => {})
+  loadBot()
+}
+async function pauseConv(phone, hours) {
+  await fetch(`/api/bot/conversations/${phone}/pause`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hours })
+  }).catch(() => {})
+  loadBot()
+}
+async function openChat(phone) {
+  const cv = botData?.conversations?.find(c => c.phone === phone)
+  document.getElementById('chat-title').textContent = cv?.name || phone
+  document.getElementById('chat-wa').href = `https://wa.me/${phone}`
+  const box = document.getElementById('chat-box')
+  box.innerHTML = '<div class="bot-empty">Carregando…</div>'
+  document.getElementById('chat-modal').classList.add('visible')
+  try {
+    const msgs = await (await fetch(`/api/bot/conversations/${phone}`)).json()
+    const who = { user: '', assistant: 'Robô', auto: 'Mensagem automática', staff: 'Dra. Juliane' }
+    const TOOL = { ver_horarios_livres: 'consultou a agenda', marcar_consulta: 'marcou', remarcar_consulta: 'remarcou',
+      desmarcar_consulta: 'desmarcou', confirmar_consulta: 'confirmou', encaminhar_para_dra: 'encaminhou para você', nao_responder: 'não respondeu' }
+    box.innerHTML = msgs.length ? msgs.map(m => {
+      if (m.role === 'tool') {
+        let calls = []
+        try { calls = JSON.parse(m.content).calls || [] } catch (_) {}
+        return calls.filter(c => c.name !== 'ver_horarios_livres').map(c =>
+          `<div class="chat-note">⚙ Robô ${esc(TOOL[c.name] || c.name)}${c.is_error ? ' (recusado)' : ''} — ${esc(String(c.result || '').slice(0, 160))}</div>`).join('')
+      }
+      return `<div class="chat-msg ${m.role}">${esc(m.content)}<small>${who[m.role] ? who[m.role] + ' · ' : ''}${botTime(m.created_at)}</small></div>`
+    }).join('') : '<div class="bot-empty">Sem mensagens.</div>'
+    box.scrollTop = box.scrollHeight
+  } catch (_) { box.innerHTML = '<div class="bot-empty">Erro ao carregar.</div>' }
+}
+function closeChatModal() { document.getElementById('chat-modal').classList.remove('visible') }
+
+async function toggleAutomation(key, on) {
+  try {
+    const r = await fetch(`/api/automations/${key}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on })
+    })
+    if (r.ok) stAuto = await r.json()
+  } catch (_) {}
+  if (activeTab === 'bot') loadBot()
+  if (activeTab === 'settings' && stTab === 'auto') renderSettings()
+}
+
+// ── Configurações (⚙) ────────────────────────────────────────────────────────
+let stCfg = null
+let stAuto = null
+let stTab = localStorage.getItem('st_tab') || 'info'
+const ST_DAYS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']]
+
+function setStTab(t) {
+  stTab = t
+  localStorage.setItem('st_tab', t)
+  renderSettings()
+  if (t === 'auto') loadAutomationsList()
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch('/api/settings/assistant')
+    if (r.status === 401) { location.href = '/login'; return }
+    stCfg = await r.json()
+  } catch (_) {}
+  renderSettings()
+  if (stTab === 'auto') loadAutomationsList()
+}
+
+async function loadAutomationsList() {
+  try { stAuto = await (await fetch('/api/automations')).json() } catch (_) {}
+  if (stTab === 'auto') renderSettings()
+}
+
+function stField(id, label, value, { area = false, rows = 3, hint = '', type = 'text' } = {}) {
+  return `<div class="form-group"><label class="form-label" for="${id}">${label}</label>` +
+    (area ? `<textarea class="form-control" id="${id}" rows="${rows}">${esc(value || '')}</textarea>`
+      : `<input class="form-control" id="${id}" type="${type}" value="${esc(value ?? '')}">`) +
+    (hint ? `<div class="form-hint">${hint}</div>` : '') + '</div>'
+}
+
+function renderSettings() {
+  document.querySelectorAll('#st-tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === stTab))
+  const body = document.getElementById('st-body')
+  if (!stCfg) { body.innerHTML = '<div class="bot-empty">Carregando…</div>'; return }
+  const save = fn => `<div class="st-save"><span class="saved" id="st-saved"></span><button class="btn-primary" onclick="${fn}()">Salvar</button></div>`
+  const I = stCfg.info, H = stCfg.hours, B = stCfg.bot
+
+  if (stTab === 'info') {
+    body.innerHTML = `
+      <div class="st-hint">O robô usa estas informações para responder. O que estiver em branco ele não inventa: diz que vai confirmar com a Dra. e encaminha para você.</div>
+      <div class="st-card"><h4>Consultório</h4>
+        ${stField('st-nome', 'Nome do consultório', I.nome)}
+        ${stField('st-prof', 'Profissional', I.profissional, { area: true, rows: 2 })}
+        <div class="form-row">${stField('st-end', 'Endereço', I.endereco)}${stField('st-est', 'Estacionamento', I.estacionamento)}</div>
+        ${stField('st-cont', 'Contato (WhatsApp, e-mail, Instagram, site)', I.contato)}
+        ${stField('st-prop', 'Proposta / apresentação', I.proposta, { area: true, rows: 2 })}
+      </div>
+      <div class="st-card"><h4>Valores e pagamento</h4>
+        ${stField('st-val', 'Valores', I.valores, { area: true, rows: 3, hint: 'Ex.: Avaliação R$ 000 · Sessão R$ 000 · Pacote de 10 sessões R$ 000. Em branco, o robô não informa valores.' })}
+        <div class="form-row">${stField('st-pag', 'Formas de pagamento', I.pagamento, { hint: 'Ex.: Pix, cartão de crédito e débito, dinheiro.' })}
+        ${stField('st-conv', 'Convênios', I.convenios, { hint: 'Ex.: Atendimento particular, com recibo para reembolso.' })}</div>
+      </div>
+      <div class="st-card"><h4>Serviços e atendimento</h4>
+        ${stField('st-serv', 'Serviços (um por linha)', I.servicos, { area: true, rows: 8 })}
+        ${stField('st-ind', 'Para quem é', I.indicacoes, { area: true, rows: 3 })}
+        ${stField('st-como', 'Como funciona', I.como_funciona, { area: true, rows: 3 })}
+        ${stField('st-extra', 'Outras informações importantes', I.extra, { area: true, rows: 3, hint: 'Ex.: o que levar, roupa indicada, tolerância de atraso, atendimento infantil, política de faltas.' })}
+      </div>
+      <div class="st-card"><h4>Perguntas frequentes</h4>
+        <div class="st-hint">Respostas prontas que o robô usa quando o paciente perguntar algo parecido.</div>
+        <div id="st-faq">${(I.faq || []).map(stFaqRow).join('')}</div>
+        <button class="btn-ghost" onclick="addFaq()">+ Adicionar pergunta</button>
+      </div>
+      ${save('saveStInfo')}`
+  } else if (stTab === 'hours') {
+    body.innerHTML = `
+      <div class="st-hint">O robô só oferece horários livres dentro do expediente (e fora dos horários já ocupados na agenda).</div>
+      <div class="st-card"><h4>Horário de atendimento</h4>
+        <div class="st-hours">
+          <span class="form-label">Dia</span><span class="form-label">Início</span><span class="form-label">Fim</span>
+          ${ST_DAYS.map(([n, l]) => { const x = H.days[n] || {}; return `
+            <label class="day"><span class="sw"><input type="checkbox" id="st-d${n}" ${x.on ? 'checked' : ''} onchange="stDayToggle(${n})"><span></span></span>${l}</label>
+            <input class="form-control" type="time" id="st-s${n}" value="${x.start || '08:00'}" ${x.on ? '' : 'disabled'}>
+            <input class="form-control" type="time" id="st-e${n}" value="${x.end || '19:00'}" ${x.on ? '' : 'disabled'}>` }).join('')}
+          <label class="day"><span class="sw"><input type="checkbox" id="st-lunch" ${H.lunch?.on ? 'checked' : ''}><span></span></span>Almoço</label>
+          <input class="form-control" type="time" id="st-ls" value="${H.lunch?.start || '12:00'}">
+          <input class="form-control" type="time" id="st-le" value="${H.lunch?.end || '13:00'}">
+        </div>
+      </div>
+      <div class="st-card"><h4>Sessões</h4>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Duração da sessão</label>
+            <select class="form-control" id="st-dur">${[30, 40, 45, 50, 60, 90].map(m => `<option value="${m}" ${H.session_minutes == m ? 'selected' : ''}>${m} minutos</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">Horários oferecidos a cada</label>
+            <select class="form-control" id="st-step">${[15, 30, 60].map(m => `<option value="${m}" ${H.step_minutes == m ? 'selected' : ''}>${m} minutos</option>`).join('')}</select>
+            <div class="form-hint">Ex.: a cada 60 min → 08:00, 09:00, 10:00…</div></div>
+        </div>
+      </div>
+      ${save('saveStHours')}`
+  } else if (stTab === 'bot') {
+    body.innerHTML = `
+      <div class="st-card"><h4>Lembrete de confirmação</h4>
+        <div class="form-row">
+          ${stField('st-rem', 'Horário do lembrete (dia anterior)', B.reminder_time, { type: 'time', hint: 'Sessões de segunda (e de fim de semana) são confirmadas na sexta.' })}
+          ${stField('st-chg', 'Remarcar/desmarcar sozinho até (horas antes)', B.min_hours_change, { type: 'number', hint: 'Mais em cima da hora, o robô encaminha para você.' })}
+        </div>
+        <div class="form-row">
+          ${stField('st-book', 'Antecedência mínima para marcar (horas)', B.min_hours_book, { type: 'number' })}
+          ${stField('st-ahead', 'Marca até quantos dias à frente', B.days_ahead, { type: 'number' })}
+        </div>
+      </div>
+      <div class="st-card"><h4>Seu WhatsApp pessoal</h4>
+        <div class="st-hint">O robô atende no seu número. Quando você responde uma conversa pelo celular, ele para de responder nela pelas próximas horas. Conversas claramente pessoais ele não responde.</div>
+        ${stField('st-pause', 'Pausar o robô numa conversa depois que você responder (horas)', B.pause_hours, { type: 'number' })}
+        ${stField('st-ign', 'Números que o robô nunca responde (um por linha)', (B.ignore || []).join('\n'), { area: true, rows: 4, hint: 'Família, amigos, fornecedores. Ex.: 41999998888' })}
+      </div>
+      <div class="st-card"><h4>Testar o WhatsApp</h4>
+        <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:center">
+          <input class="form-control" id="st-test-phone" placeholder="(41) 99999-9999" style="max-width:220px">
+          <button class="btn-ghost" onclick="testWhatsapp()">Enviar mensagem de teste</button>
+          <span id="st-test-res" style="font-size:0.84rem"></span>
+        </div>
+      </div>
+      ${save('saveStBot')}`
+  } else {
+    const list = stAuto || []
+    const ico = { bot: '🤖', reminders: '⏰', notices: '✉', suggestion: '✦', pix: '₱', keepalive: '⛁', realtime: '⚡' }
+    const stLbl = { ativa: 'Ativa', pausada: 'Desligada', atencao: 'Precisa de atenção' }
+    body.innerHTML = `
+      <div class="st-hint">Tudo o que o sistema faz sozinho. Desligue o que não quiser usar — dá para religar quando quiser.</div>
+      <div class="au-list">${list.length ? list.map(a => `
+        <div class="au-item ${a.kind === 'IA' ? 'ia' : ''}">
+          <span class="au-ico">${ico[a.key] || '•'}</span>
+          <div><div class="au-name">${esc(a.name)} <span class="au-tag">${esc(a.kind)}</span> <span class="au-state ${a.state}">${stLbl[a.state] || a.state}</span></div>
+            <div class="au-desc">${esc(a.desc)}</div>
+            <div class="au-meta">${a.problem ? `<span class="prob">⚠ ${esc(a.problem)}</span> · ` : ''}${a.last ? 'Última execução: ' + botTime(a.last) : 'Ainda não executou'}</div></div>
+          ${a.toggle ? `<span class="sw"><input type="checkbox" ${a.on ? 'checked' : ''} onchange="toggleAutomation('${a.key}', this.checked)"><span></span></span>` : '<span></span>'}
+        </div>`).join('') : '<div class="bot-empty">Carregando…</div>'}</div>`
+  }
+}
+
+function stFaqRow(f = {}) {
+  return `<div class="st-faq"><input class="form-control" placeholder="Pergunta" value="${esc(f.q || '')}">
+    <textarea class="form-control" rows="2" placeholder="Resposta">${esc(f.a || '')}</textarea>
+    <button title="Remover" onclick="this.parentElement.remove()">×</button></div>`
+}
+function addFaq() { document.getElementById('st-faq').insertAdjacentHTML('beforeend', stFaqRow()) }
+function stDayToggle(n) {
+  const on = document.getElementById('st-d' + n).checked
+  document.getElementById('st-s' + n).disabled = !on
+  document.getElementById('st-e' + n).disabled = !on
+}
+
+async function putSettings(payload) {
+  const el = () => document.getElementById('st-saved')
+  try {
+    const r = await fetch('/api/settings/assistant', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    })
+    if (!r.ok) throw new Error()
+    stCfg = await r.json()
+    renderSettings()
+    if (el()) { el().textContent = '✓ Salvo'; setTimeout(() => { if (el()) el().textContent = '' }, 2500) }
+  } catch (_) { alert('Não foi possível salvar. Tente de novo.') }
+}
+const stv = id => document.getElementById(id)?.value ?? ''
+
+function saveStInfo() {
+  const faq = [...document.querySelectorAll('#st-faq .st-faq')].map(r => ({ q: r.querySelector('input').value.trim(), a: r.querySelector('textarea').value.trim() })).filter(f => f.q && f.a)
+  putSettings({ info: {
+    nome: stv('st-nome'), profissional: stv('st-prof'), endereco: stv('st-end'), estacionamento: stv('st-est'), contato: stv('st-cont'),
+    proposta: stv('st-prop'), valores: stv('st-val'), pagamento: stv('st-pag'), convenios: stv('st-conv'), servicos: stv('st-serv'),
+    indicacoes: stv('st-ind'), como_funciona: stv('st-como'), extra: stv('st-extra'), faq
+  } })
+}
+function saveStHours() {
+  const days = {}
+  for (const [n] of ST_DAYS) days[n] = { on: document.getElementById('st-d' + n).checked, start: stv('st-s' + n), end: stv('st-e' + n) }
+  putSettings({ hours: {
+    days, session_minutes: +stv('st-dur'), step_minutes: +stv('st-step'),
+    lunch: { on: document.getElementById('st-lunch').checked, start: stv('st-ls'), end: stv('st-le') }
+  } })
+}
+function saveStBot() {
+  putSettings({ bot: {
+    reminder_time: stv('st-rem'), min_hours_change: stv('st-chg'), min_hours_book: stv('st-book'), days_ahead: stv('st-ahead'),
+    pause_hours: stv('st-pause'), ignore: stv('st-ign').split(/\n|,/).map(x => x.trim()).filter(Boolean)
+  } })
+}
+async function testWhatsapp() {
+  const res = document.getElementById('st-test-res')
+  res.textContent = 'Enviando…'; res.style.color = ''
+  try {
+    const r = await fetch('/api/whatsapp/test', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: stv('st-test-phone') })
+    })
+    const j = await r.json()
+    res.textContent = r.ok ? '✓ Enviada' : (j.error || 'Falhou')
+    res.style.color = r.ok ? 'var(--ok)' : 'var(--danger)'
+  } catch (_) { res.textContent = 'Falhou'; res.style.color = 'var(--danger)' }
 }
 
 // ── HOJE: agenda do dia com a próxima ação de cada paciente ──────────────────

@@ -83,6 +83,16 @@ import {
   todayBR
 } from './database.js'
 import * as mp from './mercadopago.js'
+import * as wa from './whatsapp.js'
+import * as llm from './llm.js'
+import * as clinic from './clinic.js'
+import * as automations from './automations.js'
+import * as bot from './bot.js'
+import { generateSuggestion } from './suggestion.js'
+import {
+  getActions, getOpenHandoffs, resolveAction, listConversations, getBotMessages,
+  saveConversation, getSessionSuggestion, setSessionSuggestion
+} from './database.js'
 import {
   hashPassword,
   verifyPassword,
@@ -286,6 +296,11 @@ app.post('/api/sessions/:id/answers', async (req, res) => {
     pollSoon()
 
     res.json({ success: true })
+
+    // Sugestão da IA para a sessão (em segundo plano — o paciente não espera)
+    clinic.getAutomations().then(a => {
+      if (a.suggestion && llm.configured()) generateSuggestion(id).then(() => pollSoon())
+    }).catch(() => {})
   } catch (error) {
     console.error('Erro ao salvar respostas:', error.message)
     res.status(500).json({ error: 'Erro interno ao salvar respostas' })
@@ -484,7 +499,7 @@ const TIME_RE = /^\d{2}:\d{2}$/
 // Cria a série de retornos. O painel manda as datas já calculadas (dias da semana
 // escolhidos, horário de cada dia); horários ocupados são pulados e devolvidos.
 async function createSeries({ patient_id, patient_name, recurrence }) {
-  const result = { created: [], skipped: [] }
+  const result = { created: [], skipped: [], appts: [] }
   const duration = parseInt(recurrence.duration_minutes) || 60
   const type     = recurrence.type || 'Retorno'
   const price    = recurrence.price == null || recurrence.price === '' ? null : Number(recurrence.price)
@@ -529,6 +544,7 @@ async function createSeries({ patient_id, patient_name, recurrence }) {
       })
       await syncAppointmentPayment(appt).catch(() => {})
       result.created.push(`${date} ${time}`)
+      result.appts.push(appt)
     } catch (e) {
       console.error('Erro ao criar retorno:', e.message)
     }
@@ -614,6 +630,7 @@ app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
       })
       result.created = series.created
       result.skipped = series.skipped
+      automations.onBooked(series.appts)
     }
 
     res.json(result)
@@ -751,6 +768,148 @@ app.post('/api/tv/clear', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Erro interno' })
   }
 })
+
+// ─── Robô do WhatsApp, automações e IA ───────────────────────────────────────
+
+// Webhook da Evolution (mensagens do WhatsApp): responde na hora, processa depois
+app.post('/api/webhooks/evolution', (req, res) => {
+  if (!wa.webhookTokenOk(req.query.token)) return res.status(401).json({ error: 'Token inválido' })
+  res.json({ ok: true })
+  bot.handleWebhook(req.body).catch(e => console.error('[robô] webhook:', e.message))
+})
+
+// Configurações do ⚙: informações do consultório, horários, regras do robô e automações
+async function assistantSettings() {
+  return {
+    info: await clinic.getInfo(), hours: await clinic.getHours(),
+    bot: await clinic.getBotConfig(), automations: await clinic.getAutomations()
+  }
+}
+app.get('/api/settings/assistant', requireAuth, async (req, res) => {
+  try { res.json(await assistantSettings()) } catch (error) {
+    console.error('Erro ao ler configurações:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+app.put('/api/settings/assistant', requireAuth, async (req, res) => {
+  try {
+    const b = req.body || {}
+    if (b.info) await clinic.saveInfo(b.info)
+    if (b.hours) await clinic.saveHours(b.hours)
+    if (b.bot) await clinic.saveBotConfig(b.bot)
+    if (b.automations) await clinic.saveAutomations(b.automations)
+    res.json(await assistantSettings())
+  } catch (error) {
+    console.error('Erro ao salvar configurações:', error.message)
+    res.status(500).json({ error: 'Erro interno ao salvar' })
+  }
+})
+
+// Lista "Automações e IA" com a situação de cada uma
+let webhookOk = null
+app.get('/api/automations', requireAuth, async (req, res) => {
+  try { res.json(await automations.automationsStatus({ webhookOk })) } catch (error) {
+    console.error('Erro ao listar automações:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+app.put('/api/automations/:key', requireAuth, async (req, res) => {
+  try {
+    await clinic.saveAutomations({ [req.params.key]: !!req.body?.on })
+    res.json(await automations.automationsStatus({ webhookOk }))
+  } catch (error) {
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Painel do Robô: números do período, feed de ações, encaminhamentos e conversas
+app.get('/api/bot/overview', requireAuth, async (req, res) => {
+  try {
+    const days = { today: 0, '7d': 6, '30d': 29 }[req.query.range] ?? 0
+    const start = clinic.addDays(todayBR(), -days)
+    const since = new Date(`${start}T03:00:00Z`).toISOString()   // meia-noite de Brasília
+    const [actions, handoffs, convs, waState, cfg, auto] = await Promise.all([
+      getActions({ since, limit: 1000 }), getOpenHandoffs(), listConversations(40),
+      wa.connectionState(), clinic.getBotConfig(), clinic.getAutomations()
+    ])
+    const counts = {}
+    for (const a of actions) counts[a.kind] = (counts[a.kind] || 0) + 1
+    const names = new Map()
+    const phones = new Set([...convs.map(c => c.phone), ...actions.map(a => a.phone), ...handoffs.map(a => a.phone)].filter(Boolean))
+    for (const ph of phones) {
+      const p = await bot.patientByPhone(ph).catch(() => null)
+      names.set(ph, p?.name || convs.find(c => c.phone === ph)?.name || bot.prettyPhone(ph))
+    }
+    const who = phone => phone ? names.get(phone) : null
+    const now = Date.now()
+    res.json({
+      range: req.query.range || 'today',
+      counts,
+      actions: actions.slice(0, 150).map(a => ({ ...a, who: who(a.phone) })),
+      handoffs: handoffs.map(a => ({ ...a, who: who(a.phone), phone_pretty: a.phone ? bot.prettyPhone(a.phone) : null })),
+      conversations: convs.map(c => ({
+        phone: c.phone, phone_pretty: bot.prettyPhone(c.phone), name: names.get(c.phone),
+        is_patient: !!c.patient_id, last_message_at: c.last_message_at,
+        paused: !!(c.paused_until && new Date(c.paused_until) > now), paused_until: c.paused_until,
+        ignored: cfg.ignore.some(n => wa.samePhone(n, c.phone))
+      })),
+      status: {
+        whatsapp: waState, ai: llm.configured(), bot_on: auto.bot, webhook: webhookOk,
+        reminders_on: auto.reminders, model: llm.MODEL, db: await automations.v7Ready()
+      }
+    })
+  } catch (error) {
+    console.error('Erro no painel do robô:', error.message)
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+const PHONE_RE = /^\d{12,13}$/
+app.get('/api/bot/conversations/:phone', requireAuth, async (req, res) => {
+  if (!PHONE_RE.test(req.params.phone)) return res.status(400).json({ error: 'Telefone inválido' })
+  res.json(await getBotMessages(req.params.phone, 120))
+})
+// Pausa (horas > 0) ou reativa (0) o robô numa conversa
+app.post('/api/bot/conversations/:phone/pause', requireAuth, async (req, res) => {
+  if (!PHONE_RE.test(req.params.phone)) return res.status(400).json({ error: 'Telefone inválido' })
+  const h = Math.min(24 * 30, Math.max(0, Number(req.body?.hours) || 0))
+  await saveConversation(req.params.phone, { paused_until: h ? new Date(Date.now() + h * 3600e3).toISOString() : null })
+  res.json({ ok: true })
+})
+app.post('/api/bot/actions/:id/resolve', requireAuth, async (req, res) => {
+  try { await resolveAction(req.params.id); res.json({ ok: true }) } catch (error) {
+    res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// Mensagem de teste pelo WhatsApp do consultório (⚙)
+app.post('/api/whatsapp/test', requireAuth, async (req, res) => {
+  const phone = wa.normalizePhone(req.body?.phone)
+  if (!phone) return res.status(400).json({ error: 'Telefone inválido' })
+  const r = await wa.sendText(phone, 'Olá! Esta é uma mensagem de teste do sistema do Consultório Equilibrium. Se chegou, o WhatsApp está conectado. ✅')
+  res.status(r.ok ? 200 : 502).json(r)
+})
+
+// Sugestão da IA para a sessão (gerada quando o paciente conclui o totem)
+app.get('/api/sessions/:id/suggestion', requireAuth, async (req, res) => {
+  res.json((await getSessionSuggestion(req.params.id)) || { status: 'none' })
+})
+app.post('/api/sessions/:id/suggestion', requireAuth, async (req, res) => {
+  if (!llm.configured()) return res.status(503).json({ error: 'IA não configurada (ANTHROPIC_API_KEY)' })
+  if (!(await getSession(req.params.id))) return res.status(404).json({ error: 'Sessão não encontrada' })
+  const value = await generateSuggestion(req.params.id)
+  res.json(value || (await getSessionSuggestion(req.params.id)) || { status: 'error', error: 'Não foi possível gerar' })
+})
+
+// Aponta o webhook da Evolution para este servidor (só com URL pública https)
+async function setupWhatsappWebhook() {
+  const base = String(process.env.BASE_URL || '').replace(/\/$/, '')
+  if (!wa.configured()) return
+  if (!/^https:\/\//.test(base)) { console.log('[robô] BASE_URL não é https — webhook do WhatsApp não configurado (normal em teste local).'); return }
+  const r = await wa.configureWebhook(`${base}/api/webhooks/evolution?token=${wa.webhookToken()}`)
+  webhookOk = r.ok
+  console.log(r.ok ? '[robô] Webhook do WhatsApp configurado.' : `[robô] Falha ao configurar o webhook: ${r.error}`)
+}
 
 // ─── Pacientes (protegido) ────────────────────────────────────────────────────
 
@@ -925,6 +1084,7 @@ app.post('/api/appointments', requireAuth, async (req, res) => {
     // Valor do agendamento vira lançamento no caixa (a receber)
     await syncAppointmentPayment(appointment).catch(() => {})
     res.status(201).json(appointment)
+    automations.onBooked([appointment])
   } catch (error) {
     console.error('Erro ao criar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao criar agendamento' })
@@ -939,7 +1099,10 @@ app.post('/api/appointments/series', requireAuth, async (req, res) => {
     if (!Array.isArray(recurrence?.dates) || !recurrence.dates.length) {
       return res.status(400).json({ error: 'Nenhuma data para agendar' })
     }
-    res.status(201).json(await createSeries({ patient_id, patient_name: patient_name.trim(), recurrence }))
+    const series = await createSeries({ patient_id, patient_name: patient_name.trim(), recurrence })
+    automations.onBooked(series.appts)
+    delete series.appts
+    res.status(201).json(series)
   } catch (error) {
     console.error('Erro ao criar série:', error.message)
     res.status(500).json({ error: 'Erro interno ao criar agendamentos' })
@@ -997,12 +1160,19 @@ app.put('/api/appointments/:id', requireAuth, async (req, res) => {
     if (updates.patient_name !== undefined && !String(updates.patient_name).trim()) {
       return res.status(400).json({ error: 'Nome do paciente obrigatório' })
     }
+    const before = await getAppointment(req.params.id)
+    // Mudou dia/hora: a confirmação anterior não vale mais
+    const moved = before && ((updates.appointment_date && updates.appointment_date !== before.appointment_date) ||
+      (updates.appointment_time && String(updates.appointment_time).slice(0, 5) !== String(before.appointment_time).slice(0, 5)))
+    if (moved && (await automations.v7Ready())) { updates.reminder_sent_at = null; updates.confirmed_at = null }
+    if (moved && before.status === 'confirmado' && (!updates.status || updates.status === 'confirmado')) updates.status = 'agendado'
     const appointment = await updateAppointment(req.params.id, updates)
     // Mantém caixa e pacote em dia com o que foi salvo no agendamento
     await syncAppointmentPackage(appointment).catch(() => {})
     const fresh = await getAppointment(req.params.id)
     await syncAppointmentPayment(fresh || appointment).catch(() => {})
     res.json(fresh || appointment)
+    if (moved) automations.onRescheduled(fresh || appointment)
   } catch (error) {
     console.error('Erro ao atualizar agendamento:', error.message)
     res.status(500).json({ error: 'Erro interno ao atualizar agendamento' })
@@ -1593,6 +1763,12 @@ app.listen(PORT, async () => {
   await testConnection()
   supabaseKeepAlive()
   setInterval(supabaseKeepAlive, KEEPALIVE_INTERVAL)
+  // Robô do WhatsApp e automações
+  bot.setNotifier(pollSoon)
+  // AUTOMATIONS_OFF=1 desliga o agendador de lembretes (teste local sem mandar mensagens)
+  if (process.env.AUTOMATIONS_OFF !== '1') automations.startScheduler()
+  setupWhatsappWebhook().catch(e => console.error('[robô] webhook:', e.message))
+  console.log(`IA (Claude): ${llm.configured() ? 'configurada' : 'sem ANTHROPIC_API_KEY'} · WhatsApp: ${wa.configured() ? 'configurado' : 'sem EVOLUTION_*'}`)
   console.log('\nURLs do sistema:')
   console.log(`  Totem (sala de espera): http://localhost:${PORT}/totem`)
   console.log(`  Painel da Dra.:         http://localhost:${PORT}/doctor`)

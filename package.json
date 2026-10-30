@@ -10,6 +10,7 @@
     "build:acupoints": "node tools/acupoints/build.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@supabase/supabase-js": "^2.39.0",
     "dotenv": "^16.0.0",
     "express": "^4.18.0",

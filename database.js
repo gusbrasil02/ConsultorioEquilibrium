@@ -1334,6 +1334,118 @@ async function getClinicalReport(start, end, granularity = 'day') {
   }
 }
 
+// ─── Robô do WhatsApp, lembretes e sugestão da IA (migração v7) ─────────────
+// Sem a migração as funções não quebram o sistema: registram o aviso e seguem.
+let warnedV7 = false
+function v7Missing(error) {
+  if (!error) return false
+  if (missingTable(error) || error.code === '42703' || error.code === 'PGRST204') {
+    if (!warnedV7) { warnedV7 = true; console.warn('⚠️  Rode o supabase-v7-migration.sql no Supabase (robô do WhatsApp / sugestão da IA).') }
+    return true
+  }
+  return false
+}
+
+// A migração v7 já rodou? (coluna nova em appointments + tabela de mensagens)
+async function v7Check() {
+  const a = await supabase.from('appointments').select('reminder_sent_at').limit(1)
+  const b = await supabase.from('bot_actions').select('id').limit(1)
+  return !a.error && !b.error
+}
+
+async function logAction({ kind, phone = null, patient_id = null, appointment_id = null, detail = '' }) {
+  const { error } = await supabase.from('bot_actions')
+    .insert({ kind, phone, patient_id, appointment_id, detail: String(detail || '').slice(0, 2000) })
+  if (error && !v7Missing(error)) console.error('Erro ao registrar ação do robô:', error.message)
+}
+
+async function getActions({ since, kinds, limit = 200 } = {}) {
+  let q = supabase.from('bot_actions').select('*').order('created_at', { ascending: false }).limit(limit)
+  if (since) q = q.gte('created_at', since)
+  if (kinds) q = q.in('kind', kinds)
+  const { data, error } = await q
+  if (error) { v7Missing(error); return [] }
+  return data || []
+}
+
+async function getOpenHandoffs() {
+  const { data, error } = await supabase.from('bot_actions').select('*')
+    .eq('kind', 'encaminhou').is('resolved_at', null).order('created_at', { ascending: false }).limit(50)
+  if (error) { v7Missing(error); return [] }
+  return data || []
+}
+
+async function resolveAction(id) {
+  const { error } = await supabase.from('bot_actions').update({ resolved_at: new Date().toISOString() }).eq('id', id)
+  if (error) throw error
+}
+
+async function getConversation(phone) {
+  const { data, error } = await supabase.from('bot_conversations').select('*').eq('phone', phone).maybeSingle()
+  if (error) { v7Missing(error); return null }
+  return data
+}
+
+async function saveConversation(phone, fields) {
+  const { error } = await supabase.from('bot_conversations')
+    .upsert({ phone, ...fields }, { onConflict: 'phone' })
+  if (error && !v7Missing(error)) console.error('Erro ao salvar conversa:', error.message)
+}
+
+async function listConversations(limit = 40) {
+  const { data, error } = await supabase.from('bot_conversations').select('*')
+    .order('last_message_at', { ascending: false }).limit(limit)
+  if (error) { v7Missing(error); return [] }
+  return data || []
+}
+
+// Grava uma mensagem. false = repetida (a Evolution reenvia eventos) ou sem a migração.
+async function addBotMessage({ phone, role, content, wa_id = null }) {
+  const { error } = await supabase.from('bot_messages')
+    .insert({ phone, role, content: String(content || '').slice(0, 4000), wa_id })
+  if (error) {
+    if (!v7Missing(error) && !/duplicate|unique/i.test(error.message)) console.error('Erro ao gravar mensagem:', error.message)
+    return false
+  }
+  await saveConversation(phone, { last_message_at: new Date().toISOString() })
+  return true
+}
+
+async function getBotMessages(phone, limit = 30) {
+  const { data, error } = await supabase.from('bot_messages').select('role, content, created_at')
+    .eq('phone', phone).order('created_at', { ascending: false }).limit(limit)
+  if (error) { v7Missing(error); return [] }
+  return (data || []).reverse()
+}
+
+// Pacientes com telefone (para achar quem está escrevendo no WhatsApp)
+async function getPatientsWithPhone() {
+  const { data, error } = await supabase.from('patients').select('id, name, phone, sex, birth_date')
+    .not('phone', 'is', null).neq('phone', '').limit(5000)
+  if (error) throw error
+  return data || []
+}
+
+// Próximas consultas de um paciente (de hoje em diante)
+async function getUpcomingAppointments(patient_id) {
+  const { data, error } = await supabase.from('appointments').select('*')
+    .eq('patient_id', patient_id).gte('appointment_date', todayBR())
+    .order('appointment_date').order('appointment_time').limit(30)
+  if (error) throw error
+  return data || []
+}
+
+async function setSessionSuggestion(id, value) {
+  const { error } = await supabase.from('sessions').update({ ai_suggestion: value }).eq('id', id)
+  if (error && !v7Missing(error)) throw error
+}
+
+async function getSessionSuggestion(id) {
+  const { data, error } = await supabase.from('sessions').select('ai_suggestion').eq('id', id).maybeSingle()
+  if (error) { v7Missing(error); return null }
+  return data?.ai_suggestion ?? null
+}
+
 export {
   testConnection,
   createSession,
@@ -1416,5 +1528,21 @@ export {
   hasConflict,
   findConflicts,
   getTodayOverview,
-  checkinAppointment
+  checkinAppointment,
+  brasiliaDateTime,
+  // Robô / automações / IA
+  v7Check,
+  logAction,
+  getActions,
+  getOpenHandoffs,
+  resolveAction,
+  getConversation,
+  saveConversation,
+  listConversations,
+  addBotMessage,
+  getBotMessages,
+  getPatientsWithPhone,
+  getUpcomingAppointments,
+  setSessionSuggestion,
+  getSessionSuggestion
 }

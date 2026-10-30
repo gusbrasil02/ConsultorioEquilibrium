@@ -23,6 +23,7 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
    6. `supabase-v4-migration.sql`     — Pix via Mercado Pago (id do pagamento, QR, vencimento)
    7. `supabase-v5-migration.sql`     — sexo do paciente (escolhe o corpo 3D feminino/masculino)
    8. `supabase-v6-migration.sql`     — ficha de avaliação (anamnese, exame físico, goniometria, força, bloco MTC)
+   9. `supabase-v7-migration.sql`     — robô do WhatsApp, lembretes e sugestão de sessão por IA
 3. Vá em **Project Settings → API**
 4. Copie a **Project URL** → `SUPABASE_URL`
 5. Copie a chave **service_role** → `SUPABASE_SERVICE_KEY`
@@ -43,6 +44,12 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
 | `BASE_URL` | URL pública (ou IP local) usada para gerar os QR Codes |
 | `JWT_SECRET` | **Segredo do login do painel.** Valor aleatório longo e fixo — se mudar, os logins caem |
 | `NODE_ENV` | `production` em HTTPS (deixa o cookie de login como `Secure`) |
+| `ANTHROPIC_API_KEY` | Chave da API da Anthropic — robô do WhatsApp e sugestão de sessão (Claude Sonnet 5.5) |
+| `EVOLUTION_API_URL` | URL da Evolution API (ex.: `https://evolution.datawavebr.com`) |
+| `EVOLUTION_API_KEY` | Chave global da Evolution API |
+| `EVOLUTION_INSTANCE` | Nome da instância do WhatsApp do consultório (`Equilibrium`) |
+| `EVOLUTION_WEBHOOK_TOKEN` | Opcional. Token do webhook do robô (sem ele, é derivado do `JWT_SECRET`) |
+| `AUTOMATIONS_OFF` | Opcional. `1` desliga o agendador de lembretes (para testes locais) |
 
 Copie `.env.example` para `.env` e preencha.
 
@@ -277,6 +284,21 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
 
 ---
 
+## Robô do WhatsApp, lembretes e IA
+
+Tudo roda no WhatsApp do consultório (instância `Equilibrium` da Evolution API) e se controla pelo **⚙** no topo do painel (aba **Automações e IA**, com liga/desliga de cada item).
+
+- **Aviso de agendamento** — ao marcar (ou remarcar) uma sessão pelo painel, o paciente recebe dia, hora e endereço. Retornos recorrentes viram uma mensagem só.
+- **Lembrete de confirmação** — no dia anterior, no horário configurado (padrão 08h), pede a confirmação. Sessões de segunda (e de fim de semana) são confirmadas na sexta. Responder "SIM" marca a sessão como **confirmada** na agenda.
+- **Robô de atendimento** (Claude Sonnet 5.5, pela `ANTHROPIC_API_KEY`) — responde em linguagem natural, com as informações do ⚙ (pré-preenchidas com o site). Vê os horários livres (expediente do ⚙ menos a agenda), marca (cria o cadastro de quem é novo, como Avaliação), remarca e desmarca sozinho até X horas antes (padrão 12 h) e confirma. Fora do prazo, assunto clínico ou pergunta sem resposta → **encaminha para a Dra.** (aparece na aba Robô). Se a IA cair, avisa o paciente e encaminha.
+- **No número pessoal da Dra.** — quando ela responde uma conversa pelo celular, o robô para naquela conversa por algumas horas (configurável); conversas claramente pessoais ele não responde (e fica 24 h fora delas); há uma lista de números que ele nunca responde; grupos são ignorados.
+- **Sugestão de sessão** — quando o paciente conclui o totem, a IA lê as últimas sessões (prontuário, dor, regiões tratadas, ficha de avaliação) e o check-in de hoje e mostra, no atendimento, um resumo e o que pode ser feito no dia. É sugestão: a decisão clínica é da profissional.
+- **Aba Robô** — painel do dia (ou 7/30 dias): consultas marcadas, remarcadas e desmarcadas, confirmações, lembretes, avisos, dúvidas respondidas, encaminhamentos pendentes (com "resolvido"), conversas (ver, pausar/reativar) e o feed de ações em tempo real.
+
+O webhook da Evolution é configurado sozinho quando o servidor sobe com `BASE_URL` https (`/api/webhooks/evolution?token=…`).
+
+---
+
 ## Novidades desta versão
 
 - **Visual novo** em todas as telas, na identidade do cartão de visita (lilás, fonte Outfit, símbolo da fisioterapia). Tema claro único.
@@ -300,6 +322,12 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
 ├── server.js                    # Servidor Express + SSE
 ├── database.js                  # Acesso ao Supabase
 ├── auth.js                      # Login (hash de senha + cookie assinado)
+├── llm.js                       # Claude (API da Anthropic)
+├── whatsapp.js                  # Evolution API (envio, webhook, telefones)
+├── clinic.js                    # ⚙ informações, horários, regras do robô, horários livres
+├── bot.js                       # robô de atendimento do WhatsApp (IA + agenda)
+├── automations.js               # aviso de agendamento, lembretes, lista de automações
+├── suggestion.js                # sugestão de sessão por IA (após o totem)
 ├── supabase-setup.sql
 ├── supabase-additions.sql
 ├── supabase-session-migration.sql
