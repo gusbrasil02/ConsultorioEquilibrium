@@ -987,6 +987,7 @@ class PhysioViewer {
 
   // ── Câmera ─────────────────────────────────────────────────────────────────
   _animateTo(pos, target, ms = 1100) {
+    if (this._follow) return          // espelhando: quem manda na câmera é o painel
     this._tween = { p0: this.camera.position.clone(), p1: pos.clone(), t0: this.controls.target.clone(), t1: target.clone(), start: performance.now(), ms }
     this._userMoved = false
     this._sway = null
@@ -1018,6 +1019,7 @@ class PhysioViewer {
     this._goto(A.center, dir, THREE.MathUtils.clamp(this._fitDist(A.radius * 1.55), 0.22, 2.5))
   }
   _goto(target, dir, dist) {
+    if (this._follow) return
     const pos = target.clone().addScaledVector(dir, dist)
     this._animateTo(pos, target, 1300)
     this._pendingSway = { target: target.clone(), dir: dir.clone(), dist }
@@ -1069,6 +1071,46 @@ class PhysioViewer {
     this._wide()
     this._seq.push(setTimeout(() => this.focusRegion(), 1400))
     if (wantInt) this._seq.push(setTimeout(() => this.setInternal(true), 5200))
+  }
+
+  // ── Espelho da TV ──────────────────────────────────────────────────────────
+  // A TV repete a cena do painel sem a sequência automática; a câmera segue a
+  // da profissional (followCam), suavizada para não dar trancos.
+  setFollow(on) {
+    this._follow = !!on
+    if (!on) { this._camGoal = null; return }
+    this._seq.forEach(clearTimeout)
+    this._seq = []
+    this._tween = null
+    this._sway = null
+    this._pendingSway = null
+  }
+  followCam(p, t) {
+    const goal = { p: V(p[0], p[1], p[2]), t: V(t[0], t[1], t[2]) }
+    if (!this._camGoal) {               // primeira posição: vai direto
+      this.camera.position.copy(goal.p)
+      this.controls.target.copy(goal.t)
+    }
+    this._camGoal = goal
+  }
+  getCam() {
+    const r = v => [v.x, v.y, v.z].map(n => Math.round(n * 1e4) / 1e4)
+    return { p: r(this.camera.position), t: r(this.controls.target) }
+  }
+  // spec: o mesmo de play(), aplicado direto (sem mexer na câmera)
+  applyScene(spec) {
+    if (!this.ready) { this._whenReady(() => this.applyScene(spec)); return }
+    this._seq.forEach(clearTimeout)
+    this._seq = []
+    this.setSkin(spec.skin)
+    this.setIsolate(spec.isolate)
+    this.setRegion(spec.region || null, { focus: false })
+    this.setCondition(spec.condition || null)
+    this.setMarks(spec.marks || [])
+    this.setMuscles(spec.muscles || [])
+    const wantInt = !!spec.internal && this.hasInternal()
+    if (wantInt !== this._internal || this._wantInternal !== wantInt) this.setInternal(wantInt)
+    this._played = true
   }
 
   // ── Mouse (painel) ─────────────────────────────────────────────────────────
@@ -1238,7 +1280,11 @@ class PhysioViewer {
     this._shared.uTime.value = t
 
     // Câmera
-    if (this._tween) {
+    if (this._follow && this._camGoal) {
+      const k = 1 - Math.exp(-dt * 10)
+      this.camera.position.lerp(this._camGoal.p, k)
+      this.controls.target.lerp(this._camGoal.t, k)
+    } else if (this._tween) {
       const k = Math.min(1, (performance.now() - this._tween.start) / this._tween.ms)
       const e = ease(k)
       this.camera.position.lerpVectors(this._tween.p0, this._tween.p1, e)

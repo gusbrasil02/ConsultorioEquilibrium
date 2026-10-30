@@ -82,7 +82,6 @@ import {
   getTvSession,
   todayBR
 } from './database.js'
-import { generateAnatomyExplanation } from './ai.js'
 import * as mp from './mercadopago.js'
 import {
   hashPassword,
@@ -624,27 +623,7 @@ app.post('/api/sessions/:id/end', requireAuth, async (req, res) => {
   }
 })
 
-// ─── Anatomia / IA ───────────────────────────────────────────────────────────
-
-// Gera explicação SEM publicar na TV (item 1 — rascunho privado)
-app.post('/api/anatomy/explain', requireAuth, async (req, res) => {
-  try {
-    const { session_id, region, problem } = req.body
-    if (!session_id || !region || !problem) {
-      return res.status(400).json({ error: 'session_id, region e problem são obrigatórios' })
-    }
-    const session = await getSession(session_id)
-    if (!session) return res.status(404).json({ error: 'Sessão não encontrada' })
-
-    // Para a IA basta o primeiro nome — não há por que enviar o nome completo
-    const explanation = await generateAnatomyExplanation(
-      String(region).slice(0, 80), String(problem).slice(0, 1000), firstName(session.patient_name))
-    res.json({ explanation })
-  } catch (error) {
-    console.error('Erro ao gerar explicação anatômica:', error.message)
-    res.status(500).json({ error: 'Erro interno ao gerar explicação' })
-  }
-})
+// ─── Anatomia 3D / TV ────────────────────────────────────────────────────────
 
 // Cena da Anatomia 3D enviada pelo painel — só ids simples, nada de texto livre
 const ID_RE = /^[A-Za-z0-9-]{1,40}$/
@@ -662,7 +641,8 @@ function cleanView3d(v) {
     model: ['male', 'female'].includes(v.model) ? v.model : 'female',
     skin: v.skin === 'muscle' ? 'muscle' : 'skin',
     muscles,
-    isolate: !!v.isolate
+    isolate: !!v.isolate,
+    live: !!v.live            // espelho: a TV segue a câmera do painel
   }
 }
 
@@ -676,10 +656,11 @@ function publicProblem(ev) {
   } catch (_) { return null }
 }
 
-// Publica na TV do paciente (item 1 — só agora salva o evento exibido)
+// Publica na TV do paciente (só agora salva o evento exibido). Com o espelho
+// ligado, o painel republica a cada mudança da cena.
 app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
   try {
-    const { session_id, region, problem, explanation } = req.body
+    const { session_id, region, problem } = req.body
     if (!session_id || !region) {
       return res.status(400).json({ error: 'session_id e region são obrigatórios' })
     }
@@ -691,7 +672,7 @@ app.post('/api/anatomy/publish', requireAuth, async (req, res) => {
       session_id,
       region: String(region).slice(0, 80),
       problem: view3d ? JSON.stringify({ text, view3d }) : text,
-      ai_explanation: String(explanation || '').slice(0, 5000)
+      ai_explanation: ''
     })
     pollSoon()
     res.json({ ok: true })
@@ -741,6 +722,20 @@ app.post('/api/acupuncture/event', requireAuth, async (req, res) => {
   }
 })
 
+// Câmera do painel durante o espelho — vai direto para as TVs pelo SSE, sem
+// passar pelo banco (chega várias vezes por segundo). Só números, nada clínico.
+let liveCam = null
+const vec3 = a => Array.isArray(a) && a.length === 3 && a.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 50)
+app.post('/api/tv/live', requireAuth, (req, res) => {
+  const { session_id, p, t } = req.body || {}
+  if (typeof session_id !== 'string' || !ID_RE.test(session_id) || !vec3(p) || !vec3(t)) {
+    return res.status(400).json({ error: 'Dados inválidos' })
+  }
+  liveCam = { type: 'cam', session_id, p, t }
+  for (const c of sseClients.public) sseWrite(c, liveCam)
+  res.json({ ok: true })
+})
+
 // Limpa a TV do paciente (volta à tela de repouso) — protegido
 app.post('/api/tv/clear', requireAuth, async (req, res) => {
   try {
@@ -748,6 +743,7 @@ app.post('/api/tv/clear', requireAuth, async (req, res) => {
     if (!session_id) return res.status(400).json({ error: 'session_id obrigatório' })
     if (!(await getSession(session_id))) return res.status(404).json({ error: 'Sessão não encontrada' })
     await saveAnatomyEvent({ session_id, region: '__clear__', problem: '', ai_explanation: '' })
+    liveCam = null
     pollSoon()
     res.json({ ok: true })
   } catch (error) {
@@ -1513,7 +1509,7 @@ async function tvState() {
   if (!tv) return { session_id: null, anatomy: null }
   const ev = await getLatestAnatomyEvent(tv.id)
   const anatomy = ev
-    ? { id: ev.id, region: ev.region, problem: publicProblem(ev), ai_explanation: ev.ai_explanation, created_at: ev.created_at }
+    ? { id: ev.id, region: ev.region, problem: publicProblem(ev), created_at: ev.created_at }
     : null
   return { session_id: tv.id, anatomy }
 }
@@ -1556,6 +1552,7 @@ function openSSE(channel, req, res) {
   res.write(': ok\n\n')
   sseClients[channel].add(res)
   if (lastSnapshot[channel]) sseWrite(res, lastSnapshot[channel])
+  if (channel === 'public' && liveCam) sseWrite(res, liveCam)
   lastJson[channel] = '' // força re-broadcast no próximo tick
   ensurePolling()
 

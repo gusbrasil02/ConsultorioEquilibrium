@@ -670,34 +670,6 @@ body {
 .phy-mus-sel .phy-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.74rem; padding: 0.24rem 0.6rem;
   border-color: rgba(187,164,222,0.5); background: rgba(148,117,198,0.12); color: #efe7ff; }
 .phy-mus-sel .phy-chip b { font-weight: 400; opacity: 0.7; cursor: pointer; }
-.problem-input {
-  width: 100%; padding: 0.9rem 1rem;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px; color: #fff;
-  font-family: var(--font); font-size: 0.9rem;
-  resize: vertical; min-height: 90px; outline: none;
-  margin-bottom: 1rem; transition: border-color 0.2s;
-}
-.problem-input::placeholder { color: rgba(255,255,255,0.25); }
-.problem-input:focus { border-color: rgba(255,255,255,0.3); }
-.btn-generate-ai {
-  width: 100%; padding: 0.85rem;
-  background: var(--grad);
-  border: none; border-radius: 60px;
-  color: #fff; font-family: var(--font);
-  font-size: 0.95rem; font-weight: 500;
-  cursor: pointer; margin-bottom: 1.2rem; transition: opacity 0.2s;
-}
-.btn-generate-ai:disabled { opacity: 0.4; cursor: default; }
-.ai-preview {
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 12px; padding: 1.2rem;
-  font-size: 0.9rem; line-height: 1.7; color: rgba(255,255,255,0.75);
-  min-height: 80px; margin-bottom: 1rem; white-space: pre-wrap;
-}
-.ai-preview.loading { color: rgba(255,255,255,0.3); font-style: italic; }
-textarea.ai-preview { width: 100%; font-family: var(--font); resize: vertical; outline: none; }
-textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
 .btn-send-tv {
   width: 100%; padding: 0.85rem;
   background: rgba(76,175,134,0.2); border: 1px solid rgba(76,175,134,0.4);
@@ -708,6 +680,13 @@ textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
 .btn-send-tv.visible { display: block; }
 .btn-send-tv:disabled { opacity: 0.4; cursor: default; }
 .btn-send-tv:hover { background: rgba(76,175,134,0.3); }
+.btn-send-tv.live { background: rgba(76,175,134,0.28); color: #b9f0d2; }
+.btn-send-tv.live::before {
+  content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.5rem;
+  background: #5be39a; box-shadow: 0 0 8px #5be39a; vertical-align: 1px; animation: phyLivePulse 1.4s ease-in-out infinite;
+}
+@keyframes phyLivePulse { 50% { opacity: 0.35; } }
+.phy-live-hint { font-size: 0.72rem; color: rgba(255,255,255,0.4); text-align: center; line-height: 1.45; }
 /* ─────────────── HOJE (tela inicial guiada) ─────────────── */
 #today-view { padding: 2rem; max-width: 1180px; margin: 0 auto; }
 .today-hello { font-size: 1.85rem; font-weight: 500; letter-spacing: -0.015em; line-height: 1.15; }
@@ -1853,16 +1832,10 @@ textarea.ai-preview::placeholder { color: rgba(255,255,255,0.25); }
         <div class="phy-sec-t">Estruturas <small>clique para marcar em vermelho</small></div>
         <div class="phy-parts" id="phy-parts"></div>
       </div>
-      <div class="phy-sec">
-        <div class="phy-sec-t">3 · Explicação para o paciente <small>opcional</small></div>
-        <textarea class="problem-input" id="problem-input" placeholder="O que o paciente relata (ex.: dor ao agachar, estalos, formigamento)…"></textarea>
-        <button class="btn-generate-ai" id="btn-gen-ai" onclick="generateExplanation()">Gerar explicação com IA (rascunho) →</button>
-        <textarea class="ai-preview" id="ai-preview" style="display:none" placeholder="A explicação gerada aparece aqui e pode ser editada antes de exibir."></textarea>
-        <div id="ai-preview-hint" style="display:none;font-size:0.72rem;color:rgb(var(--fg) / 0.35);margin:-0.5rem 0 0.5rem;text-align:center">Rascunho privado — o paciente só vê ao clicar em "Exibir na TV".</div>
-      </div>
     </div>
     <div class="phy-actions">
       <button class="btn-send-tv" id="btn-send-tv" onclick="sendToTV()">Exibir na TV do paciente →</button>
+      <div class="phy-live-hint" id="phy-live-hint" style="display:none">A TV está espelhando esta tela: o que você girar, aproximar ou marcar aparece para o paciente, com a explicação ao lado.</div>
       <button class="phy-clear-tv" onclick="clearPhysioTV()">Limpar a TV</button>
     </div>
   </aside>
@@ -3049,6 +3022,7 @@ async function confirmFinishSession() {
   stopTimer()
   const finishedId = currentSession.id
   currentSession = null
+  phyStopLive()
   previewPatient = null
   localStorage.removeItem('doctor_session')
   document.getElementById('session-control').classList.add('hidden')
@@ -3504,7 +3478,7 @@ async function enterConsultMode() {
     phyRegion = null; phyCondition = null; phyMarks = []; phyParts = []; phyInternalOn = false
     phyMuscles = []
     if (phyViewer) phyViewer.setMuscles([])
-    resetPhyDraft()
+    phyStopLive()
   }
   if (!phyViewer || newSession) {
     const model = await pickAcuModel()
@@ -3687,95 +3661,115 @@ function phyToggleMark(id) {
   renderPhyParts()
 }
 
-function resetPhyDraft() {
-  document.getElementById('problem-input').value = ''
-  const preview = document.getElementById('ai-preview')
-  preview.value = ''
-  preview.style.display = 'none'
-  document.getElementById('ai-preview-hint').style.display = 'none'
-}
+// ── TV do paciente: espelho ──
+// "Exibir na TV" publica a cena e liga o espelho: a partir daí cada mudança da
+// cena (região, condição, visão interna, músculos, marcações, corpo) é
+// republicada sozinha e a câmera vai ao vivo para a TV — o paciente vê o mesmo
+// ângulo e zoom da profissional. "Limpar a TV" (ou outro paciente) desliga.
+let phyLive = false
+let phyLiveTimer = null
+let phyLiveScene = ''
+let phyLiveCam = ''
+let phyCamBusy = false
+let phyScenePub = null
 
-async function generateExplanation() {
-  const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
-  const musNames = (phySkin === 'muscle' ? phyMuscles : []).map(x => window.PHY.findMuscle(x.split(':')[0])?.name).filter(Boolean)
-  if (!r && !musNames.length) { alert('Escolha a região no corpo ou na lista.'); return }
-  if (!currentSession) { alert('Nenhum paciente em atendimento.'); return }
-  const c = r && phyCondition ? window.PHY.findCondition(r, phyCondition) : null
-  const obs = document.getElementById('problem-input').value.trim()
-  const problem = [c ? `Condição provável: ${c.name}.` : '', musNames.length ? `Músculos envolvidos: ${musNames.join(', ')}.` : '', obs]
-    .filter(Boolean).join(' ')
-  if (!problem) {
-    document.getElementById('problem-input').focus()
-    alert('Escolha uma condição ou descreva o que o paciente sente.')
-    return
-  }
-  const btn     = document.getElementById('btn-gen-ai')
-  btn.disabled  = true
-  btn.textContent = 'Gerando...'
-  const preview   = document.getElementById('ai-preview')
-  preview.style.display = 'block'
-  document.getElementById('ai-preview-hint').style.display = 'block'
-  preview.className     = 'ai-preview loading'
-  preview.value         = 'A IA está elaborando a explicação...'
-  preview.readOnly      = true
-  try {
-    const res  = await fetch('/api/anatomy/explain', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: currentSession.id, region: r ? r.label : musNames.join(', ').slice(0, 80), problem })
-    })
-    if (res.status === 401) { location.href = '/login'; return }
-    if (!res.ok) throw new Error()
-    const data = await res.json()
-    preview.className = 'ai-preview'
-    preview.readOnly  = false
-    preview.value     = data.explanation || ''
-  } catch (_) {
-    preview.className = 'ai-preview'
-    preview.readOnly  = false
-    preview.value     = ''
-    alert('Erro ao gerar a explicação. Tente novamente — ou exiba sem texto (a TV usa a explicação padrão da condição).')
-  }
-  btn.disabled    = false
-  btn.textContent = 'Gerar explicação com IA (rascunho) →'
-}
-
-// Publica na TV exatamente o que está na tela: região, condição, marcações,
-// visão interna e o corpo. Sem texto, a TV usa a explicação padrão da condição.
-async function sendToTV() {
-  if (!currentSession) return
+function phyScene() {
   const r = phyRegion ? window.PHY.findRegion(phyRegion) : null
   const mus = phySkin === 'muscle' ? phyMuscles : []
-  if (!r && !mus.length) { alert('Escolha a região ou um músculo primeiro.'); return }
-  // Sem região, o histórico registra o músculo mostrado
-  const label = r ? r.label : (window.PHY.findMuscle(mus[0].split(':')[0])?.name || 'Músculos')
-  const btn  = document.getElementById('btn-send-tv')
-  const orig = 'Exibir na TV do paciente →'
+  if (!r && !mus.length) return null
+  return {
+    label: r ? r.label : (window.PHY.findMuscle(mus[0].split(':')[0])?.name || 'Músculos'),
+    view3d: {
+      region: r ? r.id : null, condition: phyCondition, marks: phyMarks, internal: phyInternalOn, model: phyModel,
+      skin: phySkin, muscles: mus, isolate: phyIsolate, live: true
+    }
+  }
+}
+
+async function publishPhyScene(sc) {
+  const res = await fetch('/api/anatomy/publish', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: currentSession.id, region: sc.label, problem: '', view3d: sc.view3d })
+  })
+  if (res.status === 401) { location.href = '/login'; throw new Error('401') }
+  if (!res.ok) throw new Error()
+}
+
+async function sendToTV() {
+  if (!currentSession) return
+  const sc = phyScene()
+  if (!sc) { alert('Escolha a região ou um músculo primeiro.'); return }
+  const btn = document.getElementById('btn-send-tv')
   btn.disabled = true
   btn.textContent = 'Exibindo...'
   try {
-    const res = await fetch('/api/anatomy/publish', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: currentSession.id,
-        region: label,
-        problem: document.getElementById('problem-input').value.trim(),
-        explanation: document.getElementById('ai-preview').value.trim(),
-        view3d: {
-          region: r ? r.id : null, condition: phyCondition, marks: phyMarks, internal: phyInternalOn, model: phyModel,
-          skin: phySkin, muscles: mus, isolate: phyIsolate
-        }
-      })
-    })
-    if (res.status === 401) { location.href = '/login'; return }
-    if (!res.ok) throw new Error()
-    btn.textContent = '✓ Exibindo na TV'
+    await publishPhyScene(sc)
+    phyLiveScene = JSON.stringify(sc)
+    phyStartLive()
   } catch (_) {
     btn.textContent = 'Erro — tentar de novo'
+    setTimeout(() => { if (!phyLive) phyLiveUi() }, 2500)
   }
-  setTimeout(() => { btn.disabled = !currentSession; btn.textContent = orig }, 2500)
+  btn.disabled = !currentSession
+}
+
+function phyStartLive() {
+  phyLive = true
+  phyLiveCam = ''
+  phyLiveUi()
+  phySendCam()
+  if (!phyLiveTimer) phyLiveTimer = setInterval(phyLiveTick, 120)
+}
+
+function phyStopLive() {
+  phyLive = false
+  clearInterval(phyLiveTimer); phyLiveTimer = null
+  clearTimeout(phyScenePub); phyScenePub = null
+  phyLiveUi()
+}
+
+function phyLiveUi() {
+  const btn = document.getElementById('btn-send-tv')
+  btn.classList.toggle('live', phyLive)
+  btn.textContent = phyLive ? 'Espelhando na TV' : 'Exibir na TV do paciente →'
+  document.getElementById('phy-live-hint').style.display = phyLive ? '' : 'none'
+}
+
+function phyLiveTick() {
+  if (!phyLive || !currentSession || !phyViewer) return
+  // Cena mudou → republica (agrupando cliques seguidos)
+  const sc = phyScene()
+  const key = sc ? JSON.stringify(sc) : ''
+  if (sc && key !== phyLiveScene) {
+    phyLiveScene = key
+    clearTimeout(phyScenePub)
+    phyScenePub = setTimeout(() => publishPhyScene(sc).catch(() => { phyLiveScene = '' }), 350)
+  }
+  phySendCam()
+}
+
+// Câmera: só quando mudou, e um envio por vez (rede lenta não acumula fila)
+async function phySendCam() {
+  if (!phyLive || phyCamBusy || !phyViewer || !currentSession) return
+  const cam = phyViewer.getCam()
+  const key = JSON.stringify(cam)
+  if (key === phyLiveCam) return
+  phyLiveCam = key
+  phyCamBusy = true
+  try {
+    const res = await fetch('/api/tv/live', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: currentSession.id, ...cam })
+    })
+    if (res.status === 401) location.href = '/login'
+  } catch (_) {
+    phyLiveCam = ''
+  }
+  phyCamBusy = false
 }
 
 async function clearPhysioTV() {
+  phyStopLive()
   if (!currentSession) return
   try {
     const res = await fetch('/api/tv/clear', {

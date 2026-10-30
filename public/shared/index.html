@@ -366,6 +366,8 @@ function typewriterEffect(text, el, delay = 28, onDone = null) {
 
 function showIdle() {
   if (typewriterTimer) clearInterval(typewriterTimer)
+  phyTextKey = ''
+  liveCam = null
   // O próximo conteúdo recomeça do corpo inteiro
   if (phySharedViewer) { phySharedViewer.destroy(); phySharedViewer = null }
   document.body.className = 'bg-default'
@@ -406,6 +408,7 @@ function startSharedStream() {
     sharedES.onmessage = (e) => {
       let d; try { d = JSON.parse(e.data) } catch (_) { return }
       if (d.type === 'public') applyTvState(d.shared)
+      else if (d.type === 'cam') applyLiveCam(d)
     }
     sharedES.onerror = () => { if (!sharedSSEok) startSharedPolling() }
   } catch (_) { startSharedPolling() }
@@ -443,6 +446,15 @@ function showActiveState(event) {
 
 let phySharedViewer = null
 let pendingPhy = null
+let liveCam = null          // última câmera do painel (espelho)
+let phyTextKey = ''         // evita redigitar o mesmo texto a cada ajuste da cena
+
+// Espelho: a câmera da profissional chega ao vivo pelo SSE
+function applyLiveCam(d) {
+  if (!d || d.session_id !== sessionId) return
+  liveCam = d
+  if (phySharedViewer?._follow) phySharedViewer.followCam(d.p, d.t)
+}
 
 function showPhysioState(event) {
   document.body.className = 'bg-default'
@@ -476,28 +488,41 @@ function showPhysioState(event) {
   phySharedViewer._tvMarks = v?.marks || []
   // Músculos em destaque: os escolhidos + os ligados à condição
   phySharedViewer._tvMuscles = [...new Set([...muscles.map(x => x.split(':')[0]), ...(skin === 'muscle' ? cond?.muscles || [] : [])])]
-  phySharedViewer.play({
+  const spec = {
     region: region?.id || null, condition: cond?.id || null, marks: v?.marks || [], internal: !!v?.internal,
     skin, muscles, isolate: !!v?.isolate
-  })
+  }
+  if (v?.live) {
+    // Espelho: mesma cena e mesma câmera do painel, sem a sequência automática
+    phySharedViewer.setFollow(true)
+    if (liveCam) phySharedViewer.followCam(liveCam.p, liveCam.t)
+    phySharedViewer.applyScene(spec)
+  } else {
+    phySharedViewer.setFollow(false)
+    phySharedViewer.play(spec)
+  }
 
   // Só músculos (sem condição): a ficha do músculo
   const mus = !cond && muscles.length ? PHY.findMuscle(muscles[0].split(':')[0]) : null
   const lado = mus ? ({ D: ' direito', E: ' esquerdo' }[muscles[0].split(':')[1]] || '') : ''
-  document.getElementById('expl-region').textContent = region?.label || (mus ? 'Músculo' + lado : event.region)
-  document.getElementById('expl-title').textContent = cond?.name || (mus ? mus.name : region?.label || event.region)
-  const treat = document.getElementById('expl-treat')
-  treat.classList.remove('on')
-  document.getElementById('expl-tags').innerHTML = ''
-  // Texto da profissional/IA; sem ele, a explicação padrão da condição (ou do músculo)
-  const ai = (event.ai_explanation || '').trim()
-  const text = ai || cond?.about || (mus ? `${mus.action} ${mus.where}` : 'Esta é a região que estamos avaliando e tratando hoje.')
-  const treatText = ai ? '' : (cond?.treatment || mus?.problems || '')
-  document.getElementById('expl-treat-t').textContent = cond || !mus ? 'Como o tratamento ajuda' : 'Problemas comuns'
-  document.getElementById('expl-treat-text').textContent = treatText
-  typewriterEffect(text, document.getElementById('expl-text'), ai ? 24 : 28, () => {
-    if (treatText) treat.classList.add('on')
-  })
+  const regionTxt = region?.label || (mus ? 'Músculo' + lado : event.region)
+  const title = cond?.name || (mus ? mus.name : region?.label || event.region)
+  // Explicação padrão da condição (ou a ficha do músculo)
+  const text = cond?.about || (mus ? `${mus.action} ${mus.where}` : 'Esta é a região que estamos avaliando e tratando hoje.')
+  const treatText = cond?.treatment || mus?.problems || ''
+  const key = [regionTxt, title, text].join('|')
+  if (key !== phyTextKey) {
+    phyTextKey = key
+    document.getElementById('expl-region').textContent = regionTxt
+    document.getElementById('expl-title').textContent = title
+    const treat = document.getElementById('expl-treat')
+    treat.classList.remove('on')
+    document.getElementById('expl-treat-t').textContent = cond || !mus ? 'Como o tratamento ajuda' : 'Problemas comuns'
+    document.getElementById('expl-treat-text').textContent = treatText
+    typewriterEffect(text, document.getElementById('expl-text'), 28, () => {
+      if (treatText) treat.classList.add('on')
+    })
+  }
   renderPhyTags(phySharedViewer.getParts())
 }
 
@@ -538,6 +563,7 @@ function showAcupunctureState(event) {
   document.getElementById('idle-screen').classList.add('hidden')
   document.getElementById('active-screen').classList.remove('visible')
   document.getElementById('acu-screen').classList.add('visible')
+  phyTextKey = ''
   if (phySharedViewer) { phySharedViewer.destroy(); phySharedViewer = null }
 
   if (!window.ACU) {                     // módulo 3D ainda carregando

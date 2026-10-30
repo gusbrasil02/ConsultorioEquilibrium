@@ -8,7 +8,6 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
 
 - Node.js 18+ (produção usa Node 22)
 - Conta no Supabase (gratuita em [supabase.com](https://supabase.com))
-- Chave da API da Anthropic em [console.anthropic.com](https://console.anthropic.com)
 
 ---
 
@@ -41,7 +40,6 @@ Sistema de recepção sem secretária para consultório. Funciona com quatro tel
 | `PORT` | Porta do servidor (padrão: 3000) |
 | `SUPABASE_URL` | URL do projeto Supabase |
 | `SUPABASE_SERVICE_KEY` | Chave `service_role` do Supabase |
-| `ANTHROPIC_API_KEY` | Chave da API da Anthropic |
 | `BASE_URL` | URL pública (ou IP local) usada para gerar os QR Codes |
 | `JWT_SECRET` | **Segredo do login do painel.** Valor aleatório longo e fixo — se mudar, os logins caem |
 | `NODE_ENV` | `production` em HTTPS (deixa o cookie de login como `Secure`) |
@@ -145,8 +143,8 @@ Paciente chega → identifica o agendamento → QR Code (ou formulário na TV)
 
 [SALA DE ATENDIMENTO — TV do paciente]
 → Anatomia 3D: escolhe a região no corpo 3D → condição (ex.: lesão de menisco)
-  → visão interna mostra a lesão → IA gera explicação (rascunho privado, opcional)
-→ revisa/edita → "Exibir na TV" publica para o paciente
+  → visão interna mostra a lesão → "Exibir na TV" liga o espelho: a TV mostra
+  o mesmo corpo, ângulo e zoom que a profissional está vendo, com a explicação ao lado
 → ou Atlas de Acupuntura 3D com os pontos selecionados
 ```
 
@@ -237,7 +235,7 @@ Aberta pelo botão **◎** no topo do painel (consulta livre), por **◎ Anatomi
 1. **Região** — clique no corpo (ou escolha na lista). A pele da região acende em vermelho, com ondas saindo do ponto de dor, um retículo de mira e um anel de varredura. As regiões que o paciente marcou no formulário aparecem como atalhos.
 2. **O que pode estar acontecendo** — cada região tem as condições mais comuns (joelho: menisco, LCA, condromalácia, tendinite patelar, artrose, colateral medial, cisto de Baker; lombar: hérnia de disco, lombalgia, ciática, artrose, discopatia, espondilolistese; e assim por diante), com um texto curto "o que é" e "como a fisioterapia ajuda".
 3. **Visão interna** — a pele vira um holograma translúcido e as estruturas da região se materializam: ossos, cartilagens, meniscos, ligamentos, tendões, músculos, nervos e discos. A estrutura afetada aparece **em vermelho pulsante**, **rompida** (fissura), **desgastada** (cartilagem "corroída"), **inchada** (bursite) ou **deslocada** (espondilolistese); hérnias, esporões, cistos e osteófitos aparecem quando a condição pede. A câmera gira sozinha para o lado da lesão. Clicar numa estrutura (no 3D ou na lista) marca/desmarca em vermelho à mão.
-4. **Exibir na TV** — a TV repete a cena numa sequência automática: corpo inteiro → aproxima na região → abre a visão interna, com o texto ao lado (o da IA, se gerado; senão, a explicação padrão da condição e "como o tratamento ajuda"). **Limpar a TV** volta à tela de repouso.
+4. **Exibir na TV** — liga o **espelho**: a partir daí a TV mostra exatamente o que está no painel — o mesmo corpo, ângulo, zoom, região, condição, visão interna, músculos e marcações —, acompanhando ao vivo cada giro e cada mudança. Ao lado, a explicação da região/condição ("o que é" e "como o tratamento ajuda") ou a ficha do músculo. **Limpar a TV** desliga o espelho e volta à tela de repouso.
 
 **Visão de músculos** — o botão **Pele / Músculos** troca a pele pelo corpo "écorché" (como nos atlas de anatomia): cada músculo com fibras, sulcos, tendões e fáscias brancas. São 43 músculos e estruturas por lado (deltoide, peitoral, trapézio, grande dorsal, reto abdominal, oblíquos, bíceps, tríceps, flexores e extensores do antebraço, glúteos, quadríceps, sartório, adutores, isquiotibiais, gastrocnêmios, sóleo, tibial anterior, trato iliotibial, tendão de Aquiles…):
 - clique num músculo no corpo (Ctrl soma outro) ou escolha na lista com busca — os da região escolhida aparecem primeiro; ele acende e aparece a **ficha** (função, onde fica, problemas comuns);
@@ -289,7 +287,6 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
 - **Login** por contas individuais protegendo o painel e os dados dos pacientes (LGPD).
 - **Financeiro**: pagamentos, pacotes pré-pagos e relatório mensal de receita.
 - **Prontuário estruturado** por sessão (queixa, conduta, evolução, plano), com ditado por voz.
-- **Gerar × Exibir**: a explicação da IA vira rascunho privado e só vai para a TV quando a profissional publica.
 - **Mapa de dor** no formulário do celular (o paciente indica onde dói).
 - **Histórico por paciente** vinculado ao cadastro (não confunde homônimos).
 - **Tempo real via SSE** (menos carga no Supabase que o polling anterior).
@@ -302,7 +299,6 @@ Para ajustar ou incluir um ponto, edite o `specs.mjs` e rode o build. Os corpos 
 ```
 ├── server.js                    # Servidor Express + SSE
 ├── database.js                  # Acesso ao Supabase
-├── ai.js                        # Integração Anthropic
 ├── auth.js                      # Login (hash de senha + cookie assinado)
 ├── supabase-setup.sql
 ├── supabase-additions.sql
